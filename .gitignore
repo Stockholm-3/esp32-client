@@ -1,0 +1,50 @@
+# Build output
+/build/
+*.elf
+*.bin
+*.hex
+*.map
+*.axf
+
+compile_commands.json
+
+# ESP-IDF temporary files
+sdkconfig.old
+*.tmp
+*.log
+
+# Compiled objects
+*.o
+*.d
+*.lst
+
+# CMake files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Ninja
+build.ninja
+rules.ninja
+*.ninja
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*.sublime-workspace
+*.sublime-project
+.cache/
+
+# Python / virtualenv
+.python-version
+*.pyc
+__pycache__/
+.idf-env/
+
+# ESP-IDF tools
+.espressif/
+
