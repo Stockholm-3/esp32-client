@@ -1,0 +1,371 @@
+/*
+ * ws7b_board.c — working baseline (flicker present, investigate separately)
+ *
+ * Board support for Waveshare ESP32-S3-Touch-LCD-7B.
+ * Targets ESP-IDF 6.x + LVGL 8.x.
+ */
+
+#include "ws7b_board.h"
+
+#include "driver/gpio.h"
+#include "driver/i2c_master.h"
+#include "esp_check.h"
+#include "esp_lcd_panel_ops.h"
+#include "esp_lcd_panel_rgb.h"
+#include "esp_lcd_touch_gt911.h"
+#include "esp_log.h"
+#include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
+#include "lvgl.h"
+
+static const char *TAG = "ws7b";
+
+// ── Hardware handles
+// ──────────────────────────────────────────────────────────
+static i2c_master_bus_handle_t s_i2c_bus = NULL;
+static i2c_master_dev_handle_t s_ioexp_dev = NULL;
+static esp_lcd_panel_handle_t s_panel = NULL;
+static esp_lcd_touch_handle_t s_touch = NULL;
+
+// ── LVGL state
+// ────────────────────────────────────────────────────────────────
+static SemaphoreHandle_t s_lvgl_mux = NULL;
+static lv_disp_drv_t *s_disp_drv = NULL;
+
+// ── IO expander helpers
+// ───────────────────────────────────────────────────────
+static uint8_t s_io_state = 0xFF;
+
+static esp_err_t ioexp_write(uint8_t reg, uint8_t val) {
+    uint8_t buf[2] = {reg, val};
+    return i2c_master_transmit(s_ioexp_dev, buf, 2, pdMS_TO_TICKS(100));
+}
+
+static void ioexp_set_pin(uint8_t pin, uint8_t level) {
+    if (level)
+        s_io_state |= (1u << pin);
+    else
+        s_io_state &= ~(1u << pin);
+    ioexp_write(WS7B_IOEXP_REG_OUT, s_io_state);
+}
+
+void ws7b_set_backlight(uint8_t brightness) {
+    ioexp_write(WS7B_IOEXP_REG_PWM, brightness);
+    ioexp_set_pin(WS7B_IOEXP_LCD_BL, brightness > 0 ? 1 : 0);
+}
+
+// ── ISR callback ─────────────────────────────────────────────────────────────
+static IRAM_ATTR bool
+on_color_trans_done(esp_lcd_panel_handle_t panel,
+                    const esp_lcd_rgb_panel_event_data_t *edata,
+                    void *user_ctx) {
+    lv_disp_drv_t *drv = (lv_disp_drv_t *)user_ctx;
+    lv_disp_flush_ready(drv);
+    return false;
+}
+
+// ── LVGL flush callback
+// ───────────────────────────────────────────────────────
+static void lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area,
+                          lv_color_t *color_map) {
+    esp_lcd_panel_handle_t panel = (esp_lcd_panel_handle_t)drv->user_data;
+    esp_lcd_panel_draw_bitmap(panel, area->x1, area->y1, area->x2 + 1,
+                              area->y2 + 1, color_map);
+}
+
+// ── Touch input callback
+// ──────────────────────────────────────────────────────
+static void lvgl_touch_cb(lv_indev_drv_t *drv, lv_indev_data_t *data) {
+    esp_lcd_touch_handle_t tp = (esp_lcd_touch_handle_t)drv->user_data;
+    uint8_t cnt = 0;
+    esp_lcd_touch_point_data_t points[1] = {0};
+
+    esp_lcd_touch_read_data(tp);
+    esp_lcd_touch_get_data(tp, points, &cnt, 1);
+    if (cnt > 0) {
+        data->point.x = points[0].x;
+        data->point.y = points[0].y;
+        data->state = LV_INDEV_STATE_PRESSED;
+    } else {
+        data->state = LV_INDEV_STATE_RELEASED;
+    }
+}
+
+// ── LVGL tick timer
+// ───────────────────────────────────────────────────────────
+static void lvgl_tick_cb(void *arg) { lv_tick_inc(WS7B_LVGL_TICK_MS); }
+
+// ── LVGL task
+// ─────────────────────────────────────────────────────────────────
+static void lvgl_task(void *arg) {
+    ESP_LOGI(TAG, "LVGL task started");
+    uint32_t delay_ms = WS7B_LVGL_TASK_MAX_DELAY_MS;
+    while (1) {
+        if (ws7b_lvgl_lock(-1)) {
+            delay_ms = lv_timer_handler();
+            ws7b_lvgl_unlock();
+        }
+        if (delay_ms > WS7B_LVGL_TASK_MAX_DELAY_MS)
+            delay_ms = WS7B_LVGL_TASK_MAX_DELAY_MS;
+        if (delay_ms < WS7B_LVGL_TASK_MIN_DELAY_MS)
+            delay_ms = WS7B_LVGL_TASK_MIN_DELAY_MS;
+        vTaskDelay(pdMS_TO_TICKS(delay_ms));
+    }
+}
+
+// ── I2C + IO expander init
+// ────────────────────────────────────────────────────
+static esp_err_t init_i2c_and_ioexp(void) {
+    i2c_master_bus_config_t bus_cfg = {
+        .i2c_port = WS7B_I2C_NUM,
+        .sda_io_num = WS7B_I2C_SDA,
+        .scl_io_num = WS7B_I2C_SCL,
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .flags.enable_internal_pullup = true,
+    };
+    ESP_RETURN_ON_ERROR(i2c_new_master_bus(&bus_cfg, &s_i2c_bus), TAG,
+                        "I2C bus failed");
+
+    i2c_device_config_t dev_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = WS7B_IOEXP_ADDR,
+        .scl_speed_hz = WS7B_I2C_FREQ_HZ,
+    };
+    ESP_RETURN_ON_ERROR(
+        i2c_master_bus_add_device(s_i2c_bus, &dev_cfg, &s_ioexp_dev), TAG,
+        "ioexp add failed");
+
+    ESP_RETURN_ON_ERROR(ioexp_write(WS7B_IOEXP_REG_MODE, 0xFF), TAG,
+                        "ioexp mode failed");
+
+    ioexp_set_pin(WS7B_IOEXP_LCD_RST, 0);
+    vTaskDelay(pdMS_TO_TICKS(20));
+    ioexp_set_pin(WS7B_IOEXP_LCD_RST, 1);
+    vTaskDelay(pdMS_TO_TICKS(120));
+
+    gpio_config_t io_cfg = {
+        .pin_bit_mask = 1ULL << WS7B_TOUCH_INT,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&io_cfg);
+    gpio_set_level(WS7B_TOUCH_INT, 0);
+
+    ioexp_set_pin(WS7B_IOEXP_TP_RST, 0);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    ioexp_set_pin(WS7B_IOEXP_TP_RST, 1);
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    io_cfg.mode = GPIO_MODE_INPUT;
+    io_cfg.pull_up_en = GPIO_PULLUP_ENABLE;
+    gpio_config(&io_cfg);
+
+    ESP_LOGI(TAG, "IO expander initialised");
+    return ESP_OK;
+}
+
+// ── Touch init
+// ────────────────────────────────────────────────────────────────
+static esp_err_t init_touch(void) {
+    uint8_t addrs[] = {WS7B_TOUCH_ADDR_PRIMARY, WS7B_TOUCH_ADDR_SECONDARY};
+    for (int i = 0; i < 2; i++) {
+        ESP_LOGI(TAG, "Trying GT911 at 0x%02X", addrs[i]);
+
+        esp_lcd_panel_io_handle_t tp_io = NULL;
+        esp_lcd_panel_io_i2c_config_t io_cfg = {
+            .dev_addr = addrs[i],
+            .scl_speed_hz = WS7B_I2C_FREQ_HZ,
+            .control_phase_bytes = 1,
+            .dc_bit_offset = 0,
+            .lcd_cmd_bits = 16,
+            .lcd_param_bits = 8,
+            .flags.disable_control_phase = true,
+        };
+        if (esp_lcd_new_panel_io_i2c(s_i2c_bus, &io_cfg, &tp_io) != ESP_OK)
+            continue;
+
+        esp_lcd_touch_config_t tp_cfg = {
+            .x_max = WS7B_LCD_H_RES,
+            .y_max = WS7B_LCD_V_RES,
+            .rst_gpio_num = -1,
+            .int_gpio_num = -1,
+            .levels.reset = 0,
+            .levels.interrupt = 0,
+            .flags.swap_xy = 0,
+            .flags.mirror_x = 0,
+            .flags.mirror_y = 0,
+        };
+        if (esp_lcd_touch_new_i2c_gt911(tp_io, &tp_cfg, &s_touch) == ESP_OK) {
+            ESP_LOGI(TAG, "GT911 found at 0x%02X", addrs[i]);
+            return ESP_OK;
+        }
+        esp_lcd_panel_io_del(tp_io);
+    }
+    ESP_LOGE(TAG, "GT911 not found on I2C bus");
+    return ESP_ERR_NOT_FOUND;
+}
+
+// ── RGB panel init
+// ────────────────────────────────────────────────────────────
+static esp_err_t init_rgb_panel(void) {
+    esp_lcd_rgb_panel_config_t cfg = {
+        .clk_src = LCD_CLK_SRC_DEFAULT,
+        .data_width = 16,
+        .num_fbs = 2,
+        .bounce_buffer_size_px = WS7B_BOUNCE_BUF_LINES * WS7B_LCD_H_RES,
+        .pclk_gpio_num = WS7B_LCD_PCLK,
+        .vsync_gpio_num = WS7B_LCD_VSYNC,
+        .hsync_gpio_num = WS7B_LCD_HSYNC,
+        .de_gpio_num = WS7B_LCD_DE,
+        .disp_gpio_num = -1,
+        .data_gpio_nums =
+            {
+                WS7B_LCD_DATA0,
+                WS7B_LCD_DATA1,
+                WS7B_LCD_DATA2,
+                WS7B_LCD_DATA3,
+                WS7B_LCD_DATA4,
+                WS7B_LCD_DATA5,
+                WS7B_LCD_DATA6,
+                WS7B_LCD_DATA7,
+                WS7B_LCD_DATA8,
+                WS7B_LCD_DATA9,
+                WS7B_LCD_DATA10,
+                WS7B_LCD_DATA11,
+                WS7B_LCD_DATA12,
+                WS7B_LCD_DATA13,
+                WS7B_LCD_DATA14,
+                WS7B_LCD_DATA15,
+            },
+        .timings =
+            {
+                .pclk_hz = WS7B_PCLK_HZ,
+                .h_res = WS7B_LCD_H_RES,
+                .v_res = WS7B_LCD_V_RES,
+                .hsync_pulse_width = WS7B_HSYNC_PULSE_WIDTH,
+                .hsync_back_porch = WS7B_HSYNC_BACK_PORCH,
+                .hsync_front_porch = WS7B_HSYNC_FRONT_PORCH,
+                .vsync_pulse_width = WS7B_VSYNC_PULSE_WIDTH,
+                .vsync_back_porch = WS7B_VSYNC_BACK_PORCH,
+                .vsync_front_porch = WS7B_VSYNC_FRONT_PORCH,
+                .flags.pclk_active_neg = true,
+            },
+        .flags.fb_in_psram = true,
+    };
+
+    ESP_RETURN_ON_ERROR(esp_lcd_new_rgb_panel(&cfg, &s_panel), TAG,
+                        "panel create failed");
+    ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(s_panel), TAG,
+                        "panel reset failed");
+    ESP_RETURN_ON_ERROR(esp_lcd_panel_init(s_panel), TAG, "panel init failed");
+
+    ESP_LOGI(TAG, "RGB panel %dx%d ready", WS7B_LCD_H_RES, WS7B_LCD_V_RES);
+    return ESP_OK;
+}
+
+// ── LVGL display init
+// ─────────────────────────────────────────────────────────
+static lv_disp_t *lvgl_display_init(void) {
+    static lv_disp_draw_buf_t draw_buf;
+    static lv_disp_drv_t disp_drv;
+
+    void *buf1 = NULL, *buf2 = NULL;
+    ESP_ERROR_CHECK(
+        esp_lcd_rgb_panel_get_frame_buffer(s_panel, 2, &buf1, &buf2));
+
+    lv_disp_draw_buf_init(&draw_buf, buf1, buf2,
+                          WS7B_LCD_H_RES * WS7B_LCD_V_RES);
+
+    lv_disp_drv_init(&disp_drv);
+    disp_drv.hor_res = WS7B_LCD_H_RES;
+    disp_drv.ver_res = WS7B_LCD_V_RES;
+    disp_drv.flush_cb = lvgl_flush_cb;
+    disp_drv.draw_buf = &draw_buf;
+    disp_drv.user_data = s_panel;
+    disp_drv.full_refresh = 1;
+    disp_drv.direct_mode = 1;
+
+    s_disp_drv = &disp_drv;
+    return lv_disp_drv_register(&disp_drv);
+}
+
+// ── Touch indev init
+// ──────────────────────────────────────────────────────────
+static lv_indev_t *lvgl_touch_init(void) {
+    static lv_indev_drv_t indev_drv;
+    lv_indev_drv_init(&indev_drv);
+    indev_drv.type = LV_INDEV_TYPE_POINTER;
+    indev_drv.read_cb = lvgl_touch_cb;
+    indev_drv.user_data = s_touch;
+    return lv_indev_drv_register(&indev_drv);
+}
+
+// ── Public init
+// ───────────────────────────────────────────────────────────────
+esp_err_t ws7b_board_init(lv_disp_t **disp_out, lv_indev_t **touch_out) {
+    ESP_RETURN_ON_ERROR(init_i2c_and_ioexp(), TAG, "ioexp init failed");
+    ESP_RETURN_ON_ERROR(init_touch(), TAG, "touch init failed");
+    ESP_RETURN_ON_ERROR(init_rgb_panel(), TAG, "panel init failed");
+
+    lv_init();
+
+    const esp_timer_create_args_t tick_args = {
+        .callback = lvgl_tick_cb,
+        .name = "lvgl_tick",
+    };
+    esp_timer_handle_t tick_timer;
+    ESP_ERROR_CHECK(esp_timer_create(&tick_args, &tick_timer));
+    ESP_ERROR_CHECK(
+        esp_timer_start_periodic(tick_timer, WS7B_LVGL_TICK_MS * 1000));
+
+    s_lvgl_mux = xSemaphoreCreateRecursiveMutex();
+    assert(s_lvgl_mux);
+
+    lv_disp_t *disp = lvgl_display_init();
+    assert(disp);
+
+    lv_indev_t *indev = NULL;
+    if (s_touch)
+        indev = lvgl_touch_init();
+
+    esp_lcd_rgb_panel_event_callbacks_t cbs = {
+        .on_color_trans_done = on_color_trans_done,
+    };
+    ESP_ERROR_CHECK(
+        esp_lcd_rgb_panel_register_event_callbacks(s_panel, &cbs, s_disp_drv));
+
+    if (xTaskCreatePinnedToCore(lvgl_task, "lvgl", WS7B_LVGL_TASK_STACK, NULL,
+                                WS7B_LVGL_TASK_PRIORITY, NULL,
+                                tskNO_AFFINITY) != pdPASS) {
+        ESP_LOGE(TAG, "LVGL task create failed");
+        return ESP_FAIL;
+    }
+
+    ws7b_set_backlight(255);
+
+    if (disp_out)
+        *disp_out = disp;
+    if (touch_out)
+        *touch_out = indev;
+
+    ESP_LOGI(TAG, "Board fully initialised");
+    return ESP_OK;
+}
+
+// ── Mutex helpers
+// ─────────────────────────────────────────────────────────────
+bool ws7b_lvgl_lock(int timeout_ms) {
+    assert(s_lvgl_mux);
+    TickType_t ticks =
+        timeout_ms < 0 ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
+    return xSemaphoreTakeRecursive(s_lvgl_mux, ticks) == pdTRUE;
+}
+
+void ws7b_lvgl_unlock(void) {
+    assert(s_lvgl_mux);
+    xSemaphoreGiveRecursive(s_lvgl_mux);
+}

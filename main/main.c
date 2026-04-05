@@ -1,37 +1,42 @@
-#include "esp_chip_info.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include <stdio.h>
-
-static const char *TAG = "workshop";
+#include "lvgl.h"
+#include "ws7b_board.h"
 
 void app_main(void) {
+    lv_disp_t *disp = NULL;
+    lv_indev_t *touch = NULL;
 
-    ESP_LOGI(TAG, "TEST LOG BINGUS");
-    esp_chip_info_t chip_info;
-    esp_chip_info(&chip_info);
-    ESP_LOGI(TAG, "Chip: ESP32 with %d CPU cores", chip_info.cores);
-    ESP_LOGI(TAG, "WiFi:%s%s",
-             (chip_info.features & CHIP_FEATURE_WIFI_BGN) ? " 802.11bgn" : "",
-             (chip_info.features & CHIP_FEATURE_BLE) ? " BLE" : "");
-    ESP_LOGI(TAG, "Silicon revision: %d", chip_info.revision);
+    ESP_ERROR_CHECK(ws7b_board_init(&disp, &touch));
+    ESP_LOGI("main", "init done, heap free: %lu", esp_get_free_heap_size());
 
-    printf("\n---------------------\n");
-    uint32_t size = esp_get_free_heap_size();
-    printf("Total: %2.2fkB\n", (float)(size) / 1024);
-    printf("Largest free block: %u bytes\n",
-           heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-    size = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-    printf("Internal: %2.2fkB\n", (float)(size) / 1024);
-    size = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
-    printf("External: %2.2fkB\n", (float)(size) / 1024);
-    printf("---------------------\n\n");
+    // Use -1 (portMAX_DELAY) not 0 here — 0 means "give up immediately if
+    // the mutex is taken", which can silently fail and leave LVGL unprotected.
+    if (!ws7b_lvgl_lock(-1)) {
+        ESP_LOGE("main", "Failed to acquire LVGL lock");
+        return;
+    }
 
-    int i = 0;
+    lv_obj_t *scr = lv_disp_get_scr_act(disp);
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0x003a57), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
+
+    // Bright red box to confirm objects render correctly
+    lv_obj_t *box = lv_obj_create(scr);
+    lv_obj_set_size(box, 400, 100);
+    lv_obj_center(box);
+    lv_obj_set_style_bg_color(box, lv_color_hex(0xFF0000), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(box, LV_OPA_COVER, LV_PART_MAIN);
+
+    lv_obj_t *label = lv_label_create(box);
+    lv_label_set_text(label, "Hello 7B!");
+    lv_obj_set_style_text_color(label, lv_color_hex(0xFFFF00), LV_PART_MAIN);
+    lv_obj_center(label);
+
+    ws7b_lvgl_unlock();
+
     while (1) {
-        printf("[%d] Hello world!\n", i);
-        i++;
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
