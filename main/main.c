@@ -18,7 +18,7 @@ static void ui_update_timer_cb(lv_timer_t *timer) {
 
     // Update counter label
     char buf[32];
-    snprintf(buf, sizeof(buf), "Uptime: %lds", s_counter);
+    snprintf(buf, sizeof(buf), "Time with Bingus: %lds", s_counter);
     lv_label_set_text(s_label_counter, buf);
 
     // Animate arc 0→360 over 60 seconds
@@ -61,7 +61,7 @@ static void build_ui(lv_disp_t *disp) {
     // ── Title label
     // ───────────────────────────────────────────────────────────
     lv_obj_t *title = lv_label_create(scr);
-    lv_label_set_text(title, "Waveshare 7B — LVGL Demo");
+    lv_label_set_text(title, "ESP BINGUS Simulator");
     lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
     lv_obj_set_style_text_font(title, &lv_font_montserrat_24, LV_PART_MAIN);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 20);
@@ -69,7 +69,7 @@ static void build_ui(lv_disp_t *disp) {
     // ── Uptime counter label
     // ──────────────────────────────────────────────────
     s_label_counter = lv_label_create(scr);
-    lv_label_set_text(s_label_counter, "Uptime: 0s");
+    lv_label_set_text(s_label_counter, "Time with bingus: 0s");
     lv_obj_set_style_text_color(s_label_counter, lv_color_hex(0x90caf9),
                                 LV_PART_MAIN);
     lv_obj_set_style_text_font(s_label_counter, &lv_font_montserrat_24,
@@ -98,7 +98,7 @@ static void build_ui(lv_disp_t *disp) {
     lv_obj_center(s_arc);
 
     lv_obj_t *arc_label = lv_label_create(left_panel);
-    lv_label_set_text(arc_label, "60s cycle");
+    lv_label_set_text(arc_label, "60s bingus cycle");
     lv_obj_set_style_text_color(arc_label, lv_color_hex(0xaaaaaa),
                                 LV_PART_MAIN);
     lv_obj_align(arc_label, LV_ALIGN_BOTTOM_MID, 0, -10);
@@ -115,10 +115,18 @@ static void build_ui(lv_disp_t *disp) {
     lv_obj_set_style_radius(mid_panel, 12, LV_PART_MAIN);
 
     lv_obj_t *mid_title = lv_label_create(mid_panel);
-    lv_label_set_text(mid_title, "Sliders");
+
+    lv_label_set_text(mid_title, "Bingus slider");
     lv_obj_set_style_text_color(mid_title, lv_color_hex(0x66bb6a),
                                 LV_PART_MAIN);
     lv_obj_align(mid_title, LV_ALIGN_TOP_MID, 0, 5);
+
+    lv_obj_t *under_title = lv_label_create(mid_panel);
+    lv_label_set_text(under_title, "Set the correct color to match a bingus");
+    lv_obj_set_style_text_color(under_title, lv_color_hex(0xffffff),
+                                LV_PART_MAIN);
+
+    lv_obj_align_to(under_title, mid_title, LV_ALIGN_OUT_BOTTOM_MID, 0, 5);
 
     // Three sliders with value labels
     const char *slider_names[] = {"Red", "Green", "Blue"};
@@ -169,7 +177,7 @@ static void build_ui(lv_disp_t *disp) {
                                 LV_PART_MAIN);
     lv_obj_align(right_title, LV_ALIGN_TOP_MID, 0, 5);
 
-    const char *btn_labels[] = {"Action A", "Action B", "Action C"};
+    const char *btn_labels[] = {"Bingus A", "Bingus B", "Bingus C"};
     uint32_t btn_colors[] = {0xef5350, 0x66bb6a, 0x42a5f5};
 
     for (int i = 0; i < 3; i++) {
