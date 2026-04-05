@@ -1,8 +1,5 @@
 /*
- * ws7b_board.c — working baseline (flicker present, investigate separately)
- *
- * Board support for Waveshare ESP32-S3-Touch-LCD-7B.
- * Targets ESP-IDF 6.x + LVGL 8.x.
+ * ws7b_board.c — vsync-locked flush, no flicker
  */
 
 #include "ws7b_board.h"
@@ -32,7 +29,9 @@ static esp_lcd_touch_handle_t s_touch = NULL;
 // ── LVGL state
 // ────────────────────────────────────────────────────────────────
 static SemaphoreHandle_t s_lvgl_mux = NULL;
+static SemaphoreHandle_t s_vsync_sem = NULL;
 static lv_disp_drv_t *s_disp_drv = NULL;
+static volatile bool s_first_frame_done = false;
 
 // ── IO expander helpers
 // ───────────────────────────────────────────────────────
@@ -56,14 +55,15 @@ void ws7b_set_backlight(uint8_t brightness) {
     ioexp_set_pin(WS7B_IOEXP_LCD_BL, brightness > 0 ? 1 : 0);
 }
 
-// ── ISR callback ─────────────────────────────────────────────────────────────
+// ── Frame-complete ISR callback
+// ───────────────────────────────────────────────
 static IRAM_ATTR bool
-on_color_trans_done(esp_lcd_panel_handle_t panel,
-                    const esp_lcd_rgb_panel_event_data_t *edata,
-                    void *user_ctx) {
-    lv_disp_drv_t *drv = (lv_disp_drv_t *)user_ctx;
-    lv_disp_flush_ready(drv);
-    return false;
+on_frame_buf_complete(esp_lcd_panel_handle_t panel,
+                      const esp_lcd_rgb_panel_event_data_t *edata,
+                      void *user_ctx) {
+    BaseType_t need_yield = pdFALSE;
+    xSemaphoreGiveFromISR(s_vsync_sem, &need_yield);
+    return need_yield == pdTRUE;
 }
 
 // ── LVGL flush callback
@@ -71,8 +71,19 @@ on_color_trans_done(esp_lcd_panel_handle_t panel,
 static void lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area,
                           lv_color_t *color_map) {
     esp_lcd_panel_handle_t panel = (esp_lcd_panel_handle_t)drv->user_data;
+
     esp_lcd_panel_draw_bitmap(panel, area->x1, area->y1, area->x2 + 1,
                               area->y2 + 1, color_map);
+
+    if (s_first_frame_done) {
+        xSemaphoreTake(s_vsync_sem, 0);
+        xSemaphoreTake(s_vsync_sem, portMAX_DELAY);
+    } else {
+        xSemaphoreTake(s_vsync_sem, portMAX_DELAY);
+        s_first_frame_done = true;
+    }
+
+    lv_disp_flush_ready(drv);
 }
 
 // ── Touch input callback
@@ -215,7 +226,7 @@ static esp_err_t init_rgb_panel(void) {
     esp_lcd_rgb_panel_config_t cfg = {
         .clk_src = LCD_CLK_SRC_DEFAULT,
         .data_width = 16,
-        .num_fbs = 2,
+        .num_fbs = 1,
         .bounce_buffer_size_px = WS7B_BOUNCE_BUF_LINES * WS7B_LCD_H_RES,
         .pclk_gpio_num = WS7B_LCD_PCLK,
         .vsync_gpio_num = WS7B_LCD_VSYNC,
@@ -273,12 +284,13 @@ static lv_disp_t *lvgl_display_init(void) {
     static lv_disp_draw_buf_t draw_buf;
     static lv_disp_drv_t disp_drv;
 
-    void *buf1 = NULL, *buf2 = NULL;
-    ESP_ERROR_CHECK(
-        esp_lcd_rgb_panel_get_frame_buffer(s_panel, 2, &buf1, &buf2));
+    // Single render buffer — 1/10th of screen, lives in PSRAM
+    size_t buf_px = WS7B_LCD_H_RES * (WS7B_LCD_V_RES / 10);
+    lv_color_t *render_buf =
+        heap_caps_malloc(buf_px * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    assert(render_buf);
 
-    lv_disp_draw_buf_init(&draw_buf, buf1, buf2,
-                          WS7B_LCD_H_RES * WS7B_LCD_V_RES);
+    lv_disp_draw_buf_init(&draw_buf, render_buf, NULL, buf_px);
 
     lv_disp_drv_init(&disp_drv);
     disp_drv.hor_res = WS7B_LCD_H_RES;
@@ -286,8 +298,7 @@ static lv_disp_t *lvgl_display_init(void) {
     disp_drv.flush_cb = lvgl_flush_cb;
     disp_drv.draw_buf = &draw_buf;
     disp_drv.user_data = s_panel;
-    disp_drv.full_refresh = 1;
-    disp_drv.direct_mode = 1;
+    // No full_refresh, no direct_mode
 
     s_disp_drv = &disp_drv;
     return lv_disp_drv_register(&disp_drv);
@@ -311,7 +322,20 @@ esp_err_t ws7b_board_init(lv_disp_t **disp_out, lv_indev_t **touch_out) {
     ESP_RETURN_ON_ERROR(init_touch(), TAG, "touch init failed");
     ESP_RETURN_ON_ERROR(init_rgb_panel(), TAG, "panel init failed");
 
+    ESP_LOGI(TAG, "creating vsync semaphore");
+    s_vsync_sem = xSemaphoreCreateBinary();
+    assert(s_vsync_sem);
+
+    ESP_LOGI(TAG, "registering panel callbacks");
+    esp_lcd_rgb_panel_event_callbacks_t cbs = {
+        .on_frame_buf_complete = on_frame_buf_complete,
+    };
+    ESP_ERROR_CHECK(
+        esp_lcd_rgb_panel_register_event_callbacks(s_panel, &cbs, NULL));
+
+    ESP_LOGI(TAG, "calling lv_init");
     lv_init();
+    ESP_LOGI(TAG, "lv_init done");
 
     const esp_timer_create_args_t tick_args = {
         .callback = lvgl_tick_cb,
@@ -321,23 +345,23 @@ esp_err_t ws7b_board_init(lv_disp_t **disp_out, lv_indev_t **touch_out) {
     ESP_ERROR_CHECK(esp_timer_create(&tick_args, &tick_timer));
     ESP_ERROR_CHECK(
         esp_timer_start_periodic(tick_timer, WS7B_LVGL_TICK_MS * 1000));
+    ESP_LOGI(TAG, "tick timer started");
 
     s_lvgl_mux = xSemaphoreCreateRecursiveMutex();
     assert(s_lvgl_mux);
+    ESP_LOGI(TAG, "lvgl mutex created");
 
     lv_disp_t *disp = lvgl_display_init();
     assert(disp);
+    ESP_LOGI(TAG, "display driver registered");
 
     lv_indev_t *indev = NULL;
-    if (s_touch)
+    if (s_touch) {
         indev = lvgl_touch_init();
+        ESP_LOGI(TAG, "touch driver registered");
+    }
 
-    esp_lcd_rgb_panel_event_callbacks_t cbs = {
-        .on_color_trans_done = on_color_trans_done,
-    };
-    ESP_ERROR_CHECK(
-        esp_lcd_rgb_panel_register_event_callbacks(s_panel, &cbs, s_disp_drv));
-
+    ESP_LOGI(TAG, "creating LVGL task");
     if (xTaskCreatePinnedToCore(lvgl_task, "lvgl", WS7B_LVGL_TASK_STACK, NULL,
                                 WS7B_LVGL_TASK_PRIORITY, NULL,
                                 tskNO_AFFINITY) != pdPASS) {
@@ -346,6 +370,7 @@ esp_err_t ws7b_board_init(lv_disp_t **disp_out, lv_indev_t **touch_out) {
     }
 
     ws7b_set_backlight(255);
+    ESP_LOGI(TAG, "backlight on");
 
     if (disp_out)
         *disp_out = disp;

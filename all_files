@@ -1,0 +1,2418 @@
+/*****************************************************************************
+ * | File       :   main.c
+ * | Author     :   Waveshare team
+ * | Function   :   Main function
+ * | Info       :   
+ * |                Ported LVGL 8.4 and display the official demo interface
+ *----------------
+ * | Version    :   V1.0
+ * | Date       :   2024-12-06
+ * | Info       :   Basic version
+ *
+ ******************************************************************************/
+
+#include "rgb_lcd_port.h"    // Header for Waveshare RGB LCD driver
+#include "gt911.h"           // Header for touch screen operations (GT911)
+
+#include "lv_demos.h"        // LVGL demo headers
+#include "lvgl_port.h"       // LVGL porting functions for integration
+
+static const char *TAG = "main";  // Tag for logging
+
+// Main application function
+void app_main()
+{
+    static esp_lcd_panel_handle_t panel_handle = NULL; // Declare a handle for the LCD panel
+    static esp_lcd_touch_handle_t tp_handle = NULL;    // Declare a handle for the touch panel
+
+    // Initialize the GT911 touch screen controller
+    tp_handle = touch_gt911_init();  
+    
+    // Initialize the Waveshare ESP32-S3 RGB LCD hardware
+    panel_handle = waveshare_esp32_s3_rgb_lcd_init(); 
+
+    // Turn on the LCD backlight
+    wavesahre_rgb_lcd_bl_on();   
+
+    // Initialize LVGL with the panel and touch handles
+    ESP_ERROR_CHECK(lvgl_port_init(panel_handle, tp_handle));
+
+    ESP_LOGI(TAG, "Display LVGL demos");
+
+    // Lock the mutex because LVGL APIs are not thread-safe
+    if (lvgl_port_lock(-1)) {
+        // Uncomment and run the desired demo functions here
+        // lv_demo_stress();  // Stress test demo
+        // lv_demo_benchmark(); // Benchmark demo
+        // lv_demo_music();     // Music demo
+        lv_demo_widgets();    // Widgets demo
+        
+        // Release the mutex after the demo execution
+        lvgl_port_unlock();
+    }
+}
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/can/can.h =====
+/*****************************************************************************
+ * | File         :   can.h
+ * | Author       :   Waveshare team
+ * | Function     :   CAN driver code for CAN communication
+ * | Info         :
+ * |                 This header file contains definitions and function
+ * |                 declarations for CAN communication using the IO EXTENSION chip
+ * |                 and ESP-IDF TWAI driver.
+ * ----------------
+ * | This version :   V1.0
+ * | Date         :   2024-11-28
+ * | Info         :   Basic version
+ *
+ ******************************************************************************/
+
+#ifndef __CAN_H
+#define __CAN_H
+
+// Include necessary driver headers
+#include "driver/twai.h"   // TWAI (CAN) driver
+#include "io_extension.h"        // IO EXTENSION I2C CAN control header  
+
+// Define the GPIO pins used for CAN communication
+#define TX_GPIO_NUM GPIO_NUM_20 // Transmit GPIO number for CAN
+#define RX_GPIO_NUM GPIO_NUM_19 // Receive GPIO number for CAN
+#define CAN_TAG "TWAI Master" // Log tag for the CAN example (for logging)
+
+// Define transmission and polling intervals in milliseconds
+#define TRANSMIT_RATE_MS 1000 // Transmission interval for CAN messages
+#define POLLING_RATE_MS 1000  // Polling interval for checking CAN status
+
+// Function declarations:
+
+/**
+ * @brief Initializes the CAN (TWAI) interface with the provided configurations.
+ *
+ * @param t_config Timing configuration for CAN communication.
+ * @param f_config Filter configuration for CAN.
+ * @param g_config General configuration for the CAN interface.
+ *
+ * @return ESP_OK on success, or an error code on failure.
+ */
+esp_err_t can_init(twai_timing_config_t t_config, twai_filter_config_t f_config, twai_general_config_t g_config);
+
+/**
+ * @brief Reads and returns any alerts from the CAN interface.
+ *
+ * @return A 32-bit value representing the alerts.
+ */
+uint32_t can_read_alerts();
+
+/**
+ * @brief Sends a single byte of data over the CAN interface.
+ *
+ * @param message The CAN message to be transmitted.
+ */
+void can_write_Byte(twai_message_t message);
+
+/**
+ * @brief Reads a single byte of data from the CAN interface.
+ *
+ * @return A CAN message containing the received data.
+ */
+twai_message_t can_read_Byte();
+
+#endif  // __CAN_H
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/can/can.c =====
+/*****************************************************************************
+ * | File         :   can.c
+ * | Author       :   Waveshare team
+ * | Function     :   CAN driver code for CAN communication
+ * | Info         :
+ * |                 This file implements basic CAN communication functions 
+ * |                 using the ESP-IDF TWAI driver. It includes initialization, 
+ * |                 alert handling, and message transmission/reception.
+ * ----------------
+ * | This version :   V1.0
+ * | Date         :   2024-11-28
+ * | Info         :   Basic version, includes functions to initialize, 
+ * |                 read alerts, and transmit/receive CAN messages.
+ *
+ ******************************************************************************/
+
+#include "can.h"  // Include header file for CAN driver functions
+
+/**
+ * @brief Initializes the CAN (TWAI) interface.
+ *
+ * This function installs and starts the TWAI driver with the specified
+ * configurations. It also sets up alert conditions to monitor the CAN bus.
+ *
+ * @param t_config Timing configuration for CAN communication.
+ * @param f_config Filter configuration for CAN messages.
+ * @param g_config General configuration for the CAN interface.
+ *
+ * @return ESP_OK on success, ESP_FAIL otherwise.
+ */
+esp_err_t can_init(twai_timing_config_t t_config, twai_filter_config_t f_config, twai_general_config_t g_config)
+{
+    // Install TWAI driver
+    if (twai_driver_install(&g_config, &t_config, &f_config) == ESP_OK)
+    {
+        ESP_LOGI(CAN_TAG, "Driver installed"); // Log driver installation success
+    }
+    else
+    {
+        ESP_LOGI(CAN_TAG, "Failed to install driver"); // Log driver installation failure
+        return ESP_FAIL;
+    }
+
+    // Start TWAI driver
+    if (twai_start() == ESP_OK)
+    {
+        ESP_LOGI(CAN_TAG, "Driver started"); // Log driver start success
+    }
+    else
+    {
+        ESP_LOGI(CAN_TAG, "Failed to start driver"); // Log driver start failure
+        return ESP_FAIL;
+    }
+
+    // Configure alerts for specific CAN events
+    uint32_t alerts_to_enable = TWAI_ALERT_TX_SUCCESS | TWAI_ALERT_TX_FAILED |
+                                TWAI_ALERT_RX_DATA | TWAI_ALERT_RX_QUEUE_FULL |
+                                TWAI_ALERT_ERR_PASS | TWAI_ALERT_BUS_ERROR;
+    if (twai_reconfigure_alerts(alerts_to_enable, NULL) == ESP_OK)
+    {
+        ESP_LOGI(CAN_TAG, "CAN Alerts reconfigured"); // Log alert reconfiguration success
+    }
+    else
+    {
+        ESP_LOGI(CAN_TAG, "Failed to reconfigure alerts"); // Log alert reconfiguration failure
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
+}
+
+/**
+ * @brief Reads and handles alerts from the CAN interface.
+ *
+ * This function reads triggered alerts and provides detailed logs for each alert type.
+ *
+ * @return A 32-bit value representing the triggered alert type.
+ */
+uint32_t can_read_alerts()
+{
+    uint32_t alerts_triggered;                                           // Variable to store triggered alerts
+    twai_read_alerts(&alerts_triggered, pdMS_TO_TICKS(POLLING_RATE_MS)); // Read alerts
+    twai_status_info_t twaistatus;                                       // Variable to store TWAI status information
+    twai_get_status_info(&twaistatus);                                   // Get TWAI status information
+
+    if (alerts_triggered & TWAI_ALERT_ERR_PASS)
+    {
+        ESP_LOGI(CAN_TAG, "Alert: TWAI controller is in error passive state.");
+        return TWAI_ALERT_ERR_PASS;
+    }
+
+    if (alerts_triggered & TWAI_ALERT_BUS_ERROR)
+    {
+        ESP_LOGI(CAN_TAG, "Alert: Bus error occurred.");
+        ESP_LOGI(CAN_TAG, "Bus error count: %" PRIu32, twaistatus.bus_error_count);
+        return TWAI_ALERT_BUS_ERROR;
+    }
+
+    if (alerts_triggered & TWAI_ALERT_TX_FAILED)
+    {
+        ESP_LOGI(CAN_TAG, "Alert: Transmission failed.");
+        ESP_LOGI(CAN_TAG, "TX buffered: %" PRIu32, twaistatus.msgs_to_tx);
+        return TWAI_ALERT_TX_FAILED;
+    }
+
+    if (alerts_triggered & TWAI_ALERT_TX_SUCCESS)
+    {
+        ESP_LOGI(CAN_TAG, "Alert: Transmission successful.");
+        return TWAI_ALERT_TX_SUCCESS;
+    }
+
+    if (alerts_triggered & TWAI_ALERT_RX_QUEUE_FULL)
+    {
+        ESP_LOGI(CAN_TAG, "Alert: RX queue full, frame lost.");
+        return TWAI_ALERT_RX_QUEUE_FULL;
+    }
+
+    if (alerts_triggered & TWAI_ALERT_RX_DATA)
+    {
+        return TWAI_ALERT_RX_DATA;
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Transmits a CAN message.
+ *
+ * This function queues a CAN message for transmission and logs the result.
+ *
+ * @param message The CAN message to be transmitted.
+ */
+void can_write_Byte(twai_message_t message)
+{
+    if (twai_transmit(&message, portMAX_DELAY) == ESP_OK)
+    {
+        printf("Message queued for transmission\n"); // Log success
+    }
+    else
+    {
+        printf("Failed to queue message for transmission\n"); // Log failure
+    }
+}
+
+/**
+ * @brief Receives a CAN message.
+ *
+ * This function reads and logs received messages from the CAN interface.
+ *
+ * @return The received CAN message.
+ */
+twai_message_t can_read_Byte()
+{
+    twai_message_t message; // Variable to hold received message
+    while (twai_receive(&message, 0) == ESP_OK)
+    {
+        if (message.extd)
+        {
+            ESP_LOGI(CAN_TAG, "Message is in Extended Format");
+        }
+        else
+        {
+            ESP_LOGI(CAN_TAG, "Message is in Standard Format");
+        }
+
+        printf("ID: %lx\nByte:", message.identifier);
+        if (!message.rtr)
+        {
+            for (int i = 0; i < message.data_length_code; i++)
+            {
+                printf(" %d = %02x,", i, message.data[i]);
+            }
+            printf("\n");
+        }
+    }
+    return message;
+}
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/can/CMakeLists.txt =====
+idf_component_register(SRCS "can.c" 
+                        INCLUDE_DIRS "." "../i2c" "../gpio" "../io_extension"
+                        REQUIRES driver 
+                    )
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/rgb_lcd_port/rgb_lcd_port.c =====
+/*****************************************************************************
+ * | File      	 :   rgb_lcd_port.c
+ * | Author      :   Waveshare team
+ * | Function    :   Hardware underlying interface
+ * | Info        :
+ *                   RGB LCD driver code
+ *----------------
+ * |This version :   V1.0
+ * | Date        :   2024-11-19
+ * | Info        :   Basic version
+ *
+ ******************************************************************************/
+
+#include "rgb_lcd_port.h"
+#include "lvgl_port.h"
+
+const char *TAG = "example";
+
+// Handle for the RGB LCD panel
+static esp_lcd_panel_handle_t panel_handle = NULL; // Declare a handle for the LCD panel
+
+// VSYNC event callback function
+IRAM_ATTR static bool rgb_lcd_on_vsync_event(esp_lcd_panel_handle_t panel, const esp_lcd_rgb_panel_event_data_t *edata, void *user_ctx)
+{
+    return lvgl_port_notify_rgb_vsync();
+}
+
+/**
+ * @brief Initialize the RGB LCD panel on the ESP32-S3
+ *
+ * This function configures and initializes an RGB LCD panel driver
+ * using the ESP-IDF RGB LCD driver API. It sets up timing parameters,
+ * GPIOs, data width, and framebuffer settings for the LCD panel.
+ *
+ * @return
+ *    - ESP_OK: Initialization successful.
+ *    - Other error codes: Initialization failed.
+ */
+esp_lcd_panel_handle_t waveshare_esp32_s3_rgb_lcd_init()
+{
+    // Log the start of the RGB LCD panel driver installation
+    ESP_LOGI(TAG, "Install RGB LCD panel driver");
+
+    // Configuration structure for the RGB LCD panel
+    esp_lcd_rgb_panel_config_t panel_config = {
+        .clk_src = LCD_CLK_SRC_DEFAULT, // Use the default clock source
+        .timings = {
+            .pclk_hz = EXAMPLE_LCD_PIXEL_CLOCK_HZ, // Pixel clock frequency in Hz
+            .h_res = EXAMPLE_LCD_H_RES,            // Horizontal resolution (number of pixels per row)
+            .v_res = EXAMPLE_LCD_V_RES,            // Vertical resolution (number of rows)
+            .hsync_pulse_width = 162,                // Horizontal sync pulse width
+            .hsync_back_porch = 152,                 // Horizontal back porch
+            .hsync_front_porch = 48,                // Horizontal front porch
+            .vsync_pulse_width = 45,                // Vertical sync pulse width
+            .vsync_back_porch = 13,                 // Vertical back porch
+            .vsync_front_porch = 3,                // Vertical front porch
+            .flags = {
+                .pclk_active_neg = 1, // Set pixel clock polarity to active low
+            },
+        },
+        .data_width = EXAMPLE_RGB_DATA_WIDTH,                    // Data width for RGB signals
+        .bits_per_pixel = EXAMPLE_RGB_BIT_PER_PIXEL,             // Number of bits per pixel (color depth)
+        .num_fbs = EXAMPLE_LCD_RGB_BUFFER_NUMS,                  // Number of framebuffers for double/triple buffering
+        .bounce_buffer_size_px = EXAMPLE_RGB_BOUNCE_BUFFER_SIZE, // Bounce buffer size in pixels
+        .sram_trans_align = 4,                                   // SRAM transaction alignment in bytes
+        .psram_trans_align = 64,                                 // PSRAM transaction alignment in bytes
+        .hsync_gpio_num = EXAMPLE_LCD_IO_RGB_HSYNC,              // GPIO for horizontal sync signal
+        .vsync_gpio_num = EXAMPLE_LCD_IO_RGB_VSYNC,              // GPIO for vertical sync signal
+        .de_gpio_num = EXAMPLE_LCD_IO_RGB_DE,                    // GPIO for data enable signal
+        .pclk_gpio_num = EXAMPLE_LCD_IO_RGB_PCLK,                // GPIO for pixel clock signal
+        .disp_gpio_num = EXAMPLE_LCD_IO_RGB_DISP,                // GPIO for display enable signal
+        .data_gpio_nums = {
+            // GPIOs for RGB data signals
+            EXAMPLE_LCD_IO_RGB_DATA0,  // Data bit 0
+            EXAMPLE_LCD_IO_RGB_DATA1,  // Data bit 1
+            EXAMPLE_LCD_IO_RGB_DATA2,  // Data bit 2
+            EXAMPLE_LCD_IO_RGB_DATA3,  // Data bit 3
+            EXAMPLE_LCD_IO_RGB_DATA4,  // Data bit 4
+            EXAMPLE_LCD_IO_RGB_DATA5,  // Data bit 5
+            EXAMPLE_LCD_IO_RGB_DATA6,  // Data bit 6
+            EXAMPLE_LCD_IO_RGB_DATA7,  // Data bit 7
+            EXAMPLE_LCD_IO_RGB_DATA8,  // Data bit 8
+            EXAMPLE_LCD_IO_RGB_DATA9,  // Data bit 9
+            EXAMPLE_LCD_IO_RGB_DATA10, // Data bit 10
+            EXAMPLE_LCD_IO_RGB_DATA11, // Data bit 11
+            EXAMPLE_LCD_IO_RGB_DATA12, // Data bit 12
+            EXAMPLE_LCD_IO_RGB_DATA13, // Data bit 13
+            EXAMPLE_LCD_IO_RGB_DATA14, // Data bit 14
+            EXAMPLE_LCD_IO_RGB_DATA15, // Data bit 15
+        },
+        .flags = {
+            .fb_in_psram = 1, // Use PSRAM for framebuffers to save internal SRAM
+        },
+    };
+
+    // Create and register the RGB LCD panel driver with the configuration above
+    ESP_ERROR_CHECK(esp_lcd_new_rgb_panel(&panel_config, &panel_handle));
+
+    // Log the initialization of the RGB LCD panel
+    ESP_LOGI(TAG, "Initialize RGB LCD panel");
+
+    // Initialize the RGB LCD panel
+    ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
+
+    esp_lcd_rgb_panel_event_callbacks_t cbs = {
+#if EXAMPLE_RGB_BOUNCE_BUFFER_SIZE > 0
+        .on_bounce_frame_finish = rgb_lcd_on_vsync_event, // Callback for bounce frame finish
+#else
+        .on_vsync = rgb_lcd_on_vsync_event, // Callback for vertical sync
+#endif
+    };
+    ESP_ERROR_CHECK(esp_lcd_rgb_panel_register_event_callbacks(panel_handle, &cbs, NULL)); // Register event callbacks
+
+    // Return success status
+    return panel_handle;
+}
+
+/**
+ * @brief Display a specific window of an image on the RGB LCD.
+ *
+ * This function updates a rectangular portion of the RGB LCD screen with the
+ * image data provided. The region is defined by the start and end coordinates
+ * in both X and Y directions. If the specified coordinates exceed the screen
+ * boundaries, they will be clipped accordingly.
+ *
+ * @param Xstart Starting X coordinate of the display window (inclusive).
+ * @param Ystart Starting Y coordinate of the display window (inclusive).
+ * @param Xend Ending X coordinate of the display window (exclusive, relative to Xstart).
+ * @param Yend Ending Y coordinate of the display window (exclusive, relative to Ystart).
+ * @param Image Pointer to the image data buffer, representing the full LCD resolution.
+ */
+void wavesahre_rgb_lcd_display_window(int16_t Xstart, int16_t Ystart, int16_t Xend, int16_t Yend, uint8_t *Image)
+{
+    // Ensure Xstart is within valid range, clip Xend to the screen width if necessary
+    if (Xstart < 0) Xstart = 0;
+    else if (Xend > EXAMPLE_LCD_H_RES) Xend = EXAMPLE_LCD_H_RES;
+
+    // Ensure Ystart is within valid range, clip Yend to the screen height if necessary
+    if (Ystart < 0) Ystart = 0;
+    else if (Yend > EXAMPLE_LCD_V_RES) Yend = EXAMPLE_LCD_V_RES;
+
+    // Calculate the width and height of the cropped region
+    int crop_width = Xend - Xstart;
+    int crop_height = Yend - Ystart;
+
+    // Allocate memory for the cropped image data
+    uint8_t *dst_data = (uint8_t *)malloc(crop_width * crop_height * 2); // 2 bytes per pixel
+    if (!dst_data) {
+        printf("Error: Failed to allocate memory for cropped bitmap.\n");
+        return;
+    }
+
+    // Crop the image data (copy each row of the selected region)
+    for (int y = 0; y < crop_height; y++) {
+        // Calculate the source row start in the original image buffer
+        const uint8_t *src_row = Image + ((Ystart + y) * EXAMPLE_LCD_H_RES + Xstart) * 2;
+        // Calculate the destination row start in the cropped buffer
+        uint8_t *dst_row = dst_data + y * crop_width * 2;
+        // Copy the row data
+        memcpy(dst_row, src_row, crop_width * 2);
+    }
+
+    // Draw the cropped region onto the LCD at the specified coordinates
+    // The esp_lcd_panel_draw_bitmap function uses absolute screen coordinates.
+    esp_lcd_panel_draw_bitmap(panel_handle, Xstart, Ystart, Xend, Yend, dst_data);
+
+    // Free the allocated memory for the cropped image buffer
+    free(dst_data);
+}
+
+
+/**
+ * @brief Display a full-screen image on the RGB LCD.
+ *
+ * This function replaces the entire LCD screen content with the image data
+ * provided. It assumes the display resolution is 800x480.
+ *
+ * @param Image Pointer to the image data buffer.
+ */
+void wavesahre_rgb_lcd_display(uint8_t *Image)
+{
+    // Draw the entire image on the screen
+    esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, EXAMPLE_LCD_H_RES, EXAMPLE_LCD_V_RES, Image);
+}
+
+void waveshare_get_frame_buffer(void **buf1, void **buf2)
+{
+    ESP_ERROR_CHECK(esp_lcd_rgb_panel_get_frame_buffer(panel_handle, 2, buf1, buf2));
+}
+
+void waveahre_rgb_lcd_set_pclk(uint32_t freq_hz)
+{
+    esp_lcd_rgb_panel_set_pclk(panel_handle,freq_hz);
+}
+
+void waveshare_rgb_lcd_restart()
+{
+    esp_lcd_rgb_panel_restart(panel_handle);
+}
+/**
+ * @brief Turn on the RGB LCD screen backlight.
+ *
+ * This function enables the backlight of the screen by configuring the IO EXTENSION
+ * I/O expander to output mode and setting the backlight pin to high. The IO EXTENSION
+ * is controlled via I2C.
+ *
+ */
+void wavesahre_rgb_lcd_bl_on()
+{
+    IO_EXTENSION_Output(IO_EXTENSION_IO_2, 1);  // Backlight ON configuration
+}
+
+/**
+ * @brief Turn off the RGB LCD screen backlight.
+ *
+ * This function disables the backlight of the screen by configuring the IO EXTENSION
+ * I/O expander to output mode and setting the backlight pin to low. The IO EXTENSION
+ * is controlled via I2C.
+ *
+ */
+void wavesahre_rgb_lcd_bl_off()
+{
+    IO_EXTENSION_Output(IO_EXTENSION_IO_2, 0);  // Backlight OFF configuration
+}
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/rgb_lcd_port/rgb_lcd_port.h =====
+/*****************************************************************************
+ * | File        :   rgb_lcd_port.h
+ * | Author      :   Waveshare team
+ * | Function    :   Hardware underlying interface
+ * | Info        :
+ *                   This header file contains configuration and function 
+ *                   declarations for the RGB LCD driver interface.
+ *----------------
+ * | Version     :   V1.0
+ * | Date        :   2024-11-19
+ * | Info        :   Basic version
+ *
+ ******************************************************************************/
+
+#ifndef _RGB_LCD_H_
+#define _RGB_LCD_H_
+
+#pragma once
+
+#include "esp_log.h"
+#include "esp_heap_caps.h"
+#include "io_extension.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_lcd_panel_ops.h"
+#include "esp_lcd_panel_rgb.h"
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////// Please update the following configuration according to your LCD spec //////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief LCD Resolution and Timing
+ */
+#define EXAMPLE_LCD_H_RES               (1024)  ///< Horizontal resolution in pixels
+#define EXAMPLE_LCD_V_RES               (600)  ///< Vertical resolution in pixels
+#define EXAMPLE_LCD_PIXEL_CLOCK_HZ      (30.85 * 1000 * 1000) ///< Pixel clock frequency in Hz
+
+/**
+ * @brief Color and Pixel Configuration
+ */
+#define EXAMPLE_LCD_BIT_PER_PIXEL       (16)   ///< Bits per pixel (color depth)
+#define EXAMPLE_RGB_BIT_PER_PIXEL       (16)   ///< RGB interface color depth
+#define EXAMPLE_RGB_DATA_WIDTH          (16)   ///< Data width for RGB interface
+#define EXAMPLE_LCD_RGB_BUFFER_NUMS     (2)    ///< Number of frame buffers for double buffering
+#define EXAMPLE_RGB_BOUNCE_BUFFER_SIZE  (EXAMPLE_LCD_H_RES * 10) ///< Size of bounce buffer for RGB data
+
+/**
+ * @brief GPIO Pins for RGB LCD Signals
+ */
+#define EXAMPLE_LCD_IO_RGB_DISP         (-1)   ///< DISP signal, -1 if not used
+#define EXAMPLE_LCD_IO_RGB_VSYNC        (GPIO_NUM_3)  ///< Vertical sync signal
+#define EXAMPLE_LCD_IO_RGB_HSYNC        (GPIO_NUM_46) ///< Horizontal sync signal
+#define EXAMPLE_LCD_IO_RGB_DE           (GPIO_NUM_5)  ///< Data enable signal
+#define EXAMPLE_LCD_IO_RGB_PCLK         (GPIO_NUM_7)  ///< Pixel clock signal
+
+/**
+ * @brief GPIO Pins for RGB Data Signals
+ */
+// Blue data signals
+#define EXAMPLE_LCD_IO_RGB_DATA0        (GPIO_NUM_14) ///< B3
+#define EXAMPLE_LCD_IO_RGB_DATA1        (GPIO_NUM_38) ///< B4
+#define EXAMPLE_LCD_IO_RGB_DATA2        (GPIO_NUM_18) ///< B5
+#define EXAMPLE_LCD_IO_RGB_DATA3        (GPIO_NUM_17) ///< B6
+#define EXAMPLE_LCD_IO_RGB_DATA4        (GPIO_NUM_10) ///< B7
+
+// Green data signals
+#define EXAMPLE_LCD_IO_RGB_DATA5        (GPIO_NUM_39) ///< G2
+#define EXAMPLE_LCD_IO_RGB_DATA6        (GPIO_NUM_0)  ///< G3
+#define EXAMPLE_LCD_IO_RGB_DATA7        (GPIO_NUM_45) ///< G4
+#define EXAMPLE_LCD_IO_RGB_DATA8        (GPIO_NUM_48) ///< G5
+#define EXAMPLE_LCD_IO_RGB_DATA9        (GPIO_NUM_47) ///< G6
+#define EXAMPLE_LCD_IO_RGB_DATA10       (GPIO_NUM_21) ///< G7
+
+// Red data signals
+#define EXAMPLE_LCD_IO_RGB_DATA11       (GPIO_NUM_1)  ///< R3
+#define EXAMPLE_LCD_IO_RGB_DATA12       (GPIO_NUM_2)  ///< R4
+#define EXAMPLE_LCD_IO_RGB_DATA13       (GPIO_NUM_42) ///< R5
+#define EXAMPLE_LCD_IO_RGB_DATA14       (GPIO_NUM_41) ///< R6
+#define EXAMPLE_LCD_IO_RGB_DATA15       (GPIO_NUM_40) ///< R7
+
+/**
+ * @brief Reset and Backlight Configuration
+ */
+#define EXAMPLE_LCD_IO_RST              (-1)   ///< Reset pin, -1 if not used
+#define EXAMPLE_PIN_NUM_BK_LIGHT        (-1)   ///< Backlight pin, -1 if not used
+#define EXAMPLE_LCD_BK_LIGHT_ON_LEVEL   (1)    ///< Logic level to turn on backlight
+#define EXAMPLE_LCD_BK_LIGHT_OFF_LEVEL  (!EXAMPLE_LCD_BK_LIGHT_ON_LEVEL) ///< Logic level to turn off backlight
+
+/**
+ * @brief Function Declarations
+ */
+esp_lcd_panel_handle_t waveshare_esp32_s3_rgb_lcd_init();
+/**
+ * @brief Turn on the LCD backlight.
+ */
+void wavesahre_rgb_lcd_bl_on();
+/**
+ * @brief Turn off the LCD backlight.
+ */
+void wavesahre_rgb_lcd_bl_off();
+
+/**
+ * @brief Display a rectangular region of an image on the RGB LCD.
+ *
+ * @param Xstart Starting X coordinate of the region.
+ * @param Ystart Starting Y coordinate of the region.
+ * @param Xend Ending X coordinate of the region.
+ * @param Yend Ending Y coordinate of the region.
+ * @param Image Pointer to the image data buffer.
+ */
+void wavesahre_rgb_lcd_display_window(int16_t Xstart, int16_t Ystart, int16_t Xend, int16_t Yend, uint8_t *Image);
+
+/**
+ * @brief Display a full-frame image on the RGB LCD.
+ *
+ * @param Image Pointer to the image data buffer.
+ */
+void wavesahre_rgb_lcd_display(uint8_t *Image);
+
+/**
+ * @brief Retrieve pointers to the frame buffers for double buffering.
+ *
+ * @param buf1 Pointer to hold the address of the first frame buffer.
+ * @param buf2 Pointer to hold the address of the second frame buffer.
+ */
+void waveshare_get_frame_buffer(void **buf1, void **buf2);
+
+void waveahre_rgb_lcd_set_pclk(uint32_t freq_hz);
+void waveshare_rgb_lcd_restart();
+#endif // _RGB_LCD_H_
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/rgb_lcd_port/CMakeLists.txt =====
+idf_component_register(SRCS "rgb_lcd_port.c" 
+                        INCLUDE_DIRS "."
+                        REQUIRES driver esp_lcd gpio i2c io_extension lvgl_port
+                        )
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/sd/sd.c =====
+/*****************************************************************************
+ * | File         :   sd.c
+ * | Author       :   Waveshare team
+ * | Function     :   SD card driver code for mounting, reading capacity, and unmounting
+ * | Info         :
+ * |                  This is the C file for SD card configuration and usage.
+ * ----------------
+ * | This version :   V1.0
+ * | Date         :   2024-11-28
+ * | Info         :   Basic version, includes functions to initialize,
+ * |                  read memory capacity, and manage SD card mounting/unmounting.
+ *
+ ******************************************************************************/
+
+#include "sd.h"  // Include header file for SD card functions
+
+// Global variable for SD card structure
+static sdmmc_card_t *card;
+
+// Define the mount point for the SD card
+const char mount_point[] = MOUNT_POINT;
+
+/**
+ * @brief Initialize the SD card and mount the filesystem.
+ * 
+ * This function configures the SDMMC peripheral, sets up the host and slot, 
+ * and mounts the FAT filesystem from the SD card.
+ * 
+ * @retval ESP_OK if initialization and mounting succeed.
+ * @retval ESP_FAIL if an error occurs during the process.
+ */
+esp_err_t sd_mmc_init() {
+    esp_err_t ret;
+
+    // Configuration for mounting the FAT filesystem
+    esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+        .format_if_mount_failed = EXAMPLE_FORMAT_IF_MOUNT_FAILED, // Format if mount fails
+        .max_files = 5,                  // Max number of open files
+        .allocation_unit_size = 16 * 1024 // Allocation unit size
+    };
+
+    ESP_LOGI(SD_TAG, "Initializing SD card");
+
+    // Use the SDMMC peripheral for SD card communication
+    ESP_LOGI(SD_TAG, "Using SDMMC peripheral");
+
+    // Host configuration with default settings for high-speed operation
+    sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+    host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
+
+    // Slot configuration for SDMMC
+    sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
+    slot_config.width = 1,
+    slot_config.clk = EXAMPLE_PIN_CLK,
+    slot_config.cmd = EXAMPLE_PIN_CMD,
+    slot_config.d0 = EXAMPLE_PIN_D0,
+    // Enable internal pull-ups on the GPIOs
+    slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
+
+    ESP_LOGI(SD_TAG, "Mounting filesystem");
+
+    // Mount the filesystem and initialize the SD card
+    ret = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config, &mount_config, &card);
+
+    if (ret != ESP_OK) {
+        if (ret == ESP_FAIL) {
+            ESP_LOGE(SD_TAG, "Failed to mount filesystem. "
+                             "Format the card if mount fails.");
+        } else {
+            ESP_LOGE(SD_TAG, "Failed to initialize the card (%s). "
+                             "Check pull-up resistors on the card lines.", esp_err_to_name(ret));
+        }
+        return ESP_FAIL;
+    }
+    ESP_LOGI(SD_TAG, "Filesystem mounted");
+    return ret;
+}
+
+/**
+ * @brief Print detailed SD card information to the console.
+ * 
+ * Uses the built-in `sdmmc_card_print_info` function to log information 
+ * about the SD card to the standard output.
+ */
+void sd_card_print_info() {
+    sdmmc_card_print_info(stdout, card);
+}
+
+/**
+ * @brief Unmount the SD card and release resources.
+ * 
+ * This function unmounts the FAT filesystem and ensures all resources 
+ * associated with the SD card are released.
+ * 
+ * @retval ESP_OK if unmounting succeeds.
+ * @retval ESP_FAIL if an error occurs.
+ */
+esp_err_t sd_mmc_unmount() {
+    return esp_vfs_fat_sdcard_unmount(mount_point, card);
+}
+
+/**
+ * @brief Get total and available memory capacity of the SD card.
+ * 
+ * @param total_capacity Pointer to store the total capacity (in KB).
+ * @param available_capacity Pointer to store the available capacity (in KB).
+ * 
+ * @retval ESP_OK if memory information is successfully retrieved.
+ * @retval ESP_FAIL if an error occurs while fetching capacity information.
+ */
+esp_err_t read_sd_capacity(size_t *total_capacity, size_t *available_capacity) {
+    FATFS *fs;
+    uint32_t free_clusters;
+
+    // Get the number of free clusters in the filesystem
+    int res = f_getfree(mount_point, &free_clusters, &fs);
+    if (res != FR_OK) {
+        ESP_LOGE(SD_TAG, "Failed to get number of free clusters (%d)", res);
+        return ESP_FAIL;
+    }
+
+    // Calculate total and free sectors based on cluster size
+    uint64_t total_sectors = ((uint64_t)(fs->n_fatent - 2)) * fs->csize;
+    uint64_t free_sectors = ((uint64_t)free_clusters) * fs->csize;
+
+    // Convert sectors to size in KB
+    size_t sd_total_KB = (total_sectors * fs->ssize) / 1024;
+    size_t sd_available_KB = (free_sectors * fs->ssize) / 1024;
+
+    // Store total capacity if the pointer is valid
+    if (total_capacity != NULL) {
+        *total_capacity = sd_total_KB;
+    }
+
+    // Store available capacity if the pointer is valid
+    if (available_capacity != NULL) {
+        *available_capacity = sd_available_KB;
+    }
+
+    return ESP_OK;
+}
+
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/sd/sd.h =====
+/*****************************************************************************
+ * | File         :   sd.h
+ * | Author       :   Waveshare team
+ * | Function     :   SD card driver configuration header file
+ * | Info         :
+ * |                 This header file provides definitions and function 
+ * |                 declarations for initializing, mounting, and managing 
+ * |                 an SD card using ESP-IDF.
+ * ----------------
+ * | This version :   V1.0
+ * | Date         :   2024-11-28
+ * | Info         :   Basic version
+ *
+ ******************************************************************************/
+
+#ifndef __SD_H
+#define __SD_H
+
+// Include necessary ESP-IDF and driver headers
+#include <sys/unistd.h>      // For file system operations
+#include <sys/stat.h>        // For file system metadata
+#include "esp_vfs_fat.h"     // FAT filesystem and VFS integration
+#include "sdmmc_cmd.h"       // SD card commands
+#include "driver/sdmmc_host.h" // SDMMC host driver
+
+#include "io_extension.h"          // IO EXTENSION I2C CAN control header (optional inclusion)
+
+#define SD_TAG "sd"          // Log tag for SD card functions
+
+// Define constants for SD card configuration
+#define MOUNT_POINT "/sdcard"                // Mount point for SD card
+#define EXAMPLE_FORMAT_IF_MOUNT_FAILED false // Format SD card if mounting fails
+#define EXAMPLE_PIN_CLK GPIO_NUM_12          // GPIO pin for SD card clock
+#define EXAMPLE_PIN_CMD GPIO_NUM_11          // GPIO pin for SD card command line
+#define EXAMPLE_PIN_D0  GPIO_NUM_13          // GPIO pin for SD card data line (D0)
+
+// Function declarations
+
+/**
+ * @brief Initialize the SD card and mount the FAT filesystem.
+ * 
+ * @retval ESP_OK if initialization and mounting succeed.
+ * @retval ESP_FAIL if an error occurs.
+ */
+esp_err_t sd_mmc_init();
+
+/**
+ * @brief Unmount the SD card and release resources.
+ * 
+ * @retval ESP_OK if unmounting succeeds.
+ * @retval ESP_FAIL if an error occurs.
+ */
+esp_err_t sd_mmc_unmount();
+
+/**
+ * @brief Print detailed information about the SD card.
+ * 
+ * This function uses `sdmmc_card_print_info` to display SD card details such 
+ * as manufacturer, type, size, and more.
+ */
+void sd_card_print_info();
+
+/**
+ * @brief Get total and available memory capacity of the SD card.
+ * 
+ * @param total_capacity Pointer to store the total capacity (in KB).
+ * @param available_capacity Pointer to store the available capacity (in KB).
+ * 
+ * @retval ESP_OK if memory information is successfully retrieved.
+ * @retval ESP_FAIL if an error occurs.
+ */
+esp_err_t read_sd_capacity(size_t *total_capacity, size_t *available_capacity);
+
+#endif  // __SD_H
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/sd/CMakeLists.txt =====
+idf_component_register(SRCS "sd.c"  
+                        INCLUDE_DIRS "."
+                        REQUIRES driver fatfs i2c gpio io_extension
+                    )
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/touch/touch.h =====
+/**
+ * @file
+ * @brief ESP LCD touch
+ */
+#pragma once
+
+#include <stdbool.h>
+#include "sdkconfig.h"
+#include "esp_err.h"
+#include "driver/gpio.h"
+#include "esp_lcd_panel_io.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+
+#define ESP_LCD_TOUCH_MAX_BUTTONS 1
+#define ESP_LCD_TOUCH_MAX_POINTS 5
+
+/**
+ * @brief Touch controller type
+ *
+ */
+typedef struct esp_lcd_touch_s esp_lcd_touch_t;
+typedef esp_lcd_touch_t *esp_lcd_touch_handle_t;
+
+/**
+ * @brief Touch controller interrupt callback type
+ *
+ */
+typedef void (*esp_lcd_touch_interrupt_callback_t)(esp_lcd_touch_handle_t tp);
+
+/**
+ * @brief Touch Configuration Type
+ *
+ */
+typedef struct {
+    uint16_t x_max; /*!< X coordinates max (for mirroring) */
+    uint16_t y_max; /*!< Y coordinates max (for mirroring) */
+
+    gpio_num_t rst_gpio_num;    /*!< GPIO number of reset pin */
+    gpio_num_t int_gpio_num;    /*!< GPIO number of interrupt pin */
+
+    struct {
+        unsigned int reset: 1;    /*!< Level of reset pin in reset */
+        unsigned int interrupt: 1;/*!< Active Level of interrupt pin */
+    } levels;
+
+    struct {
+        unsigned int swap_xy: 1;  /*!< Swap X and Y after read coordinates */
+        unsigned int mirror_x: 1; /*!< Mirror X after read coordinates */
+        unsigned int mirror_y: 1; /*!< Mirror Y after read coordinates */
+    } flags;
+
+    /*!< User callback called after get coordinates from touch controller for apply user adjusting */
+    void (*process_coordinates)(esp_lcd_touch_handle_t tp, uint16_t *x, uint16_t *y, uint16_t *strength, uint8_t *point_num, uint8_t max_point_num);
+    /*!< User callback called after the touch interrupt occurred */
+    esp_lcd_touch_interrupt_callback_t interrupt_callback;
+    /*!< User data passed to callback */
+    void *user_data;
+    /*!< User data passed to driver */
+    void *driver_data;
+} esp_lcd_touch_config_t;
+
+typedef struct {
+    uint8_t points; /*!< Count of touch points saved */
+
+    struct {
+        uint16_t x; /*!< X coordinate */
+        uint16_t y; /*!< Y coordinate */
+        uint16_t strength; /*!< Strength */
+    } coords[ESP_LCD_TOUCH_MAX_POINTS];
+
+#if (ESP_LCD_TOUCH_MAX_BUTTONS > 0)
+    uint8_t buttons; /*!< Count of buttons states saved */
+
+    struct {
+        uint8_t status; /*!< Status of button */
+    } button[ESP_LCD_TOUCH_MAX_BUTTONS];
+#endif
+
+    portMUX_TYPE lock; /*!< Lock for read/write */
+} esp_lcd_touch_data_t;
+
+/**
+ * @brief Declare of Touch Type
+ *
+ */
+struct esp_lcd_touch_s {
+
+    /**
+     * @brief set touch controller into sleep mode
+     *
+     * @note This function is usually blocking.
+     *
+     * @param tp: Touch handler
+     *
+     * @return
+     *      - ESP_OK on success, otherwise returns ESP_ERR_xxx
+     */
+    esp_err_t (*enter_sleep)(esp_lcd_touch_handle_t tp);
+
+    /**
+     * @brief set touch controller into normal mode
+     *
+     * @note This function is usually blocking.
+     *
+     * @param tp: Touch handler
+     *
+     * @return
+     *      - ESP_OK on success, otherwise returns ESP_ERR_xxx
+     */
+    esp_err_t (*exit_sleep)(esp_lcd_touch_handle_t tp);
+
+    /**
+     * @brief Read data from touch controller (mandatory)
+     *
+     * @note This function is usually blocking.
+     *
+     * @param tp: Touch handler
+     *
+     * @return
+     *      - ESP_OK on success, otherwise returns ESP_ERR_xxx
+     */
+    esp_err_t (*read_data)(esp_lcd_touch_handle_t tp);
+
+    /**
+     * @brief Get coordinates from touch controller (mandatory)
+     *
+     * @param tp: Touch handler
+     * @param x: Array of X coordinates
+     * @param y: Array of Y coordinates
+     * @param strength: Array of strengths
+     * @param point_num: Count of points touched (equals with count of items in x and y array)
+     * @param max_point_num: Maximum count of touched points to return (equals with max size of x and y array)
+     *
+     * @return
+     *      - Returns true, when touched and coordinates readed. Otherwise returns false.
+     */
+    bool (*get_xy)(esp_lcd_touch_handle_t tp, uint16_t *x, uint16_t *y, uint16_t *strength, uint8_t *point_num, uint8_t max_point_num);
+
+
+#if (ESP_LCD_TOUCH_MAX_BUTTONS > 0)
+    /**
+     * @brief Get button state (optional)
+     *
+     * @param tp: Touch handler
+     * @param n: Button index
+     * @param state: Button state
+     *
+     * @return
+     *      - Returns true, when touched and coordinates readed. Otherwise returns false.
+     */
+    esp_err_t (*get_button_state)(esp_lcd_touch_handle_t tp, uint8_t n, uint8_t *state);
+#endif
+
+    /**
+     * @brief Swap X and Y after read coordinates (optional)
+     *        If set, then not used SW swapping.
+     *
+     * @param tp: Touch handler
+     * @param swap: Set swap value
+     *
+     * @return
+     *      - ESP_OK on success, otherwise returns ESP_ERR_xxx
+     */
+    esp_err_t (*set_swap_xy)(esp_lcd_touch_handle_t tp, bool swap);
+
+    /**
+     * @brief Are X and Y coordinates swapped (optional)
+     *
+     * @param tp: Touch handler
+     * @param swap: Get swap value
+     *
+     * @return
+     *      - ESP_OK on success, otherwise returns ESP_ERR_xxx
+     */
+    esp_err_t (*get_swap_xy)(esp_lcd_touch_handle_t tp, bool *swap);
+
+    /**
+     * @brief Mirror X after read coordinates
+     *        If set, then not used SW mirroring.
+     *
+     * @param tp: Touch handler
+     * @param mirror: Set X mirror value
+     *
+     * @return
+     *      - ESP_OK on success, otherwise returns ESP_ERR_xxx
+     */
+    esp_err_t (*set_mirror_x)(esp_lcd_touch_handle_t tp, bool mirror);
+
+    /**
+     * @brief Is mirrored X (optional)
+     *
+     * @param tp: Touch handler
+     * @param mirror: Get X mirror value
+     *
+     * @return
+     *      - ESP_OK on success, otherwise returns ESP_ERR_xxx
+     */
+    esp_err_t (*get_mirror_x)(esp_lcd_touch_handle_t tp, bool *mirror);
+
+    /**
+     * @brief Mirror Y after read coordinates
+     *        If set, then not used SW mirroring.
+     *
+     * @param tp: Touch handler
+     * @param mirror: Set Y mirror value
+     *
+     * @return
+     *      - ESP_OK on success, otherwise returns ESP_ERR_xxx
+     */
+    esp_err_t (*set_mirror_y)(esp_lcd_touch_handle_t tp, bool mirror);
+
+    /**
+     * @brief Is mirrored Y (optional)
+     *
+     * @param tp: Touch handler
+     * @param mirror: Get Y mirror value
+     *
+     * @return
+     *      - ESP_OK on success, otherwise returns ESP_ERR_xxx
+     */
+    esp_err_t (*get_mirror_y)(esp_lcd_touch_handle_t tp, bool *mirror);
+
+    /**
+     * @brief Delete Touch
+     *
+     * @param tp: Touch handler
+     *
+     * @return
+     *      - ESP_OK on success, otherwise returns ESP_ERR_xxx
+     */
+    esp_err_t (*del)(esp_lcd_touch_handle_t tp);
+
+    /**
+     * @brief Configuration structure
+     */
+    esp_lcd_touch_config_t config;
+
+    /**
+     * @brief Communication interface
+     */
+    esp_lcd_panel_io_handle_t io;
+
+    /**
+     * @brief Data structure
+     */
+    esp_lcd_touch_data_t data;
+};
+
+/**
+ * @brief Read data from touch controller
+ *
+ * @note This function is usually blocking.
+ *
+ * @param tp: Touch handler
+ *
+ * @return
+ *     - ESP_OK                 on success
+ *     - ESP_ERR_INVALID_ARG    parameter error
+ *     - ESP_FAIL               sending command error, slave hasn't ACK the transfer
+ *     - ESP_ERR_INVALID_STATE  I2C driver not installed or not in master mode
+ *     - ESP_ERR_TIMEOUT        operation timeout because the bus is busy
+ */
+esp_err_t esp_lcd_touch_read_data(esp_lcd_touch_handle_t tp);
+
+/**
+ * @brief Read coordinates from touch controller
+ *
+ * @param tp: Touch handler
+ * @param x: Array of X coordinates
+ * @param y: Array of Y coordinates
+ * @param strength: Array of the strengths (can be NULL)
+ * @param point_num: Count of points touched (equals with count of items in x and y array)
+ * @param max_point_num: Maximum count of touched points to return (equals with max size of x and y array)
+ *
+ * @return
+ *      - Returns true, when touched and coordinates readed. Otherwise returns false.
+ */
+bool esp_lcd_touch_get_coordinates(esp_lcd_touch_handle_t tp, uint16_t *x, uint16_t *y, uint16_t *strength, uint8_t *point_num, uint8_t max_point_num);
+
+
+#if (ESP_LCD_TOUCH_MAX_BUTTONS > 0)
+/**
+ * @brief Get button state
+ *
+ * @param tp: Touch handler
+ * @param n: Button index
+ * @param state: Button state
+ *
+ * @return
+ *      - ESP_OK                    on success
+ *      - ESP_ERR_NOT_SUPPORTED     if this function is not supported by controller
+ *      - ESP_ERR_INVALID_ARG       if bad button index
+ */
+esp_err_t esp_lcd_touch_get_button_state(esp_lcd_touch_handle_t tp, uint8_t n, uint8_t *state);
+#endif
+
+/**
+ * @brief Swap X and Y after read coordinates
+ *
+ * @param tp: Touch handler
+ * @param swap: Set swap value
+ *
+ * @return
+ *      - ESP_OK on success
+ */
+esp_err_t esp_lcd_touch_set_swap_xy(esp_lcd_touch_handle_t tp, bool swap);
+
+/**
+ * @brief Are X and Y coordinates swapped
+ *
+ * @param tp: Touch handler
+ * @param swap: Get swap value
+ *
+ * @return
+ *      - ESP_OK on success
+ */
+esp_err_t esp_lcd_touch_get_swap_xy(esp_lcd_touch_handle_t tp, bool *swap);
+
+/**
+ * @brief Mirror X after read coordinates
+ *
+ * @param tp: Touch handler
+ * @param mirror: Set X mirror value
+ *
+ * @return
+ *      - ESP_OK on success
+ */
+esp_err_t esp_lcd_touch_set_mirror_x(esp_lcd_touch_handle_t tp, bool mirror);
+
+/**
+ * @brief Is mirrored X
+ *
+ * @param tp: Touch handler
+ * @param mirror: Get X mirror value
+ *
+ * @return
+ *      - ESP_OK on success
+ */
+esp_err_t esp_lcd_touch_get_mirror_x(esp_lcd_touch_handle_t tp, bool *mirror);
+
+/**
+ * @brief Mirror Y after read coordinates
+ *
+ * @param tp: Touch handler
+ * @param mirror: Set Y mirror value
+ *
+ * @return
+ *      - ESP_OK on success
+ */
+esp_err_t esp_lcd_touch_set_mirror_y(esp_lcd_touch_handle_t tp, bool mirror);
+
+/**
+ * @brief Is mirrored Y
+ *
+ * @param tp: Touch handler
+ * @param mirror: Get Y mirror value
+ *
+ * @return
+ *      - ESP_OK on success
+ */
+esp_err_t esp_lcd_touch_get_mirror_y(esp_lcd_touch_handle_t tp, bool *mirror);
+
+/**
+ * @brief Delete touch (free all allocated memory and restart HW)
+ *
+ * @param tp: Touch handler
+ *
+ * @return
+ *      - ESP_OK on success
+ */
+esp_err_t esp_lcd_touch_del(esp_lcd_touch_handle_t tp);
+
+/**
+ * @brief Register user callback called after the touch interrupt occurred
+ *
+ * @param tp: Touch handler
+ * @param callback: Interrupt callback
+ *
+ * @return
+ *      - ESP_OK on success
+ */
+esp_err_t esp_lcd_touch_register_interrupt_callback(esp_lcd_touch_handle_t tp, esp_lcd_touch_interrupt_callback_t callback);
+
+/**
+ * @brief Register user callback called after the touch interrupt occurred with user data
+ *
+ * @param tp: Touch handler
+ * @param callback: Interrupt callback
+ * @param user_data: User data passed to callback
+ *
+ * @return
+ *      - ESP_OK on success
+ */
+esp_err_t esp_lcd_touch_register_interrupt_callback_with_data(esp_lcd_touch_handle_t tp, esp_lcd_touch_interrupt_callback_t callback, void *user_data);
+
+/**
+ * @brief Enter sleep mode
+ *
+ * @param tp: Touch handler
+ *
+ * @return
+ *      - ESP_OK on success
+ *      - ESP_ERR_INVALID_ARG if parameter is invalid
+ */
+esp_err_t esp_lcd_touch_enter_sleep(esp_lcd_touch_handle_t tp);
+
+/**
+ * @brief Exit sleep mode
+ *
+ * @param tp: Touch handler
+ *
+ * @return
+ *      - ESP_OK on success
+ *      - ESP_ERR_INVALID_ARG if parameter is invalid
+ */
+esp_err_t esp_lcd_touch_exit_sleep(esp_lcd_touch_handle_t tp);
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/touch/touch.c =====
+/*
+ * SPDX-FileCopyrightText: 2015-2023 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <stdlib.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/gpio.h"
+#include "esp_system.h"
+#include "esp_err.h"
+#include "esp_check.h"
+#include "esp_log.h"
+#include "touch.h"
+
+static const char *TAG = "TP";
+
+/*******************************************************************************
+* Function definitions
+*******************************************************************************/
+
+/*******************************************************************************
+* Local variables
+*******************************************************************************/
+
+/*******************************************************************************
+* Public API functions
+*******************************************************************************/
+
+esp_err_t esp_lcd_touch_enter_sleep(esp_lcd_touch_handle_t tp)
+{
+    assert(tp != NULL);
+    if (tp->enter_sleep == NULL) {
+        ESP_LOGE(TAG, "Sleep mode not supported!");
+        return ESP_FAIL;
+    } else {
+        return tp->enter_sleep(tp);
+    }
+}
+
+esp_err_t esp_lcd_touch_exit_sleep(esp_lcd_touch_handle_t tp)
+{
+    assert(tp != NULL);
+    if (tp->exit_sleep == NULL) {
+        ESP_LOGE(TAG, "Sleep mode not supported!");
+        return ESP_FAIL;
+    } else {
+        return tp->exit_sleep(tp);
+    }
+}
+
+esp_err_t esp_lcd_touch_read_data(esp_lcd_touch_handle_t tp)
+{
+    assert(tp != NULL);
+    assert(tp->read_data != NULL);
+
+    return tp->read_data(tp);
+}
+
+bool esp_lcd_touch_get_coordinates(esp_lcd_touch_handle_t tp, uint16_t *x, uint16_t *y, uint16_t *strength, uint8_t *point_num, uint8_t max_point_num)
+{
+    bool touched = false;
+
+    assert(tp != NULL);
+    assert(x != NULL);
+    assert(y != NULL);
+    assert(tp->get_xy != NULL);
+
+    touched = tp->get_xy(tp, x, y, strength, point_num, max_point_num);
+    if (!touched) {
+        return false;
+    }
+
+    /* Process coordinates by user */
+    if (tp->config.process_coordinates != NULL) {
+        tp->config.process_coordinates(tp, x, y, strength, point_num, max_point_num);
+    }
+
+    /* Software coordinates adjustment needed */
+    bool sw_adj_needed = ((tp->config.flags.mirror_x && (tp->set_mirror_x == NULL)) ||
+                          (tp->config.flags.mirror_y && (tp->set_mirror_y == NULL)) ||
+                          (tp->config.flags.swap_xy && (tp->set_swap_xy == NULL)));
+
+    /* Adjust all coordinates */
+    for (int i = 0; (sw_adj_needed && i < *point_num); i++) {
+
+        /*  Mirror X coordinates (if not supported by HW) */
+        if (tp->config.flags.mirror_x && tp->set_mirror_x == NULL) {
+            x[i] = tp->config.x_max - x[i];
+        }
+
+        /*  Mirror Y coordinates (if not supported by HW) */
+        if (tp->config.flags.mirror_y && tp->set_mirror_y == NULL) {
+            y[i] = tp->config.y_max - y[i];
+        }
+
+        /* Swap X and Y coordinates (if not supported by HW) */
+        if (tp->config.flags.swap_xy && tp->set_swap_xy == NULL) {
+            uint16_t tmp = x[i];
+            x[i] = y[i];
+            y[i] = tmp;
+        }
+    }
+
+    return touched;
+}
+
+#if (ESP_LCD_TOUCH_MAX_BUTTONS > 0)
+esp_err_t esp_lcd_touch_get_button_state(esp_lcd_touch_handle_t tp, uint8_t n, uint8_t *state)
+{
+    assert(tp != NULL);
+    assert(state != NULL);
+
+    *state = 0;
+
+    if (tp->get_button_state) {
+        return tp->get_button_state(tp, n, state);
+    } else {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    return ESP_OK;
+}
+#endif
+
+esp_err_t esp_lcd_touch_set_swap_xy(esp_lcd_touch_handle_t tp, bool swap)
+{
+    assert(tp != NULL);
+
+    tp->config.flags.swap_xy = swap;
+
+    /* Is swap supported by HW? */
+    if (tp->set_swap_xy) {
+        return tp->set_swap_xy(tp, swap);
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t esp_lcd_touch_get_swap_xy(esp_lcd_touch_handle_t tp, bool *swap)
+{
+    assert(tp != NULL);
+    assert(swap != NULL);
+
+    /* Is swap supported by HW? */
+    if (tp->get_swap_xy) {
+        return tp->get_swap_xy(tp, swap);
+    } else {
+        *swap = tp->config.flags.swap_xy;
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t esp_lcd_touch_set_mirror_x(esp_lcd_touch_handle_t tp, bool mirror)
+{
+    assert(tp != NULL);
+
+    tp->config.flags.mirror_x = mirror;
+
+    /* Is mirror supported by HW? */
+    if (tp->set_mirror_x) {
+        return tp->set_mirror_x(tp, mirror);
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t esp_lcd_touch_get_mirror_x(esp_lcd_touch_handle_t tp, bool *mirror)
+{
+    assert(tp != NULL);
+    assert(mirror != NULL);
+
+    /* Is swap supported by HW? */
+    if (tp->get_mirror_x) {
+        return tp->get_mirror_x(tp, mirror);
+    } else {
+        *mirror = tp->config.flags.mirror_x;
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t esp_lcd_touch_set_mirror_y(esp_lcd_touch_handle_t tp, bool mirror)
+{
+    assert(tp != NULL);
+
+    tp->config.flags.mirror_y = mirror;
+
+    /* Is mirror supported by HW? */
+    if (tp->set_mirror_y) {
+        return tp->set_mirror_y(tp, mirror);
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t esp_lcd_touch_get_mirror_y(esp_lcd_touch_handle_t tp, bool *mirror)
+{
+    assert(tp != NULL);
+    assert(mirror != NULL);
+
+    /* Is swap supported by HW? */
+    if (tp->get_mirror_y) {
+        return tp->get_mirror_y(tp, mirror);
+    } else {
+        *mirror = tp->config.flags.mirror_y;
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t esp_lcd_touch_del(esp_lcd_touch_handle_t tp)
+{
+    assert(tp != NULL);
+
+    if (tp->del != NULL) {
+        return tp->del(tp);
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t esp_lcd_touch_register_interrupt_callback(esp_lcd_touch_handle_t tp, esp_lcd_touch_interrupt_callback_t callback)
+{
+    esp_err_t ret = ESP_OK;
+    assert(tp != NULL);
+
+    /* Interrupt pin is not selected */
+    if (tp->config.int_gpio_num == GPIO_NUM_NC) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    tp->config.interrupt_callback = callback;
+
+    if (callback != NULL) {
+        ret = gpio_install_isr_service(0);
+        /* ISR service can be installed from user before, then it returns invalid state */
+        if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE) {
+            ESP_LOGE(TAG, "GPIO ISR install failed");
+            return ret;
+        }
+        /* Add GPIO ISR handler */
+        ret = gpio_intr_enable(tp->config.int_gpio_num);
+        ESP_RETURN_ON_ERROR(ret, TAG, "GPIO ISR install failed");
+        ret = gpio_isr_handler_add(tp->config.int_gpio_num, (gpio_isr_t)tp->config.interrupt_callback, tp);
+        ESP_RETURN_ON_ERROR(ret, TAG, "GPIO ISR install failed");
+    } else {
+        /* Remove GPIO ISR handler */
+        ret = gpio_isr_handler_remove(tp->config.int_gpio_num);
+        ESP_RETURN_ON_ERROR(ret, TAG, "GPIO ISR remove handler failed");
+        ret = gpio_intr_disable(tp->config.int_gpio_num);
+        ESP_RETURN_ON_ERROR(ret, TAG, "GPIO ISR disable failed");
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t esp_lcd_touch_register_interrupt_callback_with_data(esp_lcd_touch_handle_t tp, esp_lcd_touch_interrupt_callback_t callback, void *user_data)
+{
+    assert(tp != NULL);
+
+    tp->config.user_data = user_data;
+    return esp_lcd_touch_register_interrupt_callback(tp, callback);
+}
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/touch/gt911.c =====
+/*
+ * SPDX-FileCopyrightText: 2015-2024 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <stdio.h>
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
+#include "esp_err.h"
+#include "esp_log.h"
+#include "esp_check.h"
+
+#include "i2c.h"
+#include "gpio.h"
+#include "io_extension.h"
+#include "rgb_lcd_port.h"
+
+#include "gt911.h"
+
+static const char *TAG = "GT911";
+
+/* GT911 registers */
+#define ESP_LCD_TOUCH_GT911_READ_KEY_REG    (0x8093)
+#define ESP_LCD_TOUCH_GT911_READ_XY_REG     (0x814E)
+#define ESP_LCD_TOUCH_GT911_CONFIG_REG      (0x8047)
+#define ESP_LCD_TOUCH_GT911_PRODUCT_ID_REG  (0x8140)
+#define ESP_LCD_TOUCH_GT911_ENTER_SLEEP     (0x8040)
+
+/* GT911 support key num */
+#define ESP_GT911_TOUCH_MAX_BUTTONS         (4)
+
+esp_lcd_touch_handle_t tp_handle = NULL; // Declare a handle for the touch panel
+/*******************************************************************************
+* Function definitions
+*******************************************************************************/
+static esp_err_t esp_lcd_touch_gt911_read_data(esp_lcd_touch_handle_t tp);
+static bool esp_lcd_touch_gt911_get_xy(esp_lcd_touch_handle_t tp, uint16_t *x, uint16_t *y, uint16_t *strength, uint8_t *point_num, uint8_t max_point_num);
+#if (ESP_LCD_TOUCH_MAX_BUTTONS > 0)
+static esp_err_t esp_lcd_touch_gt911_get_button_state(esp_lcd_touch_handle_t tp, uint8_t n, uint8_t *state);
+#endif
+static esp_err_t esp_lcd_touch_gt911_del(esp_lcd_touch_handle_t tp);
+
+/* I2C read/write */
+static esp_err_t touch_gt911_i2c_read(esp_lcd_touch_handle_t tp, uint16_t reg, uint8_t *data, uint8_t len);
+static esp_err_t touch_gt911_i2c_write(esp_lcd_touch_handle_t tp, uint16_t reg, uint8_t data);
+
+/* GT911 reset */
+static esp_err_t touch_gt911_reset(esp_lcd_touch_handle_t tp);
+/* Read status and config register */
+static esp_err_t touch_gt911_read_cfg(esp_lcd_touch_handle_t tp);
+
+/* GT911 enter/exit sleep mode */
+static esp_err_t esp_lcd_touch_gt911_enter_sleep(esp_lcd_touch_handle_t tp);
+static esp_err_t esp_lcd_touch_gt911_exit_sleep(esp_lcd_touch_handle_t tp);
+
+/*******************************************************************************
+* Public API functions
+*******************************************************************************/
+
+esp_err_t esp_lcd_touch_new_i2c_gt911(const esp_lcd_panel_io_handle_t io, const esp_lcd_touch_config_t *config, esp_lcd_touch_handle_t *out_touch)
+{
+    esp_err_t ret = ESP_OK;
+
+    assert(io != NULL);
+    assert(config != NULL);
+    assert(out_touch != NULL);
+
+    /* Prepare main structure */
+    esp_lcd_touch_handle_t esp_lcd_touch_gt911 = heap_caps_calloc(1, sizeof(esp_lcd_touch_t), MALLOC_CAP_DEFAULT);
+    ESP_GOTO_ON_FALSE(esp_lcd_touch_gt911, ESP_ERR_NO_MEM, err, TAG, "no mem for GT911 controller");
+
+    /* Communication interface */
+    esp_lcd_touch_gt911->io = io;
+
+    /* Only supported callbacks are set */
+    esp_lcd_touch_gt911->read_data = esp_lcd_touch_gt911_read_data;
+    esp_lcd_touch_gt911->get_xy = esp_lcd_touch_gt911_get_xy;
+#if (ESP_LCD_TOUCH_MAX_BUTTONS > 0)
+    esp_lcd_touch_gt911->get_button_state = esp_lcd_touch_gt911_get_button_state;
+#endif
+    esp_lcd_touch_gt911->del = esp_lcd_touch_gt911_del;
+    esp_lcd_touch_gt911->enter_sleep = esp_lcd_touch_gt911_enter_sleep;
+    esp_lcd_touch_gt911->exit_sleep = esp_lcd_touch_gt911_exit_sleep;
+
+    /* Mutex */
+    esp_lcd_touch_gt911->data.lock.owner = portMUX_FREE_VAL;
+
+    /* Save config */
+    memcpy(&esp_lcd_touch_gt911->config, config, sizeof(esp_lcd_touch_config_t));
+    esp_lcd_touch_io_gt911_config_t *gt911_config = (esp_lcd_touch_io_gt911_config_t *)esp_lcd_touch_gt911->config.driver_data;
+
+    /* Prepare pin for touch controller reset */
+    if (esp_lcd_touch_gt911->config.rst_gpio_num != GPIO_NUM_NC) {
+        const gpio_config_t rst_gpio_config = {
+            .mode = GPIO_MODE_OUTPUT,
+            .pin_bit_mask = BIT64(esp_lcd_touch_gt911->config.rst_gpio_num)
+        };
+        ret = gpio_config(&rst_gpio_config);
+        ESP_GOTO_ON_ERROR(ret, err, TAG, "GPIO config failed");
+    }
+
+    if (gt911_config && esp_lcd_touch_gt911->config.rst_gpio_num != GPIO_NUM_NC && esp_lcd_touch_gt911->config.int_gpio_num != GPIO_NUM_NC) {
+        /* Prepare pin for touch controller int */
+        const gpio_config_t int_gpio_config = {
+            .mode = GPIO_MODE_OUTPUT,
+            .intr_type = GPIO_INTR_DISABLE,
+            .pull_down_en = 0,
+            .pull_up_en = 1,
+            .pin_bit_mask = BIT64(esp_lcd_touch_gt911->config.int_gpio_num),
+        };
+        ret = gpio_config(&int_gpio_config);
+        ESP_GOTO_ON_ERROR(ret, err, TAG, "GPIO config failed");
+
+        ESP_RETURN_ON_ERROR(gpio_set_level(esp_lcd_touch_gt911->config.rst_gpio_num, esp_lcd_touch_gt911->config.levels.reset), TAG, "GPIO set level error!");
+        ESP_RETURN_ON_ERROR(gpio_set_level(esp_lcd_touch_gt911->config.int_gpio_num, 0), TAG, "GPIO set level error!");
+        vTaskDelay(pdMS_TO_TICKS(10));
+
+        /* Select I2C addr, set output high or low */
+        uint32_t gpio_level;
+        if (ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP == gt911_config->dev_addr) {
+            gpio_level = 1;
+        } else if (ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS == gt911_config->dev_addr) {
+            gpio_level = 0;
+        } else {
+            gpio_level = 0;
+            ESP_LOGE(TAG, "Addr (0x%X) is invalid", gt911_config->dev_addr);
+        }
+        ESP_RETURN_ON_ERROR(gpio_set_level(esp_lcd_touch_gt911->config.int_gpio_num, gpio_level), TAG, "GPIO set level error!");
+        vTaskDelay(pdMS_TO_TICKS(1));
+
+        ESP_RETURN_ON_ERROR(gpio_set_level(esp_lcd_touch_gt911->config.rst_gpio_num, !esp_lcd_touch_gt911->config.levels.reset), TAG, "GPIO set level error!");
+        vTaskDelay(pdMS_TO_TICKS(10));
+
+        vTaskDelay(pdMS_TO_TICKS(50));
+    } else {
+        ESP_LOGW(TAG, "Unable to initialize the I2C address");
+        /* Reset controller */
+        ret = touch_gt911_reset(esp_lcd_touch_gt911);
+        ESP_GOTO_ON_ERROR(ret, err, TAG, "GT911 reset failed");
+    }
+
+    /* Prepare pin for touch interrupt */
+    if (esp_lcd_touch_gt911->config.int_gpio_num != GPIO_NUM_NC) {
+        const gpio_config_t int_gpio_config = {
+            .mode = GPIO_MODE_INPUT,
+            .intr_type = (esp_lcd_touch_gt911->config.levels.interrupt ? GPIO_INTR_POSEDGE : GPIO_INTR_NEGEDGE),
+            .pin_bit_mask = BIT64(esp_lcd_touch_gt911->config.int_gpio_num)
+        };
+        ret = gpio_config(&int_gpio_config);
+        ESP_GOTO_ON_ERROR(ret, err, TAG, "GPIO config failed");
+
+        /* Register interrupt callback */
+        if (esp_lcd_touch_gt911->config.interrupt_callback) {
+            esp_lcd_touch_register_interrupt_callback(esp_lcd_touch_gt911, esp_lcd_touch_gt911->config.interrupt_callback);
+        }
+    }
+
+    /* Read status and config info */
+    ret = touch_gt911_read_cfg(esp_lcd_touch_gt911);
+    ESP_GOTO_ON_ERROR(ret, err, TAG, "GT911 init failed");
+
+err:
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Error (0x%x)! Touch controller GT911 initialization failed!", ret);
+        if (esp_lcd_touch_gt911) {
+            esp_lcd_touch_gt911_del(esp_lcd_touch_gt911);
+        }
+    }
+
+    *out_touch = esp_lcd_touch_gt911;
+
+    return ret;
+}
+
+static esp_err_t esp_lcd_touch_gt911_enter_sleep(esp_lcd_touch_handle_t tp)
+{
+    esp_err_t err = touch_gt911_i2c_write(tp, ESP_LCD_TOUCH_GT911_ENTER_SLEEP, 0x05);
+    ESP_RETURN_ON_ERROR(err, TAG, "Enter Sleep failed!");
+
+    return ESP_OK;
+}
+
+static esp_err_t esp_lcd_touch_gt911_exit_sleep(esp_lcd_touch_handle_t tp)
+{
+    esp_err_t ret;
+    esp_lcd_touch_handle_t esp_lcd_touch_gt911 = tp;
+
+    if (esp_lcd_touch_gt911->config.int_gpio_num != GPIO_NUM_NC) {
+        const gpio_config_t int_gpio_config_high = {
+            .mode = GPIO_MODE_OUTPUT,
+            .pin_bit_mask = BIT64(esp_lcd_touch_gt911->config.int_gpio_num)
+        };
+        ret = gpio_config(&int_gpio_config_high);
+        ESP_RETURN_ON_ERROR(ret, TAG, "High GPIO config failed");
+        gpio_set_level(esp_lcd_touch_gt911->config.int_gpio_num, 1);
+
+        vTaskDelay(pdMS_TO_TICKS(5));
+
+        const gpio_config_t int_gpio_config_float = {
+            .mode = GPIO_MODE_OUTPUT_OD,
+            .pin_bit_mask = BIT64(esp_lcd_touch_gt911->config.int_gpio_num)
+        };
+        ret = gpio_config(&int_gpio_config_float);
+        ESP_RETURN_ON_ERROR(ret, TAG, "Float GPIO config failed");
+    }
+
+    return ESP_OK;
+}
+
+static esp_err_t esp_lcd_touch_gt911_read_data(esp_lcd_touch_handle_t tp)
+{
+    esp_err_t err;
+    uint8_t buf[41];
+    uint8_t touch_cnt = 0;
+    uint8_t clear = 0;
+    size_t i = 0;
+
+    assert(tp != NULL);
+
+    err = touch_gt911_i2c_read(tp, ESP_LCD_TOUCH_GT911_READ_XY_REG, buf, 1);
+    ESP_RETURN_ON_ERROR(err, TAG, "I2C read error!");
+
+    /* Any touch data? */
+    if ((buf[0] & 0x80) == 0x00) {
+        touch_gt911_i2c_write(tp, ESP_LCD_TOUCH_GT911_READ_XY_REG, clear);
+#if (ESP_LCD_TOUCH_MAX_BUTTONS > 0)
+    } else if ((buf[0] & 0x10) == 0x10) {
+        /* Read all keys */
+        uint8_t key_max = ((ESP_GT911_TOUCH_MAX_BUTTONS < ESP_LCD_TOUCH_MAX_BUTTONS) ? \
+                           (ESP_GT911_TOUCH_MAX_BUTTONS) : (ESP_LCD_TOUCH_MAX_BUTTONS));
+        err = touch_gt911_i2c_read(tp, ESP_LCD_TOUCH_GT911_READ_KEY_REG, &buf[0], key_max);
+        ESP_RETURN_ON_ERROR(err, TAG, "I2C read error!");
+
+        /* Clear all */
+        touch_gt911_i2c_write(tp, ESP_LCD_TOUCH_GT911_READ_XY_REG, clear);
+        ESP_RETURN_ON_ERROR(err, TAG, "I2C write error!");
+
+        portENTER_CRITICAL(&tp->data.lock);
+
+        /* Buttons count */
+        tp->data.buttons = key_max;
+        for (i = 0; i < key_max; i++) {
+            tp->data.button[i].status = buf[0] ? 1 : 0;
+        }
+
+        portEXIT_CRITICAL(&tp->data.lock);
+#endif
+    } else if ((buf[0] & 0x80) == 0x80) {
+#if (ESP_LCD_TOUCH_MAX_BUTTONS > 0)
+        portENTER_CRITICAL(&tp->data.lock);
+        for (i = 0; i < ESP_LCD_TOUCH_MAX_BUTTONS; i++) {
+            tp->data.button[i].status = 0;
+        }
+        portEXIT_CRITICAL(&tp->data.lock);
+#endif
+        /* Count of touched points */
+        touch_cnt = buf[0] & 0x0f;
+        if (touch_cnt > 5 || touch_cnt == 0) {
+            touch_gt911_i2c_write(tp, ESP_LCD_TOUCH_GT911_READ_XY_REG, clear);
+            return ESP_OK;
+        }
+
+        /* Read all points */
+        err = touch_gt911_i2c_read(tp, ESP_LCD_TOUCH_GT911_READ_XY_REG + 1, &buf[1], touch_cnt * 8);
+        ESP_RETURN_ON_ERROR(err, TAG, "I2C read error!");
+
+        /* Clear all */
+        err = touch_gt911_i2c_write(tp, ESP_LCD_TOUCH_GT911_READ_XY_REG, clear);
+        ESP_RETURN_ON_ERROR(err, TAG, "I2C read error!");
+
+        portENTER_CRITICAL(&tp->data.lock);
+
+        /* Number of touched points */
+        touch_cnt = (touch_cnt > ESP_LCD_TOUCH_MAX_POINTS ? ESP_LCD_TOUCH_MAX_POINTS : touch_cnt);
+        tp->data.points = touch_cnt;
+
+        /* Fill all coordinates */
+        for (i = 0; i < touch_cnt; i++) {
+            tp->data.coords[i].x = ((uint16_t)buf[(i * 8) + 3] << 8) + buf[(i * 8) + 2];
+            tp->data.coords[i].y = (((uint16_t)buf[(i * 8) + 5] << 8) + buf[(i * 8) + 4]);
+            tp->data.coords[i].strength = (((uint16_t)buf[(i * 8) + 7] << 8) + buf[(i * 8) + 6]);
+        }
+
+        portEXIT_CRITICAL(&tp->data.lock);
+    }
+
+    return ESP_OK;
+}
+
+static bool esp_lcd_touch_gt911_get_xy(esp_lcd_touch_handle_t tp, uint16_t *x, uint16_t *y, uint16_t *strength, uint8_t *point_num, uint8_t max_point_num)
+{
+    assert(tp != NULL);
+    assert(x != NULL);
+    assert(y != NULL);
+    assert(point_num != NULL);
+    assert(max_point_num > 0);
+
+    portENTER_CRITICAL(&tp->data.lock);
+
+    /* Count of points */
+    *point_num = (tp->data.points > max_point_num ? max_point_num : tp->data.points);
+
+    for (size_t i = 0; i < *point_num; i++) {
+        x[i] = tp->data.coords[i].x;
+        y[i] = tp->data.coords[i].y;
+
+        if (strength) {
+            strength[i] = tp->data.coords[i].strength;
+        }
+    }
+
+    /* Invalidate */
+    tp->data.points = 0;
+
+    portEXIT_CRITICAL(&tp->data.lock);
+
+    return (*point_num > 0);
+}
+
+#if (ESP_LCD_TOUCH_MAX_BUTTONS > 0)
+static esp_err_t esp_lcd_touch_gt911_get_button_state(esp_lcd_touch_handle_t tp, uint8_t n, uint8_t *state)
+{
+    esp_err_t err = ESP_OK;
+    assert(tp != NULL);
+    assert(state != NULL);
+
+    *state = 0;
+
+    portENTER_CRITICAL(&tp->data.lock);
+
+    if (n > tp->data.buttons) {
+        err = ESP_ERR_INVALID_ARG;
+    } else {
+        *state = tp->data.button[n].status;
+    }
+
+    portEXIT_CRITICAL(&tp->data.lock);
+
+    return err;
+}
+#endif
+
+static esp_err_t esp_lcd_touch_gt911_del(esp_lcd_touch_handle_t tp)
+{
+    assert(tp != NULL);
+
+    /* Reset GPIO pin settings */
+    if (tp->config.int_gpio_num != GPIO_NUM_NC) {
+        gpio_reset_pin(tp->config.int_gpio_num);
+        if (tp->config.interrupt_callback) {
+            gpio_isr_handler_remove(tp->config.int_gpio_num);
+        }
+    }
+
+    /* Reset GPIO pin settings */
+    if (tp->config.rst_gpio_num != GPIO_NUM_NC) {
+        gpio_reset_pin(tp->config.rst_gpio_num);
+    }
+
+    free(tp);
+
+    return ESP_OK;
+}
+
+// Function to initialize the GT911 touch controller
+esp_lcd_touch_handle_t touch_gt911_init()
+{
+    esp_lcd_panel_io_handle_t tp_io_handle = NULL;  // Declare a handle for touch panel I/O
+    // Configure the I2C communication settings for the GT911 touch controller
+    const esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
+
+    // Reset the touch screen before usage
+    DEV_I2C_Port port = DEV_I2C_Init();  // Initialize I2C port
+    IO_EXTENSION_Init();  // Initialize the IO EXTENSION GPIO chip for backlight control
+    DEV_GPIO_Mode(EXAMPLE_PIN_NUM_TOUCH_INT, GPIO_MODE_INPUT_OUTPUT);  // Set GPIO pin mode for interrupt
+    IO_EXTENSION_Output(IO_EXTENSION_IO_1, 0);  // Set GPIO for backlight control to low (off)
+    
+    vTaskDelay(pdMS_TO_TICKS(100));  // Wait for 100ms
+    DEV_Digital_Write(EXAMPLE_PIN_NUM_TOUCH_INT, 0);  // Set interrupt pin low (disable interrupt)
+    
+    vTaskDelay(pdMS_TO_TICKS(100));  // Wait for another 100ms
+    IO_EXTENSION_Output(IO_EXTENSION_IO_1, 1);  // Set GPIO for backlight control to high (on)
+    
+    vTaskDelay(pdMS_TO_TICKS(200));  // Wait for 200ms to ensure the touch controller is ready
+
+    ESP_LOGI(TAG, "Initialize I2C panel IO");  // Log I2C panel I/O initialization
+    // Create a new I2C panel I/O handle for the touch controller
+    ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(port.bus, &tp_io_config, &tp_io_handle));
+
+    ESP_LOGI(TAG, "Initialize touch controller GT911");  // Log touch controller initialization
+    // Configure the touch controller with necessary settings (coordinates, GPIO pins, etc.)
+    const esp_lcd_touch_config_t tp_cfg = {
+        .x_max = EXAMPLE_LCD_H_RES,  // Set the maximum X coordinate based on screen resolution
+        .y_max = EXAMPLE_LCD_V_RES,  // Set the maximum Y coordinate based on screen resolution
+        .rst_gpio_num = EXAMPLE_PIN_NUM_TOUCH_RST,  // GPIO number for reset
+        .int_gpio_num = EXAMPLE_PIN_NUM_TOUCH_INT,  // GPIO number for interrupt
+        .levels = {
+            .reset = 0,  // Low level for reset
+            .interrupt = 0,  // Low level for interrupt
+        },
+        .flags = {
+            .swap_xy = 0,  // No swap of X and Y coordinates
+            .mirror_x = 0,  // No mirroring of X axis
+            .mirror_y = 0,  // No mirroring of Y axis
+        },
+    };
+
+    // Create a new touch controller instance using the configured I2C and settings
+    ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, &tp_handle));
+
+    return tp_handle;  // Return the touch controller handle
+}
+
+// Function to read touch points from the GT911 touch controller
+touch_gt911_point_t touch_gt911_read_point(uint8_t max_touch_cnt)
+{
+    touch_gt911_point_t data;  // Declare a structure to hold touch point data
+
+    /* Read touch data from the touch controller */
+    esp_lcd_touch_read_data(tp_handle);  // Read raw data from the touch controller
+
+    /* Get the touch coordinates and count of touch points */
+    esp_lcd_touch_get_coordinates(tp_handle, data.x, data.y, NULL, &data.cnt, max_touch_cnt);
+
+    return data;  // Return the touch point data
+}
+
+
+/*******************************************************************************
+* Private API function
+*******************************************************************************/
+
+/* Reset controller */
+static esp_err_t touch_gt911_reset(esp_lcd_touch_handle_t tp)
+{
+    assert(tp != NULL);
+
+    if (tp->config.rst_gpio_num != GPIO_NUM_NC) {
+        ESP_RETURN_ON_ERROR(gpio_set_level(tp->config.rst_gpio_num, tp->config.levels.reset), TAG, "GPIO set level error!");
+        vTaskDelay(pdMS_TO_TICKS(10));
+        ESP_RETURN_ON_ERROR(gpio_set_level(tp->config.rst_gpio_num, !tp->config.levels.reset), TAG, "GPIO set level error!");
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    return ESP_OK;
+}
+
+static esp_err_t touch_gt911_read_cfg(esp_lcd_touch_handle_t tp)
+{
+    uint8_t buf[4];
+
+    assert(tp != NULL);
+
+    ESP_RETURN_ON_ERROR(touch_gt911_i2c_read(tp, ESP_LCD_TOUCH_GT911_PRODUCT_ID_REG, (uint8_t *)&buf[0], 3), TAG, "GT911 read error!");
+    ESP_RETURN_ON_ERROR(touch_gt911_i2c_read(tp, ESP_LCD_TOUCH_GT911_CONFIG_REG, (uint8_t *)&buf[3], 1), TAG, "GT911 read error!");
+
+    ESP_LOGI(TAG, "TouchPad_ID:0x%02x,0x%02x,0x%02x", buf[0], buf[1], buf[2]);
+    ESP_LOGI(TAG, "TouchPad_Config_Version:%d", buf[3]);
+
+    return ESP_OK;
+}
+
+static esp_err_t touch_gt911_i2c_read(esp_lcd_touch_handle_t tp, uint16_t reg, uint8_t *data, uint8_t len)
+{
+    assert(tp != NULL);
+    assert(data != NULL);
+
+    /* Read data */
+    return esp_lcd_panel_io_rx_param(tp->io, reg, data, len);
+}
+
+static esp_err_t touch_gt911_i2c_write(esp_lcd_touch_handle_t tp, uint16_t reg, uint8_t data)
+{
+    assert(tp != NULL);
+
+    // *INDENT-OFF*
+    /* Write data */
+    return esp_lcd_panel_io_tx_param(tp->io, reg, (uint8_t[]){data}, 1);
+    // *INDENT-ON*
+}
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/touch/CMakeLists.txt =====
+
+idf_component_register(SRCS "gt911.c" "touch.c"
+                        INCLUDE_DIRS "."
+                        REQUIRES driver esp_lcd i2c gpio io_extension rgb_lcd_port
+                    )
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/touch/gt911.h =====
+/**
+ * @file
+ * @brief ESP LCD touch: GT911
+ *
+ * This file contains the necessary functions and configurations to interact with
+ * the GT911 touch controller via I2C. It provides initialization and touch data 
+ * reading functions.
+ */
+#pragma once
+
+#include "touch.h"
+
+/**
+ * @brief I2C address of the GT911 controller
+ *
+ * @note When the interrupt GPIO pin is detected as low level on power-up,
+ *       the I2C address used is 0x5D.
+ * @note If the interrupt GPIO pin is high level, the I2C address used is 0x14.
+ */
+#define ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS          (0x5D)   // Default I2C address
+#define ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP   (0x14)   // Backup I2C address when interrupt GPIO is high
+
+#define EXAMPLE_PIN_NUM_TOUCH_RST       (-1)            // Reset pin for the touch controller (set to -1 if not used)
+#define EXAMPLE_PIN_NUM_TOUCH_INT       (GPIO_NUM_4)    // Interrupt pin for the touch controller
+
+/**
+ * @brief GT911 Configuration Structure
+ *
+ * This structure contains the configuration for the GT911 touch controller,
+ * such as the I2C device address.
+ */
+typedef struct {
+    uint8_t dev_addr;  /*!< I2C device address */
+} esp_lcd_touch_io_gt911_config_t;
+
+/**
+ * @brief Touch data structure for GT911
+ *
+ * This structure holds the touch point data, including the coordinates and
+ * the number of touches detected by the controller.
+ */
+typedef struct {
+    uint16_t x[ESP_LCD_TOUCH_MAX_POINTS];  /*!< X coordinates of touch points */
+    uint16_t y[ESP_LCD_TOUCH_MAX_POINTS];  /*!< Y coordinates of touch points */
+    uint8_t cnt;                          /*!< Number of detected touch points */
+} touch_gt911_point_t;
+
+/**
+ * @brief Create a new GT911 touch driver instance
+ *
+ * This function initializes a new instance of the GT911 touch driver by configuring
+ * the touch screen using the I2C communication protocol.
+ *
+ * @note The I2C communication should be initialized before calling this function.
+ *
+ * @param io LCD/Touch panel I/O handle to interface with the I2C bus.
+ * @param config Configuration structure with touch screen settings (resolution, GPIO, etc.).
+ * @param out_touch Output handle for the touch driver instance.
+ * @return
+ *      - ESP_OK: Successfully created a new touch driver instance
+ *      - ESP_ERR_NO_MEM: Insufficient memory to allocate the touch instance
+ */
+esp_err_t esp_lcd_touch_new_i2c_gt911(const esp_lcd_panel_io_handle_t io, const esp_lcd_touch_config_t *config, esp_lcd_touch_handle_t *out_touch);
+
+/**
+ * @brief Initialize the GT911 touch controller
+ *
+ * This function initializes the GT911 touch controller by configuring the I2C 
+ * interface and touch settings.
+ *
+ * @return Touch handle for the initialized controller
+ */
+esp_lcd_touch_handle_t touch_gt911_init();
+
+/**
+ * @brief Read touch points from the GT911 touch controller
+ *
+ * This function reads the touch points detected by the GT911 controller and returns
+ * the coordinates of the touch points.
+ *
+ * @param max_touch_cnt Maximum number of touch points to read.
+ * @return A structure containing the coordinates and the number of detected touch points.
+ */
+touch_gt911_point_t touch_gt911_read_point(uint8_t max_touch_cnt);
+
+/**
+ * @brief Touch IO configuration structure for GT911
+ *
+ * This macro initializes the configuration structure for the GT911 touch controller's 
+ * I2C interface with specific settings like the device address, SCL frequency, etc.
+ */
+#define ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG()           \
+    {                                                 \
+        .dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS,   /*!< Set the I2C address for the GT911 */  \
+        .scl_speed_hz = EXAMPLE_I2C_MASTER_FREQUENCY,     /*!< Set the I2C master clock frequency */  \
+        .control_phase_bytes = 1,                         /*!< Set the number of bytes for the control phase */  \
+        .dc_bit_offset = 0,                               /*!< Set the DC bit offset for I2C communication */  \
+        .lcd_cmd_bits = 16,                               /*!< Set the LCD command bits */  \
+        .flags =                                          \
+        {                                                 \
+            .disable_control_phase = 1,                   /*!< Disable control phase for I2C communication */  \
+        }                                                 \
+    }
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/usart/usart.c =====
+/*****************************************************************************
+ * | File         :   usart.c
+ * | Author       :   Waveshare team
+ * | Function     :   Hardware underlying interface
+ * | Info         :
+ * |                 USART driver code for UART communication.
+ * ----------------
+ * | This version :   V1.0
+ * | Date         :   2024-11-26
+ * | Info         :   Basic version
+ *
+ ******************************************************************************/
+
+#include "usart.h"  // Include USART driver header for UART functions
+
+/**
+ * @brief Initialize UART communication with a given baud rate.
+ * 
+ * This function configures the UART parameters such as baud rate, data bits,
+ * parity, stop bits, and flow control. It also installs the UART driver and 
+ * sets up the necessary pins for communication.
+ * 
+ * @param Baudrate The baud rate for UART communication (e.g., 115200).
+ */
+void DEV_UART_Init(uint8_t Txd,uint8_t Rxd,uint32_t Baudrate)
+{
+    // Define UART configuration structure
+    uart_config_t uart_config = {
+        .baud_rate = Baudrate,  // Set the baud rate for communication
+        .data_bits = UART_DATA_8_BITS,     // Set 8 data bits per frame
+        .parity    = UART_PARITY_DISABLE,  // No parity check
+        .stop_bits = UART_STOP_BITS_1,     // 1 stop bit
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE, // Disable hardware flow control
+        .source_clk = UART_SCLK_DEFAULT,   // Default clock source for UART
+    };
+    
+    // Install the UART driver with a buffer size and no interrupt handler
+    ESP_ERROR_CHECK(uart_driver_install(ECHO_UART_PORT_NUM, BUF_SIZE * 2, 0, 0, NULL, 0));
+    
+    // Configure the UART with the defined settings
+    ESP_ERROR_CHECK(uart_param_config(ECHO_UART_PORT_NUM, &uart_config));
+    
+    // Set the UART pin configuration (TX, RX, RTS, CTS)
+    ESP_ERROR_CHECK(uart_set_pin(ECHO_UART_PORT_NUM, Txd, Rxd, ECHO_TEST_RTS, ECHO_TEST_CTS));
+}
+
+/**
+ * @brief Write a byte of data to UART.
+ * 
+ * This function writes data to the UART transmission buffer. The data is sent
+ * to the specified UART port.
+ * 
+ * @param pData Pointer to the data (byte) to be transmitted.
+ */
+void UART_Write_Byte(uint8_t *pData)
+{
+    // Write the byte data to the UART transmission buffer
+    uart_write_bytes(ECHO_UART_PORT_NUM, (const char*)pData, strlen((const char*)pData));
+}
+
+/**
+ * @brief Read a specified number of bytes from UART.
+ * 
+ * This function reads data from the UART receive buffer into the provided buffer.
+ * 
+ * @param pData Pointer to the buffer where received data will be stored.
+ * @param Len   The number of bytes to read from UART.
+ * @return      The number of bytes successfully read from UART.
+ */
+int UART_Read_Byte(uint8_t *pData, uint32_t Len)
+{
+    // Read the specified number of bytes from UART into the buffer
+    return uart_read_bytes(ECHO_UART_PORT_NUM, pData, Len, TIME_OUT);
+}
+
+/**
+ * @brief Set the UART baud rate.
+ * 
+ * This function changes the baud rate of the UART communication to the specified value.
+ * 
+ * @param Baudrate The new baud rate to set for UART communication.
+ */
+void UART_Set_Baudrate(uint32_t Baudrate)
+{
+    // Set the UART baud rate to the specified value
+    ESP_ERROR_CHECK(uart_set_baudrate(ECHO_UART_PORT_NUM, Baudrate));
+}
+
+/**
+ * @brief Get the number of bytes available in the UART buffer.
+ * 
+ * This function checks how many bytes are currently buffered in the UART receive buffer.
+ * 
+ * @return The number of bytes available to read in the UART buffer.
+ */
+int UART_Get_Date_Len()
+{
+    int len = 0;
+    
+    // Get the number of bytes in the UART receive buffer
+    uart_get_buffered_data_len(ECHO_UART_PORT_NUM, (size_t*)&len);   
+    
+    return len;
+}
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/usart/CMakeLists.txt =====
+idf_component_register(SRCS "usart.c" 
+                        INCLUDE_DIRS "."
+                        REQUIRES driver gpio
+                    )
+
+===== END FILE =====
+
+===== FILE: /home/freeduck/Downloads/ESP32-S3-Touch-LCD-7B-Demo/ESP-IDF/13_LVGL_TRANSPLANT/components/usart/usart.h =====
+/*****************************************************************************
+ * | File         :   usart.h
+ * | Author       :   Waveshare team
+ * | Function     :   USART driver code for UART communication
+ * | Info         :
+ * |                 Header file for UART communication functions. 
+ * |                 Provides initialization, data transmission, and reception
+ * |                 functionality using ESP32's UART driver.
+ * ----------------
+ * | This version :   V1.0
+ * | Date         :   2024-11-26
+ * | Info         :   Basic version for USART communication.
+ *
+ ******************************************************************************/
+
+#ifndef __USART_H
+#define __USART_H
+
+#pragma once
+
+#include <stdio.h>          // Standard input/output library for printf, etc.
+#include <string.h>         // String manipulation functions like strlen, strcpy, etc.
+#include "driver/uart.h"    // ESP32 UART driver functions and definitions
+#include "esp_log.h"        // ESP32 logging library for debugging and error logging
+#include "gpio.h"           // GPIO header for configuring UART pins
+
+/* UART Pin Definitions */
+#define ECHO_TEST_RTS (UART_PIN_NO_CHANGE)  // No RTS (Request to Send) pin used
+#define ECHO_TEST_CTS (UART_PIN_NO_CHANGE)  // No CTS (Clear to Send) pin used
+
+/* UART Configuration Parameters */
+#define ECHO_UART_PORT_NUM      (UART_NUM_1)    // Use UART port 1
+#define BUF_SIZE    (1024)  // Buffer size for UART data (in bytes)
+#define TIME_OUT    (100)   // Timeout value for UART operations (in milliseconds)
+
+/* Function Prototypes */
+
+/**
+ * @brief Initialize UART communication with a specified baud rate.
+ * 
+ * Configures the UART interface with the specified baud rate, data bits, 
+ * stop bits, parity, and initializes the necessary pins for TX, RX, RTS, and CTS.
+ * 
+ * @param Txd     UART TX pin number.
+ * @param Rxd     UART RX pin number.
+ * @param Baudrate Desired baud rate for UART communication (e.g., 115200).
+ */
+void DEV_UART_Init(uint8_t Txd, uint8_t Rxd, uint32_t Baudrate);
+
+/**
+ * @brief Write a byte of data to UART.
+ * 
+ * Sends a byte (or string) of data to the UART TX pin. The data is transmitted
+ * asynchronously via the UART interface.
+ * 
+ * @param pData Pointer to the data byte (or string) to be transmitted.
+ */
+void UART_Write_Byte(uint8_t *pData);
+
+/**
+ * @brief Read a specified number of bytes from UART.
+ * 
+ * Reads data from the UART RX pin and stores it in the provided buffer. 
+ * The function will wait for the specified amount of data to arrive or 
+ * until the timeout occurs.
+ * 
+ * @param pData Pointer to the buffer where received data will be stored.
+ * @param Len   The number of bytes to read from UART.
+ * @return      The number of bytes successfully read.
+ */
+int UART_Read_Byte(uint8_t *pData, uint32_t Len);
+
+/**
+ * @brief Set the baud rate for UART communication.
+ * 
+ * Changes the baud rate of the UART communication dynamically.
+ * 
+ * @param Baudrate The new baud rate for UART communication (e.g., 9600, 115200).
+ */
+void UART_Set_Baudrate(uint32_t Baudrate);
+
+/**
+ * @brief Get the number of bytes available in the UART receive buffer.
+ * 
+ * Returns the number of bytes currently available for reading in the UART
+ * receive buffer.
+ * 
+ * @return The number of bytes available in the UART buffer for reading.
+ */
+int UART_Get_Date_Len();
+
+#endif  // __USART_H
+
+===== END FILE =====

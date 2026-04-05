@@ -47,4 +47,5 @@ __pycache__/
 
 # ESP-IDF tools
 .espressif/
-
+/managed_components/
+/sdkconfig
