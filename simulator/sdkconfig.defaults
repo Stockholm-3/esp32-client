@@ -1,0 +1,11 @@
+# Linux simulator sdkconfig defaults generous heap for desktop
+CONFIG_LV_MEM_SIZE_KILOBYTES=2048
+
+# Display refresh must match what ui.c uses
+CONFIG_LV_FONT_MONTSERRAT_24=y
+
+# Task handler delay
+CONFIG_LV_TASK_HANDLER_DELAY_MS=1
+
+# Linux port: use SDL2 backend in esp_lvgl_port
+CONFIG_LV_USE_SDL=y
