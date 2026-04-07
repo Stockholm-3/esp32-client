@@ -19,7 +19,7 @@ static void ui_update_timer_cb(lv_timer_t *timer) {
     s_counter++;
 
     char buf[32];
-    snprintf(buf, sizeof(buf), "Time with Bingus: %lds", s_counter);
+    snprintf(buf, sizeof(buf), "Time with Bingus: %d", s_counter);
     lv_label_set_text(s_label_counter, buf);
 
     // Animate arc 0→60 over 60 seconds

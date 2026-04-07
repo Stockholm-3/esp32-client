@@ -1,5 +1,6 @@
 # Linux simulator sdkconfig defaults generous heap for desktop
 CONFIG_LV_MEM_SIZE_KILOBYTES=2048
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=32768
 
 # Display refresh must match what ui.c uses
 CONFIG_LV_FONT_MONTSERRAT_24=y
@@ -9,3 +10,20 @@ CONFIG_LV_TASK_HANDLER_DELAY_MS=1
 
 # Linux port: use SDL2 backend in esp_lvgl_port
 CONFIG_LV_USE_SDL=y
+
+
+# Disable ESP LCD (hardware)
+CONFIG_ESP_LCD_ENABLE=n
+
+# If present (depends on IDF version)
+CONFIG_LCD_ENABLE=n
+
+# LVGL: disable hardware display port
+CONFIG_LVGL_PORT_DISPLAY=n
+
+# Or switch to simulator backend (preferred)
+CONFIG_LVGL_PORT_USE_SDL=y
+
+CONFIG_LV_USE_SDL=y
+CONFIG_LV_USE_DISPLAY=y
+CONFIG_LVGL_DISPLAY_NONE=y
