@@ -86,6 +86,13 @@ static void lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area,
     lv_disp_flush_ready(drv);
 }
 
+#if CONFIG_WS7B_QEMU_SIM
+static void lvgl_flush_cb_qemu(lv_disp_drv_t *drv, const lv_area_t *area,
+                               lv_color_t *color_map) {
+    lv_disp_flush_ready(drv);
+}
+#endif
+
 // ── Touch input callback
 // ──────────────────────────────────────────────────────
 static void lvgl_touch_cb(lv_indev_drv_t *drv, lv_indev_data_t *data) {
@@ -284,21 +291,30 @@ static lv_disp_t *lvgl_display_init(void) {
     static lv_disp_draw_buf_t draw_buf;
     static lv_disp_drv_t disp_drv;
 
+#if CONFIG_WS7B_QEMU_SIM
+    // Small static buffer in internal RAM — no PSRAM needed in QEMU
+    static lv_color_t qemu_buf[WS7B_LCD_H_RES * 10];
+    lv_disp_draw_buf_init(&draw_buf, qemu_buf, NULL, WS7B_LCD_H_RES * 10);
+#else
     // Single render buffer — 1/10th of screen, lives in PSRAM
     size_t buf_px = WS7B_LCD_H_RES * (WS7B_LCD_V_RES / 10);
     lv_color_t *render_buf =
         heap_caps_malloc(buf_px * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     assert(render_buf);
-
     lv_disp_draw_buf_init(&draw_buf, render_buf, NULL, buf_px);
+#endif
 
     lv_disp_drv_init(&disp_drv);
     disp_drv.hor_res = WS7B_LCD_H_RES;
     disp_drv.ver_res = WS7B_LCD_V_RES;
-    disp_drv.flush_cb = lvgl_flush_cb;
     disp_drv.draw_buf = &draw_buf;
+#if CONFIG_WS7B_QEMU_SIM
+    disp_drv.flush_cb = lvgl_flush_cb_qemu;
+    disp_drv.user_data = NULL;
+#else
+    disp_drv.flush_cb = lvgl_flush_cb;
     disp_drv.user_data = s_panel;
-    // No full_refresh, no direct_mode
+#endif
 
     s_disp_drv = &disp_drv;
     return lv_disp_drv_register(&disp_drv);
@@ -318,6 +334,9 @@ static lv_indev_t *lvgl_touch_init(void) {
 // ── Public init
 // ───────────────────────────────────────────────────────────────
 esp_err_t ws7b_board_init(lv_disp_t **disp_out, lv_indev_t **touch_out) {
+#if CONFIG_WS7B_QEMU_SIM
+    ESP_LOGW(TAG, "QEMU simulation mode — hardware init skipped");
+#else
     ESP_RETURN_ON_ERROR(init_i2c_and_ioexp(), TAG, "ioexp init failed");
     ESP_RETURN_ON_ERROR(init_touch(), TAG, "touch init failed");
     ESP_RETURN_ON_ERROR(init_rgb_panel(), TAG, "panel init failed");
@@ -332,6 +351,7 @@ esp_err_t ws7b_board_init(lv_disp_t **disp_out, lv_indev_t **touch_out) {
     };
     ESP_ERROR_CHECK(
         esp_lcd_rgb_panel_register_event_callbacks(s_panel, &cbs, NULL));
+#endif
 
     ESP_LOGI(TAG, "calling lv_init");
     lv_init();
@@ -369,8 +389,10 @@ esp_err_t ws7b_board_init(lv_disp_t **disp_out, lv_indev_t **touch_out) {
         return ESP_FAIL;
     }
 
+#if !CONFIG_WS7B_QEMU_SIM
     ws7b_set_backlight(255);
     ESP_LOGI(TAG, "backlight on");
+#endif
 
     if (disp_out)
         *disp_out = disp;

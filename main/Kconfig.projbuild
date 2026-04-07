@@ -11,4 +11,11 @@ config ESP_WIFI_PASSWORD
     default "mypassword"
     help
 	WiFi password (WPA or WPA2) for the example to use.
+config WS7B_QEMU_SIM
+    bool "QEMU simulation mode (skip hardware init)"
+    default n
+    help
+        Skip I2C, IO expander, RGB panel, and touch init.
+        Registers a null LVGL flush callback so the app boots
+        without real hardware. Enable when running under QEMU.
 endmenu
