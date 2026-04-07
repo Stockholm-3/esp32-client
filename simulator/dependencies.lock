@@ -28,6 +28,6 @@ direct_dependencies:
 - espressif/esp_lvgl_port
 - idf
 - lvgl/lvgl
-manifest_hash: 8b4c20843c8040d256db4501252243a10b670a9c759ee6d65194d372060334e4
+manifest_hash: 845a00dda3942e6921f251c5e0b4553cd78e262d65fb1e2c76e6c40cee5fdd7f
 target: linux
 version: 3.0.0
