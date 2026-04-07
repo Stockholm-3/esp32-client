@@ -2,6 +2,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lvgl.h"
+#include "portmacro.h"
 #include "ws7b_board.h"
 
 static const char *TAG = "main";
@@ -225,8 +226,41 @@ static void build_ui(lv_disp_t *disp) {
     // ─────────────────────────────────────────────────
     lv_timer_create(ui_update_timer_cb, 1000, NULL);
 }
-
+#define TEST_GPIO GPIO_NUM_6 // replace with the suspected GPIO
 void app_main(void) {
+    // gpio_config_t io_conf = {.pin_bit_mask = (1ULL << TEST_GPIO),
+    //                          .mode = GPIO_MODE_OUTPUT,
+    //                          .pull_up_en = GPIO_PULLUP_DISABLE,
+    //                          .pull_down_en = GPIO_PULLDOWN_DISABLE,
+    //                          .intr_type = GPIO_INTR_DISABLE};
+    // gpio_config(&io_conf);
+    // while (1) {
+    //     gpio_set_level(TEST_GPIO, 1);
+    //     vTaskDelay(500 / portTICK_PERIOD_MS);
+    //     gpio_set_level(TEST_GPIO, 0);
+    //     vTaskDelay(500 / portTICK_PERIOD_MS);
+    //     gpio_set_level(TEST_GPIO, 1);
+    //     vTaskDelay(50 / portTICK_PERIOD_MS);
+    //     gpio_set_level(TEST_GPIO, 0);
+    //     vTaskDelay(50 / portTICK_PERIOD_MS);
+    //
+    //     gpio_set_level(TEST_GPIO, 1);
+    //     vTaskDelay(50 / portTICK_PERIOD_MS);
+    //     gpio_set_level(TEST_GPIO, 0);
+    //     vTaskDelay(50 / portTICK_PERIOD_MS);
+    //
+    //     gpio_set_level(TEST_GPIO, 1);
+    //     vTaskDelay(50 / portTICK_PERIOD_MS);
+    //     gpio_set_level(TEST_GPIO, 0);
+    //     vTaskDelay(50 / portTICK_PERIOD_MS);
+    //
+    //     gpio_set_level(TEST_GPIO, 1);
+    //     vTaskDelay(50 / portTICK_PERIOD_MS);
+    //     gpio_set_level(TEST_GPIO, 0);
+    //     vTaskDelay(50 / portTICK_PERIOD_MS);
+    // }
+    // gpio_set_level(TEST_GPIO, 1);
+
     lv_disp_t *disp = NULL;
     lv_indev_t *touch = NULL;
     ESP_ERROR_CHECK(ws7b_board_init(&disp, &touch));
