@@ -22,7 +22,6 @@ sdkconfig.old
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
-Makefile
 
 # Ninja
 build.ninja
