@@ -5,7 +5,7 @@ PROJECT_NAME := app-template
 
 .PHONY: hardclean
 hardclean:
-	rm -rf dependencies.lock managed_components build sdkconfig
+	rm -rf managed_components build sdkconfig
 
 .PHONY fm:
 	idf.py build flash monitor
