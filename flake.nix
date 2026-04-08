@@ -27,6 +27,8 @@
     };
   in {
     devShells.${system}.default = pkgs.mkShell {
+      hardeningDisable = ["format"];
+
       buildInputs = with pkgs; [
         git
         wget

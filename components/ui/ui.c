@@ -2,9 +2,9 @@
  * ui.c — Application UI, pure LVGL, no hardware dependencies.
  *        Works on both the real WS7B board and the Linux/SDL simulator.
  */
-
 #include "ui.h"
 #include "lvgl.h"
+#include <inttypes.h>
 #include <stdio.h>
 
 // ── Shared UI state needed by the timer callback
@@ -19,7 +19,7 @@ static void ui_update_timer_cb(lv_timer_t *timer) {
     s_counter++;
 
     char buf[32];
-    snprintf(buf, sizeof(buf), "Time with Bingus: %d", s_counter);
+    snprintf(buf, sizeof(buf), "Time with BINGUS: %" PRId32 "s", s_counter);
     lv_label_set_text(s_label_counter, buf);
 
     // Animate arc 0→60 over 60 seconds
