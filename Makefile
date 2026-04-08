@@ -7,6 +7,10 @@ PROJECT_NAME := app-template
 hardclean:
 	rm -rf managed_components build sdkconfig
 
+.PHONY: linux-hardclean
+linux-hardclean:
+	rm -rf ./simulator/managed_components ./simulator/build ./simulator/sdkconfig
+
 .PHONY fm:
 	idf.py build flash monitor
 
