@@ -1,12 +1,14 @@
-#
-# This is a project Makefile. It is assumed the directory this Makefile resides in is a
-# project subdirectory.
-#
-
 PROJECT_NAME := app-template
 
 
 .PHONY: build flash monitor linux-build linux-run linux-clean
+
+.PHONY: hardclean
+hardclean:
+	rm -rf dependencies.lock managed_components build sdkconfig
+
+.PHONY fm:
+	idf.py build flash monitor
 
 build:
 	idf.py build
