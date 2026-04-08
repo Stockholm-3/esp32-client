@@ -2,10 +2,14 @@
   description = "ESP-IDF development shell";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-
     esp-idf-src = {
       url = "git+https://github.com/espressif/esp-idf?ref=refs/tags/v6.0&submodules=1";
       flake = false;
+    };
+    nix-qemu-espressif = {
+      url = "github:SFrijters/nix-qemu-espressif";
+      # Don't let it pull its own nixpkgs — use ours
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
@@ -13,50 +17,52 @@
     self,
     nixpkgs,
     esp-idf-src,
+    nix-qemu-espressif,
     ...
   }: let
     system = "x86_64-linux";
-    pkgs = import nixpkgs {inherit system;};
+    pkgs = import nixpkgs {
+      inherit system;
+      overlays = [nix-qemu-espressif.overlays.default];
+    };
   in {
     devShells.${system}.default = pkgs.mkShell {
-      buildInputs = [
-        pkgs.git
-        pkgs.wget
-        pkgs.curl
-        pkgs.flex
-        pkgs.bison
-        pkgs.gperf
-        pkgs.ccache
-        pkgs.dfu-util
-        pkgs.libffi
-        pkgs.ncurses
-        pkgs.usbutils
-        # removed pkgs.esptool - ESP-IDF manages its own
-        pkgs.cmake
-        pkgs.ninja
-        pkgs.gnumake
-        pkgs.pkg-config
-        pkgs.libusb1
-        pkgs.python3
-        pkgs.python3Packages.pip
-        pkgs.python3Packages.virtualenv
+      hardeningDisable = ["format"];
+
+      buildInputs = with pkgs; [
+        git
+        wget
+        curl
+        flex
+        bison
+        gperf
+        ccache
+        dfu-util
+        libffi
+        ncurses
+        usbutils
+        cmake
+        ninja
+        gnumake
+        pkg-config
+        libusb1
+        python3
+        python3Packages.pip
+        python3Packages.virtualenv
+        SDL2
+        qemu-esp32 # from the overlay — supports ESP32 + ESP32-S3
       ];
+
       shellHook = ''
         export LD_LIBRARY_PATH=${pkgs.libusb1}/lib:${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH
         export IDF_PATH=${esp-idf-src}
         export IDF_TOOLS_PATH=$HOME/.espressif
         export IDF_SKIP_SYSTEM_CHECK=1
+        export IDF_SKIP_CHECK_SUBMODULES=1
         export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
 
-        if [ ! -f "$IDF_TOOLS_PATH/.installed-v6.0" ]; then
-          echo "Installing ESP-IDF tools for v6.0 (one-time)..."
-          if $IDF_PATH/install.sh all; then
-            touch "$IDF_TOOLS_PATH/.installed-v6.0"
-          else
-            echo "ERROR: ESP-IDF install failed. Fix the error above and re-enter the shell."
-            return 1
-          fi
-        fi
+        # Tell idf.py where to find our Nix-built qemu instead of its own
+        export QEMU_XTENSA_BIN=${pkgs.qemu-esp32}/bin/qemu-system-xtensa
 
         unset PYTHONPATH
         source $IDF_PATH/export.sh

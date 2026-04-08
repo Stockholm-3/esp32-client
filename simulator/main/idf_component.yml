@@ -1,0 +1,6 @@
+## IDF Component Manager Manifest — Linux/SDL simulator
+dependencies:
+  idf:
+    version: '>=5.1.0'
+  lvgl/lvgl:
+    version: ">=8.3.9,<9"

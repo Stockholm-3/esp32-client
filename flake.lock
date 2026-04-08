@@ -19,6 +19,26 @@
         "url": "https://github.com/espressif/esp-idf"
       }
     },
+    "nix-qemu-espressif": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1774175215,
+        "narHash": "sha256-aSxzq2Vxtljp2QhQ60qMQOdKWubNIfYEZRAJnpH1cdI=",
+        "owner": "SFrijters",
+        "repo": "nix-qemu-espressif",
+        "rev": "8eb68031bd301959839af6b77dbc50edcf36e924",
+        "type": "github"
+      },
+      "original": {
+        "owner": "SFrijters",
+        "repo": "nix-qemu-espressif",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1774709303,
@@ -38,6 +58,7 @@
     "root": {
       "inputs": {
         "esp-idf-src": "esp-idf-src",
+        "nix-qemu-espressif": "nix-qemu-espressif",
         "nixpkgs": "nixpkgs"
       }
     }
