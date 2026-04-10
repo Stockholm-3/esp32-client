@@ -7,7 +7,7 @@
 
 static const char *TAG = "wifi_manager_stub";
 
-static volatile wifi_manager_state_t current_state = WIFI_MANAGER_STATE_IDLE;
+static volatile WifiManagerState current_state = WIFI_MANAGER_STATE_IDLE;
 static bool initialized = false;
 
 static int retry_count = 0;
@@ -15,11 +15,11 @@ static int max_retries = 5;
 static int base_retry_ms = 500;
 static int max_retry_ms = 2000;
 
-static wifi_manager_event_cb_t user_cb = NULL;
+static WifiManagerEventCb user_cb = NULL;
 static int64_t next_retry_time = 0;
 static bool retry_pending = false;
 
-static void set_state(wifi_manager_state_t state) {
+static void set_state(WifiManagerState state) {
     if (current_state != state) {
         current_state = state;
         if (user_cb)
@@ -36,7 +36,7 @@ static int get_backoff_delay_ms(void) {
 }
 
 int wifi_manager_start(const char *ssid, const char *password,
-                       const wifi_manager_config_t *config) {
+                       const WifiManagerConfig *config) {
     if (initialized) {
         ESP_LOGE(TAG, "Already initialized!");
         return -1;
@@ -90,8 +90,6 @@ void wifi_manager_process(void) {
     }
 }
 
-wifi_manager_state_t wifi_manager_get_state(void) { return current_state; }
+WifiManagerState wifi_manager_get_state(void) { return current_state; }
 
-void wifi_manager_register_callback(wifi_manager_event_cb_t cb) {
-    user_cb = cb;
-}
+void wifi_manager_register_callback(WifiManagerEventCb cb) { user_cb = cb; }

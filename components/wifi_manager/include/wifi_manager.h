@@ -10,17 +10,17 @@ typedef enum {
     WIFI_MANAGER_STATE_CONNECTED,
     WIFI_MANAGER_STATE_DISCONNECTED,
     WIFI_MANAGER_STATE_FAILED
-} wifi_manager_state_t;
+} WifiManagerState;
 
 /* Callback type for state changes */
-typedef void (*wifi_manager_event_cb_t)(wifi_manager_state_t state);
+typedef void (*WifiManagerEventCb)(WifiManagerState state);
 
 /* Config struct for retry/backoff */
 typedef struct {
     int max_retries;   // maximum retries before FAILED
     int base_retry_ms; // initial retry delay in ms
     int max_retry_ms;  // max retry delay in ms
-} wifi_manager_config_t;
+} WifiManagerConfig;
 
 /**
  * @brief Start Wi-Fi STA mode
@@ -30,7 +30,7 @@ typedef struct {
  * @return int 0 = success, -1 = already initialized
  */
 int wifi_manager_start(const char *ssid, const char *password,
-                       const wifi_manager_config_t *config);
+                       const WifiManagerConfig *config);
 
 /**
  * @brief Stop Wi-Fi and reset state
@@ -40,16 +40,16 @@ void wifi_manager_stop(void);
 /**
  * @brief Poll function (must be called periodically)
  */
-void wifi_manager_process(void);
+void wifi_manager_poll(void);
 
 /**
  * @brief Get current Wi-Fi state
  */
-wifi_manager_state_t wifi_manager_get_state(void);
+WifiManagerState wifi_manager_get_state(void);
 
 /**
  * @brief Register callback for Wi-Fi state changes
  */
-void wifi_manager_register_callback(wifi_manager_event_cb_t cb);
+void wifi_manager_register_callback(WifiManagerEventCb cb);
 
 #endif // WIFI_MANAGER_H
