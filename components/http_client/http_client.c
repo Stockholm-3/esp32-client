@@ -1,13 +1,13 @@
-#include "http.h"
+#include "http_client.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include <string.h>
 
-static const char *TAG = "http";
+static const char *TAG = "http_client";
 
 // Internal context passed to event handler
 typedef struct {
-    http_response_t *resp;
+    HttpResponse *resp;
 } http_context_t;
 
 // Event handler (collects data into buffer)
@@ -41,7 +41,7 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt) {
     return ESP_OK;
 }
 
-esp_err_t http_get(const char *url, http_response_t *response) {
+esp_err_t http_get(const char *url, HttpResponse *response) {
     if (!response || !response->buffer) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -78,8 +78,7 @@ esp_err_t http_get(const char *url, http_response_t *response) {
     return err;
 }
 
-esp_err_t http_post(const char *url, const char *data,
-                    http_response_t *response) {
+esp_err_t http_post(const char *url, const char *data, HttpResponse *response) {
     if (!response || !response->buffer) {
         return ESP_ERR_INVALID_ARG;
     }

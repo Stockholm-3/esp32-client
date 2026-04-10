@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "http.c"
+    SRCS "http_client.c"
     INCLUDE_DIRS "include"
     REQUIRES log esp_http_client
 )
