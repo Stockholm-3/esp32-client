@@ -2,6 +2,7 @@
 
 #include "esp_err.h"
 #include "lvgl.h"
+
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -20,7 +21,7 @@ extern "C" {
  * @param touch_out Optional pointer to receive the LVGL input device (mouse)
  * @return ESP_OK on success, ESP_FAIL on failure
  */
-esp_err_t sim_board_init(lv_disp_t **disp_out, lv_indev_t **touch_out);
+esp_err_t sim_board_init(lv_disp_t** disp_out, lv_indev_t** touch_out);
 
 /**
  * @brief Lock LVGL for thread-safe operations

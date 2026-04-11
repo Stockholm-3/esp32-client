@@ -29,8 +29,7 @@ typedef struct {
  * @param config Optional configuration (NULL = defaults)
  * @return int 0 = success, -1 = already initialized
  */
-int wifi_manager_start(const char *ssid, const char *password,
-                       const WifiManagerConfig *config);
+int wifi_manager_start(const char* ssid, const char* password, const WifiManagerConfig* config);
 
 /**
  * @brief Stop Wi-Fi and reset state

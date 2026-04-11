@@ -1,18 +1,19 @@
-#include "http_client.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
+#include "http_client.h"
+
 #include <string.h>
 
-static const char *TAG = "http_client";
+static const char* g_tag = "http_client";
 
 // Internal context passed to event handler
 typedef struct {
-    HttpResponse *resp;
-} http_context_t;
+    HttpResponse* resp;
+} HttpContextT;
 
 // Event handler (collects data into buffer)
-static esp_err_t http_event_handler(esp_http_client_event_t *evt) {
-    http_context_t *ctx = (http_context_t *)evt->user_data;
+static esp_err_t http_event_handler(esp_http_client_event_t* evt) {
+    HttpContextT* ctx = (HttpContextT*)evt->user_data;
 
     switch (evt->event_id) {
     case HTTP_EVENT_ON_DATA:
@@ -23,11 +24,10 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt) {
                 // Prevent overflow
                 if (ctx->resp->length + copy_len > ctx->resp->buffer_size) {
                     copy_len = ctx->resp->buffer_size - ctx->resp->length;
-                    ESP_LOGW(TAG, "Response truncated!");
+                    ESP_LOGW(g_tag, "Response truncated!");
                 }
 
-                memcpy(ctx->resp->buffer + ctx->resp->length, evt->data,
-                       copy_len);
+                memcpy(ctx->resp->buffer + ctx->resp->length, evt->data, copy_len);
 
                 ctx->resp->length += copy_len;
             }
@@ -41,26 +41,26 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt) {
     return ESP_OK;
 }
 
-esp_err_t http_get(const char *url, HttpResponse *response) {
+esp_err_t http_get(const char* url, HttpResponse* response) {
     if (!response || !response->buffer) {
         return ESP_ERR_INVALID_ARG;
     }
 
     response->length = 0;
 
-    http_context_t ctx = {
+    HttpContextT ctx = {
         .resp = response,
     };
 
     esp_http_client_config_t config = {
-        .url = url,
+        .url           = url,
         .event_handler = http_event_handler,
-        .user_data = &ctx,
+        .user_data     = &ctx,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) {
-        ESP_LOGE(TAG, "Failed to init client");
+        ESP_LOGE(g_tag, "Failed to init client");
         return ESP_FAIL;
     }
 
@@ -68,36 +68,35 @@ esp_err_t http_get(const char *url, HttpResponse *response) {
 
     if (err == ESP_OK) {
         int status = esp_http_client_get_status_code(client);
-        ESP_LOGI(TAG, "GET Status = %d, received = %d bytes", status,
-                 (int)response->length);
+        ESP_LOGI(g_tag, "GET Status = %d, received = %d bytes", status, (int)response->length);
     } else {
-        ESP_LOGE(TAG, "GET failed: %s", esp_err_to_name(err));
+        ESP_LOGE(g_tag, "GET failed: %s", esp_err_to_name(err));
     }
 
     esp_http_client_cleanup(client);
     return err;
 }
 
-esp_err_t http_post(const char *url, const char *data, HttpResponse *response) {
+esp_err_t http_post(const char* url, const char* data, HttpResponse* response) {
     if (!response || !response->buffer) {
         return ESP_ERR_INVALID_ARG;
     }
 
     response->length = 0;
 
-    http_context_t ctx = {
+    HttpContextT ctx = {
         .resp = response,
     };
 
     esp_http_client_config_t config = {
-        .url = url,
+        .url           = url,
         .event_handler = http_event_handler,
-        .user_data = &ctx,
+        .user_data     = &ctx,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) {
-        ESP_LOGE(TAG, "Failed to init client");
+        ESP_LOGE(g_tag, "Failed to init client");
         return ESP_FAIL;
     }
 
@@ -112,10 +111,9 @@ esp_err_t http_post(const char *url, const char *data, HttpResponse *response) {
 
     if (err == ESP_OK) {
         int status = esp_http_client_get_status_code(client);
-        ESP_LOGI(TAG, "POST Status = %d, received = %d bytes", status,
-                 (int)response->length);
+        ESP_LOGI(g_tag, "POST Status = %d, received = %d bytes", status, (int)response->length);
     } else {
-        ESP_LOGE(TAG, "POST failed: %s", esp_err_to_name(err));
+        ESP_LOGE(g_tag, "POST failed: %s", esp_err_to_name(err));
     }
 
     esp_http_client_cleanup(client);

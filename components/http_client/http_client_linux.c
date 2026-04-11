@@ -5,24 +5,23 @@
 #include <string.h>
 
 typedef struct {
-    HttpResponse *resp;
-} curl_context_t;
+    HttpResponse* resp;
+} CurlContextT;
 
 // libcurl write callback
-static size_t write_callback(void *contents, size_t size, size_t nmemb,
-                             void *userp) {
-    size_t total_size = size * nmemb;
-    curl_context_t *ctx = (curl_context_t *)userp;
+static size_t write_callback(void* contents, size_t size, size_t nmemb, void* userp) {
+    size_t total_size   = size * nmemb;
+    CurlContextT* ctx   = (CurlContextT*)userp;
 
     if (!ctx || !ctx->resp || !ctx->resp->buffer) {
         return 0;
     }
 
-    HttpResponse *resp = ctx->resp;
+    HttpResponse* resp = ctx->resp;
 
     // prevent overflow
     size_t space_left = resp->buffer_size - resp->length;
-    size_t copy_len = total_size < space_left ? total_size : space_left;
+    size_t copy_len   = total_size < space_left ? total_size : space_left;
 
     if (copy_len > 0) {
         memcpy(resp->buffer + resp->length, contents, copy_len);
@@ -32,22 +31,21 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb,
     return total_size; // tell curl we consumed everything
 }
 
-static esp_err_t perform_request(const char *url, const char *post_data,
-                                 HttpResponse *response) {
+static esp_err_t perform_request(const char* url, const char* post_data, HttpResponse* response) {
     if (!response || !response->buffer || !url) {
         return ESP_ERR_INVALID_ARG;
     }
 
     response->length = 0;
 
-    CURL *curl = curl_easy_init();
+    CURL* curl = curl_easy_init();
     if (!curl) {
         return ESP_FAIL;
     }
 
-    curl_context_t ctx = {.resp = response};
+    CurlContextT ctx = {.resp = response};
 
-    struct curl_slist *headers = NULL;
+    struct curl_slist* headers = NULL;
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
@@ -68,28 +66,29 @@ static esp_err_t perform_request(const char *url, const char *post_data,
 
     if (res != CURLE_OK) {
         curl_easy_cleanup(curl);
-        if (headers)
+        if (headers) {
             curl_slist_free_all(headers);
+        }
         return ESP_FAIL;
     }
 
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 
-    printf("[HTTP] Status = %ld, received = %zu bytes\n", http_code,
-           response->length);
+    printf("[HTTP] Status = %ld, received = %zu bytes\n", http_code, response->length);
 
     curl_easy_cleanup(curl);
-    if (headers)
+    if (headers) {
         curl_slist_free_all(headers);
+    }
 
     return ESP_OK;
 }
 
-esp_err_t http_get(const char *url, HttpResponse *response) {
+esp_err_t http_get(const char* url, HttpResponse* response) {
     return perform_request(url, NULL, response);
 }
 
-esp_err_t http_post(const char *url, const char *data, HttpResponse *response) {
+esp_err_t http_post(const char* url, const char* data, HttpResponse* response) {
     return perform_request(url, data, response);
 }

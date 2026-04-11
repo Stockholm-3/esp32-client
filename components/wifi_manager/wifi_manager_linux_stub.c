@@ -1,95 +1,98 @@
 #include "esp_log.h"
 #include "wifi_manager.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
 #include <unistd.h>
 
-static const char *TAG = "wifi_manager_stub";
+static const char* g_tag = "wifi_manager_stub";
 
-static volatile WifiManagerState current_state = WIFI_MANAGER_STATE_IDLE;
-static bool initialized = false;
+static volatile WifiManagerState g_current_state = WIFI_MANAGER_STATE_IDLE;
+static bool g_initialized                        = false;
 
-static int retry_count = 0;
-static int max_retries = 5;
-static int base_retry_ms = 500;
-static int max_retry_ms = 2000;
+static int g_retry_count   = 0;
+static int g_max_retries   = 5;
+static int g_base_retry_ms = 500;
+static int g_max_retry_ms  = 2000;
 
-static WifiManagerEventCb user_cb = NULL;
-static int64_t next_retry_time = 0;
-static bool retry_pending = false;
+static WifiManagerEventCb g_user_cb = NULL;
+static int64_t g_next_retry_time    = 0;
+static bool g_retry_pending         = false;
 
 static void set_state(WifiManagerState state) {
-    if (current_state != state) {
-        current_state = state;
-        if (user_cb)
-            user_cb(state);
-        ESP_LOGI(TAG, "State changed to %d", state);
+    if (g_current_state != state) {
+        g_current_state = state;
+        if (g_user_cb) {
+            g_user_cb(state);
+        }
+        ESP_LOGI(g_tag, "State changed to %d", state);
     }
 }
 
 static int get_backoff_delay_ms(void) {
-    int delay = base_retry_ms * (1 << retry_count);
-    if (delay > max_retry_ms)
-        delay = max_retry_ms;
+    int delay = g_base_retry_ms * (1 << g_retry_count);
+    if (delay > g_max_retry_ms) {
+        delay = g_max_retry_ms;
+    }
     return delay;
 }
 
-int wifi_manager_start(const char *ssid, const char *password,
-                       const WifiManagerConfig *config) {
-    if (initialized) {
-        ESP_LOGE(TAG, "Already initialized!");
+int wifi_manager_start(const char* ssid, const char* password, const WifiManagerConfig* config) {
+    if (g_initialized) {
+        ESP_LOGE(g_tag, "Already initialized!");
         return -1;
     }
 
-    ESP_LOGI(TAG, "Starting Wi-Fi for SSID '%s'", ssid);
+    ESP_LOGI(g_tag, "Starting Wi-Fi for SSID '%s'", ssid);
 
     if (config) {
-        max_retries = config->max_retries;
-        base_retry_ms = config->base_retry_ms;
-        max_retry_ms = config->max_retry_ms;
+        g_max_retries   = config->max_retries;
+        g_base_retry_ms = config->base_retry_ms;
+        g_max_retry_ms  = config->max_retry_ms;
     }
 
-    initialized = true;
-    retry_count = 0;
-    retry_pending = true;
-    next_retry_time = (int64_t)time(NULL) * 1000 + 1000;
+    g_initialized     = true;
+    g_retry_count     = 0;
+    g_retry_pending   = true;
+    g_next_retry_time = ((int64_t)time(NULL) * 1000) + 1000;
     set_state(WIFI_MANAGER_STATE_CONNECTING);
     return 0;
 }
 
 void wifi_manager_stop(void) {
-    ESP_LOGI(TAG, "Stopping Wi-Fi");
-    initialized = false;
-    retry_pending = false;
-    retry_count = 0;
+    ESP_LOGI(g_tag, "Stopping Wi-Fi");
+    g_initialized   = false;
+    g_retry_pending = false;
+    g_retry_count   = 0;
     set_state(WIFI_MANAGER_STATE_IDLE);
 }
 
 void wifi_manager_process(void) {
-    if (!retry_pending)
+    if (!g_retry_pending) {
         return;
+    }
 
     int64_t now = (int64_t)time(NULL) * 1000;
-    if (now >= next_retry_time) {
-        if (retry_count < max_retries) {
-            retry_count++;
-            ESP_LOGW(TAG, "Fake retry %d/%d", retry_count, max_retries);
-            next_retry_time = now + get_backoff_delay_ms();
+    if (now >= g_next_retry_time) {
+        if (g_retry_count < g_max_retries) {
+            g_retry_count++;
+            ESP_LOGW(g_tag, "Fake retry %d/%d", g_retry_count, g_max_retries);
+            g_next_retry_time = now + get_backoff_delay_ms();
             set_state(WIFI_MANAGER_STATE_CONNECTING);
         } else {
-            ESP_LOGE(TAG, "Max retries reached, failed");
+            ESP_LOGE(g_tag, "Max retries reached, failed");
             set_state(WIFI_MANAGER_STATE_FAILED);
-            retry_pending = false;
+            g_retry_pending = false;
         }
 
-        if (retry_count == 3) {
+        if (g_retry_count == 3) {
             set_state(WIFI_MANAGER_STATE_CONNECTED);
-            retry_pending = false;
+            g_retry_pending = false;
         }
     }
 }
 
-WifiManagerState wifi_manager_get_state(void) { return current_state; }
+WifiManagerState wifi_manager_get_state(void) { return g_current_state; }
 
-void wifi_manager_register_callback(WifiManagerEventCb cb) { user_cb = cb; }
+void wifi_manager_register_callback(WifiManagerEventCb cb) { g_user_cb = cb; }

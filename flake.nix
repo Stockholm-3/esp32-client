@@ -49,6 +49,7 @@
         python3
         python3Packages.pip
         python3Packages.virtualenv
+        libbsd
         SDL2
         qemu-esp32 # from the overlay — supports ESP32 + ESP32-S3
       ];

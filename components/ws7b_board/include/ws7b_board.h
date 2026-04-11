@@ -88,7 +88,7 @@ extern "C" {
  * @param disp_out  receives the lv_disp_t* (may be NULL)
  * @param touch_out receives the lv_indev_t* (may be NULL)
  */
-esp_err_t ws7b_board_init(lv_disp_t **disp_out, lv_indev_t **touch_out);
+esp_err_t ws7b_board_init(lv_disp_t** disp_out, lv_indev_t** touch_out);
 
 /** @brief Set backlight brightness 0-255 via CH32V003 PWM */
 void ws7b_set_backlight(uint8_t brightness);

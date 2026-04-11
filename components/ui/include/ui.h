@@ -11,7 +11,7 @@ extern "C" {
  *
  * @param disp  Active LVGL display (pass NULL to use the default display)
  */
-void ui_build(lv_disp_t *disp);
+void ui_build(lv_disp_t* disp);
 
 #ifdef __cplusplus
 }

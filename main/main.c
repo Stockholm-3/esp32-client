@@ -4,17 +4,17 @@
 #include "ui.h"
 #include "ws7b_board.h"
 
-static const char *TAG = "main";
+static const char* g_tag = "main";
 
 void app_main(void) {
-    lv_disp_t *disp = NULL;
-    lv_indev_t *touch = NULL;
+    lv_disp_t* disp   = NULL;
+    lv_indev_t* touch = NULL;
 
     ESP_ERROR_CHECK(ws7b_board_init(&disp, &touch));
-    ESP_LOGI(TAG, "Display initialized");
+    ESP_LOGI(g_tag, "Display initialized");
 
     if (!ws7b_lvgl_lock(-1)) {
-        ESP_LOGE(TAG, "Failed to acquire LVGL lock");
+        ESP_LOGE(g_tag, "Failed to acquire LVGL lock");
         return;
     }
 
