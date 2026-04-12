@@ -10,8 +10,8 @@ typedef struct {
 
 // libcurl write callback
 static size_t write_callback(void* contents, size_t size, size_t nmemb, void* userp) {
-    size_t total_size   = size * nmemb;
-    CurlContextT* ctx   = (CurlContextT*)userp;
+    size_t total_size = size * nmemb;
+    CurlContextT* ctx = (CurlContextT*)userp;
 
     if (!ctx || !ctx->resp || !ctx->resp->buffer) {
         return 0;
