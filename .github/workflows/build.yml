@@ -32,9 +32,9 @@ jobs:
     runs-on: ubuntu-24.04
 
     env:
-      IDF_VERSION:    v6.0
-      IDF_TARGET:     esp32s3
-      IDF_PATH:       /home/runner/esp/esp-idf
+      IDF_VERSION: v6.0
+      IDF_TARGET: esp32s3
+      IDF_PATH: /home/runner/esp/esp-idf
       IDF_TOOLS_PATH: /home/runner/.espressif
 
     steps:
@@ -43,7 +43,6 @@ jobs:
         with:
           submodules: recursive
 
-      # ── ESP-IDF repo ────────────────────────────────────────────────────────
       - name: Cache ESP-IDF repo
         id: cache-idf
         uses: actions/cache@v4
@@ -55,10 +54,9 @@ jobs:
         if: steps.cache-idf.outputs.cache-hit != 'true'
         run: |
           mkdir -p /home/runner/esp
-          git clone --depth 1 --branch $IDF_VERSION --recursive \
-            https://github.com/espressif/esp-idf.git $IDF_PATH
+          git clone --depth 1 --branch ${{ env.IDF_VERSION }} --recursive \
+            https://github.com/espressif/esp-idf.git ${{ env.IDF_PATH }}
 
-      # ── ESP-IDF tools (Xtensa toolchain, OpenOCD, etc.) ─────────────────────
       - name: Cache ESP-IDF tools
         id: cache-tools
         uses: actions/cache@v4
@@ -68,9 +66,8 @@ jobs:
 
       - name: Install ESP-IDF tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
-        run: $IDF_PATH/install.sh $IDF_TARGET
+        run: ${{ env.IDF_PATH }}/install.sh ${{ env.IDF_TARGET }}
 
-      # ── Managed components cache ─────────────────────────────────────────────
       - name: Cache managed components
         uses: actions/cache@v4
         with:
@@ -78,7 +75,6 @@ jobs:
           key: managed-components-${{ hashFiles('**/idf_component.yml') }}
           restore-keys: managed-components-
 
-      # ── Build cache ──────────────────────────────────────────────────────────
       - name: Cache build output
         uses: actions/cache@v4
         with:
@@ -86,24 +82,21 @@ jobs:
           key: build-v6.0-esp32s3-${{ hashFiles('main/**', 'components/**', '**/CMakeLists.txt', 'sdkconfig.defaults') }}
           restore-keys: build-v6.0-esp32s3-
 
-      # ── Build ────────────────────────────────────────────────────────────────
       - name: Set target
         run: |
-          source $IDF_PATH/export.sh
-          idf.py set-target $IDF_TARGET
+          source ${{ env.IDF_PATH }}/export.sh
+          idf.py set-target ${{ env.IDF_TARGET }}
 
       - name: Build firmware
         run: |
-          source $IDF_PATH/export.sh
+          source ${{ env.IDF_PATH }}/export.sh
           idf.py build
 
-      # ── Post-build info ──────────────────────────────────────────────────────
       - name: Print binary sizes
         run: |
-          source $IDF_PATH/export.sh
+          source ${{ env.IDF_PATH }}/export.sh
           idf.py size-components
 
-      # ── Upload artifacts ─────────────────────────────────────────────────────
       - name: Upload firmware
         if: success()
         uses: actions/upload-artifact@v4
