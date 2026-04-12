@@ -24,7 +24,7 @@ endef
 # ----------------------------------------
 .PHONY: build flash monitor flash-monitor fm
 .PHONY: linux-build linux-run linux-clean linux-hardclean
-.PHONY: hardclean format-check format-fix
+.PHONY: hardclean format-check format-fix format-ci
 .PHONY: lint lint-fix lint-ci lint-scrub lint-check-deps
 
 # ----------------------------------------
@@ -81,6 +81,19 @@ format-fix:
 	if [ -z "$$FILES" ]; then echo "[SKIP] No source files found"; exit 0; fi; \
 	echo "$$FILES" | xargs clang-format -i
 	@echo "[OK] formatted"
+
+# format-ci — same as format-check but with a clear remediation message.
+# Use this in CI pipelines.
+format-ci:
+	@echo "Checking formatting (CI)..."
+	@FILES="$$($(call find_sources))"; \
+	if [ -z "$$FILES" ]; then echo "[SKIP] No source files found"; exit 0; fi; \
+	if echo "$$FILES" | xargs clang-format --dry-run --Werror 2>&1; then \
+	  echo "[OK] formatting clean"; \
+	else \
+	  echo "[FAIL] formatting issues found — run 'make format-fix' locally and commit the result"; \
+	  exit 1; \
+	fi
 
 # ----------------------------------------
 # Static analysis (clang-tidy)
