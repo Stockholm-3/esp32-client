@@ -49,7 +49,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
 
         if (g_retry_count < g_cfg.max_retries) {
             int delay         = get_backoff_delay_ms();
-            g_next_retry_time = esp_timer_get_time() + (delay * 1000);
+            g_next_retry_time = esp_timer_get_time() + ((int64_t)delay * 1000);
             g_retry_pending   = true;
             ESP_LOGW(g_tag, "Disconnected, retry in %d ms", delay);
             g_retry_count++;
@@ -67,14 +67,14 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
     }
 }
 
-int wifi_manager_start(const char* ssid, const char* password, const WifiManagerConfig* user_cfg) {
+int wifi_manager_start(const char* ssid, const char* password, const WifiManagerConfig* config) {
     if (g_initialized) {
         ESP_LOGE(g_tag, "Wi-Fi manager already initialized");
         return -1;
     }
 
-    if (user_cfg) {
-        g_cfg = *user_cfg;
+    if (config) {
+        g_cfg = *config;
     }
 
     esp_err_t ret = nvs_flash_init();

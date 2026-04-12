@@ -57,8 +57,7 @@ void ui_build(void) {
 
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x1A1A1A), 0);
 
-    // ─── TOP NAVIGATION (Replacing Flex with manual alignment for
-    // compatibility) ───
+    // ─── TOP NAVIGATION ───
     lv_obj_t* nav_bar = lv_obj_create(scr);
     lv_obj_set_size(nav_bar, 800, 70);
     lv_obj_align(nav_bar, LV_ALIGN_TOP_MID, 0, 0);
@@ -68,15 +67,14 @@ void ui_build(void) {
 
     const char* btns[] = {"HOME", "WEATHER", "ELPRIS", "SETTINGS"};
     for (int i = 0; i < 4; i++) {
-        lv_obj_t* b = lv_btn_create(nav_bar);
-        lv_obj_set_size(b, 140, 40);
-        // Manually align to ensure it works even if LV_USE_FLEX is 0
-        lv_obj_align(b, LV_ALIGN_LEFT_MID, 40 + (i * 180), 0);
-        lv_obj_set_style_bg_color(b, lv_color_hex(0x4A6D9C), 0);
+        lv_obj_t* btn = lv_btn_create(nav_bar);
+        lv_obj_set_size(btn, 140, 40);
+        lv_obj_align(btn, LV_ALIGN_LEFT_MID, (lv_coord_t)(40 + (i * 180)), 0);
+        lv_obj_set_style_bg_color(btn, lv_color_hex(0x4A6D9C), 0);
 
-        lv_obj_t* l = lv_label_create(b);
-        lv_label_set_text(l, btns[i]);
-        lv_obj_center(l);
+        lv_obj_t* lbl = lv_label_create(btn);
+        lv_label_set_text(lbl, btns[i]);
+        lv_obj_center(lbl);
     }
 
     // ─── MAIN CONTENT AREA ───
@@ -88,14 +86,14 @@ void ui_build(void) {
     lv_obj_set_style_radius(cont, 10, 0);
 
     // Left Side: Circles
-    lv_obj_t* c1 = create_metric_circle(cont, "LOCAL\nTEMP", &g_temp_label);
-    lv_obj_align(c1, LV_ALIGN_TOP_LEFT, 20, 20);
+    lv_obj_t* circle_temp = create_metric_circle(cont, "LOCAL\nTEMP", &g_temp_label);
+    lv_obj_align(circle_temp, LV_ALIGN_TOP_LEFT, 20, 20);
 
-    lv_obj_t* c2 = create_metric_circle(cont, "LOCAL\nPRESSURE", &g_pres_label);
-    lv_obj_align(c2, LV_ALIGN_LEFT_MID, 160, 0);
+    lv_obj_t* circle_pres = create_metric_circle(cont, "LOCAL\nPRESSURE", &g_pres_label);
+    lv_obj_align(circle_pres, LV_ALIGN_LEFT_MID, 160, 0);
 
-    lv_obj_t* c3 = create_metric_circle(cont, "LOCAL\nHUMIDITY", &g_hum_label);
-    lv_obj_align(c3, LV_ALIGN_BOTTOM_LEFT, 20, -20);
+    lv_obj_t* circle_hum = create_metric_circle(cont, "LOCAL\nHUMIDITY", &g_hum_label);
+    lv_obj_align(circle_hum, LV_ALIGN_BOTTOM_LEFT, 20, -20);
 
     // Right Side: Forecast Panel
     lv_obj_t* forecast_panel = lv_obj_create(cont);

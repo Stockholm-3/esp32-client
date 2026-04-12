@@ -106,9 +106,9 @@ format-fix:
 #
 # TARGETS
 # -------
-#   lint        — warnings + errors, non-zero exit on any finding (dev use)
-#   lint-fix    — apply safe automatic fixes in-place (never use in CI)
-#   lint-ci     — errors only, non-zero exit only on errors (CI use)
+#   lint      — show all warnings + errors (dev use). Fails if any found.
+#   lint-ci   — show all warnings + errors (CI use). Fails only on errors.
+#   lint-fix  — apply safe automatic fixes in-place. Never use in CI.
 #
 # WORKFLOW
 # --------
@@ -142,26 +142,12 @@ lint-scrub: lint-check-deps
 	    --output $(LINT_DB_DIR)/compile_commands.json \
 	    --roots  $(ROOTS)
 
-# lint — report warnings and errors, non-zero exit on any finding (dev use).
+# lint — show all warnings and errors. Fails if anything is found.
+# If you see [FAIL] with no diagnostics listed, run:
+#   make lint 2>&1 | cat
+# to bypass the filter and see raw clang-tidy output.
 lint: lint-scrub
 	@echo "Running clang-tidy..."
-	@SOURCE_FILES="$$($(call find_sources))"; \
-	if [ -z "$$SOURCE_FILES" ]; then echo "[SKIP] No source files found"; exit 0; fi; \
-	set -o pipefail; \
-	echo "$$SOURCE_FILES" | tr '\n' '\0' | xargs -0 \
-	  run-clang-tidy \
-	    -p "$(LINT_DB_DIR)" \
-	    -header-filter "$(HEADER_FILTER)" \
-	    -quiet \
-	  2>&1 | python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)"; \
-	EXIT=$$?; \
-	if [ $$EXIT -ne 0 ]; then echo "[FAIL] clang-tidy found issues"; exit $$EXIT; fi; \
-	echo "[OK] clang-tidy clean"
-
-# lint-ci — only fail the build on actual errors, not warnings.
-# Warnings are still shown for visibility but do not break CI.
-lint-ci: lint-scrub
-	@echo "Running clang-tidy (CI mode: fail on errors only)..."
 	@SOURCE_FILES="$$($(call find_sources))"; \
 	if [ -z "$$SOURCE_FILES" ]; then echo "[SKIP] No source files found"; exit 0; fi; \
 	TMPFILE=$$(mktemp); \
@@ -173,16 +159,41 @@ lint-ci: lint-scrub
 	  2>&1 \
 	  | python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)" \
 	  | tee "$$TMPFILE"; \
-	if grep -q "^.*: error:" "$$TMPFILE" 2>/dev/null || \
-	   grep -qP "\033\[1m\033\[31merror:" "$$TMPFILE" 2>/dev/null || \
-	   grep -P ":\d+:\d+:.*\berror\b:" "$$TMPFILE" >/dev/null 2>&1; then \
-	  rm -f "$$TMPFILE"; \
-	  echo "[FAIL] clang-tidy found errors"; exit 1; \
-	fi; \
+	FINDINGS=$$(grep -cP ":\d+:\d+:\s+(warning|error):" "$$TMPFILE" 2>/dev/null || true); \
 	rm -f "$$TMPFILE"; \
-	echo "[OK] clang-tidy: no errors (warnings ignored in CI mode)"
+	if [ "$${FINDINGS:-0}" -gt 0 ]; then \
+	  echo "[FAIL] clang-tidy found $${FINDINGS} issue(s) — see above"; exit 1; \
+	fi; \
+	echo "[OK] clang-tidy clean — no warnings or errors"
 
-# lint-fix — apply safe automatic fixes in-place (do not use in CI).
+# lint-ci — show all warnings and errors, but only fail on errors.
+# Use this in CI pipelines. Warnings are visible but non-blocking.
+lint-ci: lint-scrub
+	@echo "Running clang-tidy (CI: warnings visible, only errors block the build)..."
+	@SOURCE_FILES="$$($(call find_sources))"; \
+	if [ -z "$$SOURCE_FILES" ]; then echo "[SKIP] No source files found"; exit 0; fi; \
+	TMPFILE=$$(mktemp); \
+	echo "$$SOURCE_FILES" | tr '\n' '\0' | xargs -0 \
+	  run-clang-tidy \
+	    -p "$(LINT_DB_DIR)" \
+	    -header-filter "$(HEADER_FILTER)" \
+	    -quiet \
+	  2>&1 \
+	  | python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)" \
+	  | tee "$$TMPFILE"; \
+	WARNINGS=$$(grep -cP ":\d+:\d+:\s+warning:" "$$TMPFILE" 2>/dev/null || true); \
+	ERRORS=$$(grep -cP ":\d+:\d+:\s+error:" "$$TMPFILE" 2>/dev/null || true); \
+	rm -f "$$TMPFILE"; \
+	if [ "$${ERRORS:-0}" -gt 0 ]; then \
+	  echo "[FAIL] clang-tidy: $${ERRORS} error(s) must be fixed before merging (warnings: $${WARNINGS:-0})"; \
+	  exit 1; \
+	elif [ "$${WARNINGS:-0}" -gt 0 ]; then \
+	  echo "[WARN] clang-tidy: $${WARNINGS} warning(s) — non-blocking, but worth fixing"; \
+	else \
+	  echo "[OK] clang-tidy clean — no warnings or errors"; \
+	fi
+
+# lint-fix — apply safe automatic fixes in-place. Never use in CI.
 lint-fix: lint-scrub
 	@echo "Running clang-tidy with auto-fix..."
 	@SOURCE_FILES="$$($(call find_sources))"; \

@@ -74,9 +74,9 @@ CheckOptions:
 
   # Function size warning threshold
   - key: readability-function-size.LineThreshold
-    value: 150
+    value: 100
   - key: readability-function-cognitive-complexity.Threshold
-    value: 80
+    value: 100
 
   # Suggest const correctness
   - key: readability-non-const-parameter.IgnoreAllCaps
@@ -90,6 +90,7 @@ WarningsAsErrors: >
   readability-identifier-naming,
   readability-braces-around-statements,
   readability-non-const-parameter,
+  bugprone-implicit-widening-of-multiplication-result,
   clang-analyzer-*,
 
 # ----------------------------------------

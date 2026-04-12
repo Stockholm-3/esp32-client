@@ -100,8 +100,9 @@ static void lvgl_touch_cb(lv_indev_drv_t* drv, lv_indev_data_t* data) {
     esp_lcd_touch_read_data(tp);
     esp_lcd_touch_get_data(tp, points, &cnt, 1);
     if (cnt > 0) {
-        data->point.x = points[0].x;
-        data->point.y = points[0].y;
+        // Touch coords are uint16_t; screen fits in lv_coord_t (short) — cast is safe.
+        data->point.x = (lv_coord_t)points[0].x;
+        data->point.y = (lv_coord_t)points[0].y;
         data->state   = LV_INDEV_STATE_PRESSED;
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
@@ -134,6 +135,7 @@ static void lvgl_task(void* arg) {
 
 // ── I2C + IO expander init
 // ────────────────────────────────────────────────────
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 static esp_err_t init_i2c_and_ioexp(void) {
     i2c_master_bus_config_t bus_cfg = {
         .i2c_port                     = WS7B_I2C_NUM,
@@ -226,12 +228,14 @@ static esp_err_t init_touch(void) {
 
 // ── RGB panel init
 // ────────────────────────────────────────────────────────────
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 static esp_err_t init_rgb_panel(void) {
     esp_lcd_rgb_panel_config_t cfg = {
-        .clk_src               = LCD_CLK_SRC_DEFAULT,
-        .data_width            = 16,
-        .num_fbs               = 1,
-        .bounce_buffer_size_px = WS7B_BOUNCE_BUF_LINES * WS7B_LCD_H_RES,
+        .clk_src    = LCD_CLK_SRC_DEFAULT,
+        .data_width = 16,
+        .num_fbs    = 1,
+        // Cast to size_t before multiplying to avoid implicit widening from int.
+        .bounce_buffer_size_px = (size_t)WS7B_BOUNCE_BUF_LINES * WS7B_LCD_H_RES,
         .pclk_gpio_num         = WS7B_LCD_PCLK,
         .vsync_gpio_num        = WS7B_LCD_VSYNC,
         .hsync_gpio_num        = WS7B_LCD_HSYNC,
@@ -291,8 +295,9 @@ static lv_disp_t* lvgl_display_init(void) {
     static lv_color_t qemu_buf[WS7B_LCD_H_RES * 10];
     lv_disp_draw_buf_init(&draw_buf, qemu_buf, NULL, WS7B_LCD_H_RES * 10);
 #else
-    // Single render buffer — 1/10th of screen, lives in PSRAM
-    size_t buf_px          = WS7B_LCD_H_RES * (WS7B_LCD_V_RES / 10);
+    // Single render buffer — 1/10th of screen, lives in PSRAM.
+    // Cast to size_t before multiplying to avoid implicit widening from int.
+    size_t buf_px          = (size_t)WS7B_LCD_H_RES * (WS7B_LCD_V_RES / 10);
     lv_color_t* render_buf = heap_caps_malloc(buf_px * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     assert(render_buf);
     lv_disp_draw_buf_init(&draw_buf, render_buf, NULL, buf_px);
@@ -327,6 +332,7 @@ static lv_indev_t* lvgl_touch_init(void) {
 
 // ── Public init
 // ───────────────────────────────────────────────────────────────
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 esp_err_t ws7b_board_init(lv_disp_t** disp_out, lv_indev_t** touch_out) {
 #if CONFIG_WS7B_QEMU_SIM
     ESP_LOGW(TAG, "QEMU simulation mode — hardware init skipped");
@@ -356,7 +362,8 @@ esp_err_t ws7b_board_init(lv_disp_t** disp_out, lv_indev_t** touch_out) {
     };
     esp_timer_handle_t tick_timer;
     ESP_ERROR_CHECK(esp_timer_create(&TICK_ARGS, &tick_timer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(tick_timer, WS7B_LVGL_TICK_MS * 1000));
+    // Cast to uint64_t before multiplying to avoid implicit widening from int.
+    ESP_ERROR_CHECK(esp_timer_start_periodic(tick_timer, (uint64_t)WS7B_LVGL_TICK_MS * 1000U));
     ESP_LOGI(g_tag, "tick timer started");
 
     g_s_lvgl_mux = xSemaphoreCreateRecursiveMutex();
