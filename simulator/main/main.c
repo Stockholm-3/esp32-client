@@ -13,7 +13,7 @@
 static const char* g_tag = "main";
 
 void app_main(void) {
-    lv_disp_t* disp   = NULL;
+    lv_display_t* disp = NULL;
     lv_indev_t* mouse = NULL;
 
     if (sim_board_init(&disp, &mouse) != ESP_OK) {

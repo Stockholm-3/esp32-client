@@ -30,7 +30,6 @@ static esp_lcd_touch_handle_t g_s_touch      = NULL;
 // ────────────────────────────────────────────────────────────────
 static SemaphoreHandle_t g_s_lvgl_mux     = NULL;
 static SemaphoreHandle_t g_s_vsync_sem    = NULL;
-static lv_disp_drv_t* g_s_disp_drv        = NULL;
 static volatile bool g_s_first_frame_done = false;
 
 // ── IO expander helpers
@@ -68,10 +67,10 @@ static IRAM_ATTR bool on_frame_buf_complete(esp_lcd_panel_handle_t panel,
 
 // ── LVGL flush callback
 // ───────────────────────────────────────────────────────
-static void lvgl_flush_cb(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* color_map) {
-    esp_lcd_panel_handle_t panel = (esp_lcd_panel_handle_t)drv->user_data;
+static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
+    esp_lcd_panel_handle_t panel = (esp_lcd_panel_handle_t)lv_display_get_user_data(disp);
 
-    esp_lcd_panel_draw_bitmap(panel, area->x1, area->y1, area->x2 + 1, area->y2 + 1, color_map);
+    esp_lcd_panel_draw_bitmap(panel, area->x1, area->y1, area->x2 + 1, area->y2 + 1, px_map);
 
     if (g_s_first_frame_done) {
         xSemaphoreTake(g_s_vsync_sem, 0);
@@ -81,28 +80,29 @@ static void lvgl_flush_cb(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t*
         g_s_first_frame_done = true;
     }
 
-    lv_disp_flush_ready(drv);
+    lv_display_flush_ready(disp);
 }
 
 #if CONFIG_WS7B_QEMU_SIM
-static void lvgl_flush_cb_qemu(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t* color_map) {
-    lv_disp_flush_ready(drv);
+static void lvgl_flush_cb_qemu(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
+    (void)area;
+    (void)px_map;
+    lv_display_flush_ready(disp);
 }
 #endif
 
 // ── Touch input callback
 // ──────────────────────────────────────────────────────
-static void lvgl_touch_cb(lv_indev_drv_t* drv, lv_indev_data_t* data) {
-    esp_lcd_touch_handle_t tp            = (esp_lcd_touch_handle_t)drv->user_data;
+static void lvgl_touch_cb(lv_indev_t* indev, lv_indev_data_t* data) {
+    esp_lcd_touch_handle_t tp            = (esp_lcd_touch_handle_t)lv_indev_get_user_data(indev);
     uint8_t cnt                          = 0;
     esp_lcd_touch_point_data_t points[1] = {0};
 
     esp_lcd_touch_read_data(tp);
     esp_lcd_touch_get_data(tp, points, &cnt, 1);
     if (cnt > 0) {
-        // Touch coords are uint16_t; screen fits in lv_coord_t (short) — cast is safe.
-        data->point.x = (lv_coord_t)points[0].x;
-        data->point.y = (lv_coord_t)points[0].y;
+        data->point.x = (int32_t)points[0].x;
+        data->point.y = (int32_t)points[0].y;
         data->state   = LV_INDEV_STATE_PRESSED;
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
@@ -286,54 +286,41 @@ static esp_err_t init_rgb_panel(void) {
 
 // ── LVGL display init
 // ─────────────────────────────────────────────────────────
-static lv_disp_t* lvgl_display_init(void) {
-    static lv_disp_draw_buf_t draw_buf;
-    static lv_disp_drv_t disp_drv;
+static lv_display_t* lvgl_display_init(void) {
+    lv_display_t* disp = lv_display_create(WS7B_LCD_H_RES, WS7B_LCD_V_RES);
+    assert(disp);
 
 #if CONFIG_WS7B_QEMU_SIM
-    // Small static buffer in internal RAM — no PSRAM needed in QEMU
-    static lv_color_t qemu_buf[WS7B_LCD_H_RES * 10];
-    lv_disp_draw_buf_init(&draw_buf, qemu_buf, NULL, WS7B_LCD_H_RES * 10);
+    static uint8_t qemu_buf[WS7B_LCD_H_RES * 10 * sizeof(lv_color_t)];
+    lv_display_set_buffers(disp, qemu_buf, NULL, sizeof(qemu_buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_flush_cb(disp, lvgl_flush_cb_qemu);
 #else
     // Single render buffer — 1/10th of screen, lives in PSRAM.
-    // Cast to size_t before multiplying to avoid implicit widening from int.
-    size_t buf_px          = (size_t)WS7B_LCD_H_RES * (WS7B_LCD_V_RES / 10);
-    lv_color_t* render_buf = heap_caps_malloc(buf_px * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    size_t buf_bytes = (size_t)WS7B_LCD_H_RES * (WS7B_LCD_V_RES / 10) * sizeof(lv_color_t);
+    uint8_t* render_buf = heap_caps_malloc(buf_bytes, MALLOC_CAP_SPIRAM);
     assert(render_buf);
-    lv_disp_draw_buf_init(&draw_buf, render_buf, NULL, buf_px);
+    lv_display_set_buffers(disp, render_buf, NULL, buf_bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_flush_cb(disp, lvgl_flush_cb);
+    lv_display_set_user_data(disp, g_s_panel);
 #endif
 
-    lv_disp_drv_init(&disp_drv);
-    disp_drv.hor_res  = WS7B_LCD_H_RES;
-    disp_drv.ver_res  = WS7B_LCD_V_RES;
-    disp_drv.draw_buf = &draw_buf;
-#if CONFIG_WS7B_QEMU_SIM
-    disp_drv.flush_cb  = lvgl_flush_cb_qemu;
-    disp_drv.user_data = NULL;
-#else
-    disp_drv.flush_cb  = lvgl_flush_cb;
-    disp_drv.user_data = g_s_panel;
-#endif
-
-    g_s_disp_drv = &disp_drv;
-    return lv_disp_drv_register(&disp_drv);
+    return disp;
 }
 
 // ── Touch indev init
 // ──────────────────────────────────────────────────────────
 static lv_indev_t* lvgl_touch_init(void) {
-    static lv_indev_drv_t indev_drv;
-    lv_indev_drv_init(&indev_drv);
-    indev_drv.type      = LV_INDEV_TYPE_POINTER;
-    indev_drv.read_cb   = lvgl_touch_cb;
-    indev_drv.user_data = g_s_touch;
-    return lv_indev_drv_register(&indev_drv);
+    lv_indev_t* indev = lv_indev_create();
+    lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(indev, lvgl_touch_cb);
+    lv_indev_set_user_data(indev, g_s_touch);
+    return indev;
 }
 
 // ── Public init
 // ───────────────────────────────────────────────────────────────
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-esp_err_t ws7b_board_init(lv_disp_t** disp_out, lv_indev_t** touch_out) {
+esp_err_t ws7b_board_init(lv_display_t** disp_out, lv_indev_t** touch_out) {
 #if CONFIG_WS7B_QEMU_SIM
     ESP_LOGW(TAG, "QEMU simulation mode — hardware init skipped");
 #else
@@ -370,7 +357,7 @@ esp_err_t ws7b_board_init(lv_disp_t** disp_out, lv_indev_t** touch_out) {
     assert(g_s_lvgl_mux);
     ESP_LOGI(g_tag, "lvgl mutex created");
 
-    lv_disp_t* disp = lvgl_display_init();
+    lv_display_t* disp = lvgl_display_init();
     assert(disp);
     ESP_LOGI(g_tag, "display driver registered");
 
