@@ -8,6 +8,7 @@ Checks: >
   -bugprone-easily-swappable-parameters,
   readability-*,
   -readability-magic-numbers,
+  -readability-identifier-length,
   performance-*,
   -clang-diagnostic-error
 
@@ -67,7 +68,6 @@ CheckOptions:
     value: UPPER_CASE
 
   # ===== Readability Rules =====
-
   # Require braces for all control statements
   - key: readability-braces-around-statements.ShortStatementLines
     value: 1
@@ -75,6 +75,8 @@ CheckOptions:
   # Function size warning threshold
   - key: readability-function-size.LineThreshold
     value: 150
+  - key: readability-function-cognitive-complexity.Threshold
+    value: 80
 
   # Suggest const correctness
   - key: readability-non-const-parameter.IgnoreAllCaps
@@ -86,9 +88,11 @@ CheckOptions:
 # ----------------------------------------
 WarningsAsErrors: >
   readability-identifier-naming,
+  readability-braces-around-statements,
+  readability-non-const-parameter,
   clang-analyzer-*,
 
 # ----------------------------------------
 # Formatting
 # ----------------------------------------
-FormatStyle: file
+FormatStyle: filecla

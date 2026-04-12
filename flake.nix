@@ -49,6 +49,10 @@
         python3
         python3Packages.pip
         python3Packages.virtualenv
+        llvm
+        llvmPackages.clang-tools
+        libclang
+        clang-tools
         libbsd
         SDL2
         qemu-esp32 # from the overlay — supports ESP32 + ESP32-S3
@@ -64,6 +68,7 @@
 
         # Tell idf.py where to find our Nix-built qemu instead of its own
         export QEMU_XTENSA_BIN=${pkgs.qemu-esp32}/bin/qemu-system-xtensa
+        export PATH=${pkgs.clang-tools}/bin:$PATH
 
         unset PYTHONPATH
         source $IDF_PATH/export.sh

@@ -48,7 +48,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
         set_state(WIFI_MANAGER_STATE_DISCONNECTED);
 
         if (g_retry_count < g_cfg.max_retries) {
-            int delay       = get_backoff_delay_ms();
+            int delay         = get_backoff_delay_ms();
             g_next_retry_time = esp_timer_get_time() + (delay * 1000);
             g_retry_pending   = true;
             ESP_LOGW(g_tag, "Disconnected, retry in %d ms", delay);

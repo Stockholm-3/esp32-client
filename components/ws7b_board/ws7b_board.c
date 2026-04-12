@@ -140,7 +140,7 @@ static esp_err_t init_i2c_and_ioexp(void) {
         .sda_io_num                   = WS7B_I2C_SDA,
         .scl_io_num                   = WS7B_I2C_SCL,
         .clk_source                   = I2C_CLK_SRC_DEFAULT,
-        .flags.enable_internal_pullup = 1u,
+        .flags.enable_internal_pullup = 1U,
     };
     ESP_RETURN_ON_ERROR(i2c_new_master_bus(&bus_cfg, &g_s_i2c_bus), g_tag, "I2C bus failed");
 
@@ -197,7 +197,7 @@ static esp_err_t init_touch(void) {
             .dc_bit_offset               = 0,
             .lcd_cmd_bits                = 16,
             .lcd_param_bits              = 8,
-            .flags.disable_control_phase = 1u,
+            .flags.disable_control_phase = 1U,
         };
         if (esp_lcd_new_panel_io_i2c(g_s_i2c_bus, &io_cfg, &tp_io) != ESP_OK) {
             continue;
@@ -267,9 +267,9 @@ static esp_err_t init_rgb_panel(void) {
                 .vsync_pulse_width     = WS7B_VSYNC_PULSE_WIDTH,
                 .vsync_back_porch      = WS7B_VSYNC_BACK_PORCH,
                 .vsync_front_porch     = WS7B_VSYNC_FRONT_PORCH,
-                .flags.pclk_active_neg = 1u,
+                .flags.pclk_active_neg = 1U,
             },
-        .flags.fb_in_psram = 1u,
+        .flags.fb_in_psram = 1U,
     };
 
     ESP_RETURN_ON_ERROR(esp_lcd_new_rgb_panel(&cfg, &g_s_panel), g_tag, "panel create failed");
