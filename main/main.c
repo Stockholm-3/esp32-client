@@ -19,6 +19,7 @@ void app_main(void) {
     }
 
     ui_build(disp);
+    ESP_LOGI(g_tag, "HI");
     ws7b_lvgl_unlock();
 
     while (1) {
