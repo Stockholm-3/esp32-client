@@ -1,0 +1,118 @@
+name: Lint
+
+on:
+  push:
+    branches: ["main", "develop"]
+    paths:
+      - "main/**"
+      - "components/**"
+      - ".clang-tidy"
+      - "CMakeLists.txt"
+      - "**/CMakeLists.txt"
+      - "idf_component.yml"
+      - "**/idf_component.yml"
+      - "scripts/**"
+  pull_request:
+    branches: ["main", "develop"]
+    paths:
+      - "main/**"
+      - "components/**"
+      - ".clang-tidy"
+      - "CMakeLists.txt"
+      - "**/CMakeLists.txt"
+      - "idf_component.yml"
+      - "**/idf_component.yml"
+      - "scripts/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IDF_VERSION: v6.0
+  IDF_TARGET:  esp32s3
+  IDF_PATH:    /home/runner/esp/esp-idf
+  IDF_TOOLS_PATH: /home/runner/.espressif
+
+jobs:
+  lint:
+    name: clang-tidy
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── ESP-IDF repo ────────────────────────────────────────────────────────
+      - name: Cache ESP-IDF repo
+        id: cache-idf
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.IDF_PATH }}
+          key: esp-idf-${{ env.IDF_VERSION }}
+
+      - name: Clone ESP-IDF
+        if: steps.cache-idf.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p $(dirname $IDF_PATH)
+          git clone --depth 1 --branch $IDF_VERSION --recursive \
+            https://github.com/espressif/esp-idf.git $IDF_PATH
+
+      # ── ESP-IDF tools (Xtensa toolchain, etc.) ──────────────────────────────
+      - name: Cache ESP-IDF tools
+        id: cache-tools
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.IDF_TOOLS_PATH }}
+          key: espressif-tools-${{ env.IDF_VERSION }}-${{ env.IDF_TARGET }}
+
+      - name: Install ESP-IDF tools
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        run: $IDF_PATH/install.sh $IDF_TARGET
+
+      # ── clang-tidy + run-clang-tidy ─────────────────────────────────────────
+      - name: Install clang-tidy
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            clang-tidy \
+            python3-pip
+
+      - name: Install run-clang-tidy
+        run: pip install --quiet --break-system-packages clang-tidy
+
+      # ── Generate compile_commands.json ──────────────────────────────────────
+      # Cached per commit SHA — if the build cache is reused the DB is already
+      # there; otherwise we reconfigure (fast, no actual compilation).
+      - name: Cache compile_commands.json
+        id: cache-compdb
+        uses: actions/cache@v4
+        with:
+          path: build/compile_commands.json
+          key: compdb-${{ env.IDF_VERSION }}-${{ env.IDF_TARGET }}-${{ hashFiles('**/CMakeLists.txt', '**/idf_component.yml') }}
+
+      - name: Generate compile_commands.json
+        if: steps.cache-compdb.outputs.cache-hit != 'true'
+        run: |
+          source $IDF_PATH/export.sh
+          idf.py reconfigure
+
+      # ── Lint ────────────────────────────────────────────────────────────────
+      - name: Scrub compile_commands.json
+        run: |
+          source $IDF_PATH/export.sh
+          make lint-scrub
+
+      - name: Run clang-tidy
+        run: |
+          source $IDF_PATH/export.sh
+          make lint-ci
+
+      # ── Artifacts ───────────────────────────────────────────────────────────
+      - name: Upload lint DB on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clang-tidy-db-${{ github.sha }}
+          path: build/lint/compile_commands.json
+          retention-days: 7

@@ -3,19 +3,38 @@ name: Build
 on:
   push:
     branches: ["main", "develop"]
+    paths:
+      - "main/**"
+      - "components/**"
+      - "CMakeLists.txt"
+      - "**/CMakeLists.txt"
+      - "idf_component.yml"
+      - "**/idf_component.yml"
+      - "sdkconfig.defaults"
   pull_request:
     branches: ["main", "develop"]
+    paths:
+      - "main/**"
+      - "components/**"
+      - "CMakeLists.txt"
+      - "**/CMakeLists.txt"
+      - "idf_component.yml"
+      - "**/idf_component.yml"
+      - "sdkconfig.defaults"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  IDF_VERSION:    v6.0
+  IDF_TARGET:     esp32s3
+  IDF_PATH:       /home/runner/esp/esp-idf
+  IDF_TOOLS_PATH: /home/runner/.espressif
+
 jobs:
-  # ──────────────────────────────────────────────────────────────────────────
-  # Build — compiles firmware for the target chip
-  # ──────────────────────────────────────────────────────────────────────────
   build:
-    name: Firmware Build (ESP32-S3)
+    name: Firmware (${{ env.IDF_TARGET }}, IDF ${{ env.IDF_VERSION }})
     runs-on: ubuntu-24.04
 
     steps:
@@ -24,58 +43,76 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Cache ESP-IDF
+      # ── ESP-IDF repo ────────────────────────────────────────────────────────
+      - name: Cache ESP-IDF repo
+        id: cache-idf
         uses: actions/cache@v4
         with:
-          path: ~/esp/esp-idf
-          key: esp-idf-${{ hashFiles('**/idf_component.yml') }}-v1
-          restore-keys: esp-idf-
+          path: ${{ env.IDF_PATH }}
+          key: esp-idf-${{ env.IDF_VERSION }}
 
-      - name: Cache ESP-IDF tools (.espressif)
+      - name: Clone ESP-IDF
+        if: steps.cache-idf.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p $(dirname $IDF_PATH)
+          git clone --depth 1 --branch $IDF_VERSION --recursive \
+            https://github.com/espressif/esp-idf.git $IDF_PATH
+
+      # ── ESP-IDF tools (Xtensa toolchain, OpenOCD, etc.) ─────────────────────
+      - name: Cache ESP-IDF tools
+        id: cache-tools
         uses: actions/cache@v4
         with:
-          path: ~/.espressif
-          key: espressif-tools-${{ hashFiles('**/idf_component.yml') }}-v1
-          restore-keys: espressif-tools-
+          path: ${{ env.IDF_TOOLS_PATH }}
+          key: espressif-tools-${{ env.IDF_VERSION }}-${{ env.IDF_TARGET }}
 
+      - name: Install ESP-IDF tools
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        run: $IDF_PATH/install.sh $IDF_TARGET
+
+      # ── Managed components cache ─────────────────────────────────────────────
+      # Keyed on the component manifests so a lockfile change busts the cache.
+      - name: Cache managed components
+        uses: actions/cache@v4
+        with:
+          path: managed_components
+          key: managed-components-${{ hashFiles('**/idf_component.yml') }}
+          restore-keys: managed-components-
+
+      # ── Build cache ──────────────────────────────────────────────────────────
+      # Keyed on source + cmake files so that touching only docs or scripts
+      # does not invalidate the build cache.
       - name: Cache build output
         uses: actions/cache@v4
         with:
           path: build
-          key: build-${{ github.sha }}
-          restore-keys: build-
+          key: build-${{ env.IDF_VERSION }}-${{ env.IDF_TARGET }}-${{ hashFiles('main/**', 'components/**', '**/CMakeLists.txt', 'sdkconfig.defaults') }}
+          restore-keys: |
+            build-${{ env.IDF_VERSION }}-${{ env.IDF_TARGET }}-
 
-      - name: Install ESP-IDF
+      # ── Build ────────────────────────────────────────────────────────────────
+      - name: Set target
         run: |
-          if [ ! -d "$HOME/esp/esp-idf/.git" ]; then
-            mkdir -p ~/esp
-            git clone --depth 1 --branch v5.4.1 \
-              https://github.com/espressif/esp-idf.git ~/esp/esp-idf
-          fi
-          ~/esp/esp-idf/install.sh esp32s3
-        env:
-          IDF_TOOLS_PATH: ~/.espressif
+          source $IDF_PATH/export.sh
+          idf.py set-target $IDF_TARGET
 
       - name: Build firmware
         run: |
-          source ~/esp/esp-idf/export.sh
+          source $IDF_PATH/export.sh
           idf.py build
-        env:
-          IDF_TOOLS_PATH: ~/.espressif
 
+      # ── Post-build info ──────────────────────────────────────────────────────
       - name: Print binary sizes
-        if: success()
         run: |
-          source ~/esp/esp-idf/export.sh
-          idf.py size
-        env:
-          IDF_TOOLS_PATH: ~/.espressif
+          source $IDF_PATH/export.sh
+          idf.py size-components
 
-      - name: Upload firmware artifacts
+      # ── Upload artifacts ─────────────────────────────────────────────────────
+      - name: Upload firmware
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-${{ github.sha }}
+          name: firmware-${{ env.IDF_TARGET }}-${{ github.sha }}
           path: |
             build/*.bin
             build/*.elf
@@ -83,10 +120,12 @@ jobs:
             build/flasher_args.json
           retention-days: 30
 
-      - name: Upload firmware artifacts on failure
+      - name: Upload build logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: build-logs-${{ github.sha }}
-          path: build/
+          path: |
+            build/CMakeFiles/**/*.log
+            build/**/*.log
           retention-days: 7

@@ -1,0 +1,36 @@
+name: Format
+
+on:
+  push:
+    branches: ["main", "develop"]
+    paths:
+      - "main/**"
+      - "components/**"
+      - ".clang-format"
+  pull_request:
+    branches: ["main", "develop"]
+    paths:
+      - "main/**"
+      - "components/**"
+      - ".clang-format"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: clang-format
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang-format
+
+      - name: Check formatting
+        run: make format-ci
