@@ -2,4 +2,3 @@
 // SquareLine Studio version: SquareLine Studio 1.6.0
 // LVGL version: 8.3.11
 // Project name: just-GUI
-

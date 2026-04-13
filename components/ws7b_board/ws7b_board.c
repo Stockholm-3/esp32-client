@@ -296,7 +296,7 @@ static lv_display_t* lvgl_display_init(void) {
     lv_display_set_flush_cb(disp, lvgl_flush_cb_qemu);
 #else
     // Single render buffer — 1/10th of screen, lives in PSRAM.
-    size_t buf_bytes = (size_t)WS7B_LCD_H_RES * (WS7B_LCD_V_RES / 10) * sizeof(lv_color_t);
+    size_t buf_bytes    = (size_t)WS7B_LCD_H_RES * (WS7B_LCD_V_RES / 10) * sizeof(lv_color_t);
     uint8_t* render_buf = heap_caps_malloc(buf_bytes, MALLOC_CAP_SPIRAM);
     assert(render_buf);
     lv_display_set_buffers(disp, render_buf, NULL, buf_bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);

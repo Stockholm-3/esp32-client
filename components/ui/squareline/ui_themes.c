@@ -5,15 +5,11 @@
 
 #include "ui.h"
 
-
 const ui_theme_variable_t _ui_theme_color_white[2] = {0xFFFFFF, 0xFFFFFF};
 const ui_theme_variable_t _ui_theme_alpha_white[2] = {255, 255};
-uint8_t ui_theme_idx = UI_THEME_WHITE;
+uint8_t ui_theme_idx                               = UI_THEME_WHITE;
 
-
-void ui_theme_set(uint8_t theme_idx)
-{
+void ui_theme_set(uint8_t theme_idx) {
     ui_theme_idx = theme_idx;
     _ui_theme_set_variable_styles(UI_VARIABLE_STYLES_MODE_FOLLOW);
 }
-

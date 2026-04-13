@@ -8,7 +8,7 @@ static const char* g_tag = "main";
 
 void app_main(void) {
     lv_display_t* disp = NULL;
-    lv_indev_t* touch = NULL;
+    lv_indev_t* touch  = NULL;
 
     ESP_ERROR_CHECK(ws7b_board_init(&disp, &touch));
     ESP_LOGI(g_tag, "Display initialized");
