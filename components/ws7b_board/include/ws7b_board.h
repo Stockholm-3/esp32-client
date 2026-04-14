@@ -90,6 +90,9 @@ extern "C" {
  */
 esp_err_t ws7b_board_init(lv_display_t** disp_out, lv_indev_t** touch_out);
 
+/** Returns idle CPU percentage (0-100) for LVGL SYSMON. */
+uint32_t ws7b_get_idle_percent(void);
+
 /** @brief Set backlight brightness 0-255 via CH32V003 PWM */
 void ws7b_set_backlight(uint8_t brightness);
 

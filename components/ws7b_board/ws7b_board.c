@@ -28,9 +28,8 @@ static esp_lcd_touch_handle_t g_s_touch      = NULL;
 
 // ── LVGL state
 // ────────────────────────────────────────────────────────────────
-static SemaphoreHandle_t g_s_lvgl_mux     = NULL;
-static SemaphoreHandle_t g_s_vsync_sem    = NULL;
-static volatile bool g_s_first_frame_done = false;
+static SemaphoreHandle_t g_s_lvgl_mux  = NULL;
+static SemaphoreHandle_t g_s_vsync_sem = NULL;
 
 // ── IO expander helpers
 // ───────────────────────────────────────────────────────
@@ -65,21 +64,20 @@ static IRAM_ATTR bool on_frame_buf_complete(esp_lcd_panel_handle_t panel,
     return need_yield == pdTRUE;
 }
 
-// ── LVGL flush callback
+// ── LVGL flush callback (double-buffer vsync swap)
 // ───────────────────────────────────────────────────────
+// RENDER_MODE_DIRECT calls flush_cb once per dirty region per frame.
+// Only the final call (lv_display_flush_is_last) should trigger the
+// full-screen zero-copy buffer swap and vsync wait; earlier calls just
+// confirm the region is done so LVGL can continue rendering.
 static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
-    esp_lcd_panel_handle_t panel = (esp_lcd_panel_handle_t)lv_display_get_user_data(disp);
-
-    esp_lcd_panel_draw_bitmap(panel, area->x1, area->y1, area->x2 + 1, area->y2 + 1, px_map);
-
-    if (g_s_first_frame_done) {
+    (void)area;
+    if (lv_display_flush_is_last(disp)) {
+        esp_lcd_panel_handle_t panel = (esp_lcd_panel_handle_t)lv_display_get_user_data(disp);
+        esp_lcd_panel_draw_bitmap(panel, 0, 0, WS7B_LCD_H_RES, WS7B_LCD_V_RES, px_map);
         xSemaphoreTake(g_s_vsync_sem, 0);
         xSemaphoreTake(g_s_vsync_sem, portMAX_DELAY);
-    } else {
-        xSemaphoreTake(g_s_vsync_sem, portMAX_DELAY);
-        g_s_first_frame_done = true;
     }
-
     lv_display_flush_ready(disp);
 }
 
@@ -230,10 +228,11 @@ static esp_err_t init_touch(void) {
 // ────────────────────────────────────────────────────────────
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 static esp_err_t init_rgb_panel(void) {
+    // NOLINTNEXTLINE(bugprone-invalid-enum-default-initialization) -- ESP-IDF struct, zero-init is correct
     esp_lcd_rgb_panel_config_t cfg = {
         .clk_src    = LCD_CLK_SRC_DEFAULT,
         .data_width = 16,
-        .num_fbs    = 1,
+        .num_fbs    = 2,
         // Cast to size_t before multiplying to avoid implicit widening from int.
         .bounce_buffer_size_px = (size_t)WS7B_BOUNCE_BUF_LINES * WS7B_LCD_H_RES,
         .pclk_gpio_num         = WS7B_LCD_PCLK,
@@ -279,7 +278,6 @@ static esp_err_t init_rgb_panel(void) {
     ESP_RETURN_ON_ERROR(esp_lcd_new_rgb_panel(&cfg, &g_s_panel), g_tag, "panel create failed");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(g_s_panel), g_tag, "panel reset failed");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_init(g_s_panel), g_tag, "panel init failed");
-
     ESP_LOGI(g_tag, "RGB panel %dx%d ready", WS7B_LCD_H_RES, WS7B_LCD_V_RES);
     return ESP_OK;
 }
@@ -295,11 +293,14 @@ static lv_display_t* lvgl_display_init(void) {
     lv_display_set_buffers(disp, qemu_buf, NULL, sizeof(qemu_buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(disp, lvgl_flush_cb_qemu);
 #else
-    // Single render buffer — 1/10th of screen, lives in PSRAM.
-    size_t buf_bytes    = (size_t)WS7B_LCD_H_RES * (WS7B_LCD_V_RES / 10) * sizeof(lv_color_t);
-    uint8_t* render_buf = heap_caps_malloc(buf_bytes, MALLOC_CAP_SPIRAM);
-    assert(render_buf);
-    lv_display_set_buffers(disp, render_buf, NULL, buf_bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
+    // Two full-size framebuffers owned by the RGB panel driver (in PSRAM).
+    // DIRECT mode lets LVGL render straight into these buffers; flush_cb
+    // triggers a zero-copy vsync-locked swap instead of a memcpy.
+    void* buf1 = NULL;
+    void* buf2 = NULL;
+    ESP_ERROR_CHECK(esp_lcd_rgb_panel_get_frame_buffer(g_s_panel, 2, &buf1, &buf2));
+    size_t fb_bytes = (size_t)WS7B_LCD_H_RES * WS7B_LCD_V_RES * sizeof(lv_color_t);
+    lv_display_set_buffers(disp, buf1, buf2, fb_bytes, LV_DISPLAY_RENDER_MODE_DIRECT);
     lv_display_set_flush_cb(disp, lvgl_flush_cb);
     lv_display_set_user_data(disp, g_s_panel);
 #endif
