@@ -2,17 +2,19 @@ name: Format
 
 on:
   push:
-    branches: ["main", "develop"]
-    paths:
-      - "main/**"
-      - "components/**"
-      - ".clang-format"
+    branches: ["**"]
+    paths-ignore:
+          - "**.md"
+          - ".gitignore"
+          - "LICENSE"
+          - "docs/**"
   pull_request:
-    branches: ["main", "develop"]
-    paths:
-      - "main/**"
-      - "components/**"
-      - ".clang-format"
+    branches: ["**"]
+    paths-ignore:
+          - "**.md"
+          - ".gitignore"
+          - "LICENSE"
+          - "docs/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
