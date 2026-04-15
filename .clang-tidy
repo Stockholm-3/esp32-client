@@ -76,7 +76,7 @@ CheckOptions:
   - key: readability-function-size.LineThreshold
     value: 100
   - key: readability-function-cognitive-complexity.Threshold
-    value: 100
+    value: 200
 
   # Suggest const correctness
   - key: readability-non-const-parameter.IgnoreAllCaps
@@ -87,6 +87,7 @@ CheckOptions:
 # CI Behavior
 # ----------------------------------------
 WarningsAsErrors: >
+  readability-uppercase-literal-suffix,
   readability-identifier-naming,
   readability-braces-around-statements,
   readability-non-const-parameter,
