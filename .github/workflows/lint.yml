@@ -2,27 +2,19 @@ name: Lint
 
 on:
   push:
-    branches: ["main", "develop"]
-    paths:
-      - "main/**"
-      - "components/**"
-      - ".clang-tidy"
-      - "CMakeLists.txt"
-      - "**/CMakeLists.txt"
-      - "idf_component.yml"
-      - "**/idf_component.yml"
-      - "scripts/**"
+    branches: ["**"]
+    paths-ignore:
+          - "**.md"
+          - ".gitignore"
+          - "LICENSE"
+          - "docs/**"
   pull_request:
-    branches: ["main", "develop"]
-    paths:
-      - "main/**"
-      - "components/**"
-      - ".clang-tidy"
-      - "CMakeLists.txt"
-      - "**/CMakeLists.txt"
-      - "idf_component.yml"
-      - "**/idf_component.yml"
-      - "scripts/**"
+    branches: ["**"]
+    paths-ignore:
+          - "**.md"
+          - ".gitignore"
+          - "LICENSE"
+          - "docs/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
