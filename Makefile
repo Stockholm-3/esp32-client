@@ -54,7 +54,7 @@ hardclean:
 # Linux simulator targets
 # ----------------------------------------
 linux-build:
-	cd simulator && idf.py build
+	cd simulator && IDF_TARGET=linux idf.py build
 
 linux-run: linux-build
 	./simulator/build/simulator.elf
