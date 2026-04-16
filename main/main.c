@@ -1,9 +1,9 @@
+#include "env_sensor.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "ui.h"
 #include "ws7b_board.h"
-#include "env_sensor.h"
 
 static const char* g_tag = "main";
 
