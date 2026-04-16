@@ -228,7 +228,8 @@ static esp_err_t init_touch(void) {
 // ────────────────────────────────────────────────────────────
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 static esp_err_t init_rgb_panel(void) {
-    // NOLINTNEXTLINE(bugprone-invalid-enum-default-initialization) -- ESP-IDF struct, zero-init is correct
+    // NOLINTNEXTLINE(bugprone-invalid-enum-default-initialization) -- ESP-IDF struct, zero-init is
+    // correct
     esp_lcd_rgb_panel_config_t cfg = {
         .clk_src    = LCD_CLK_SRC_DEFAULT,
         .data_width = 16,
