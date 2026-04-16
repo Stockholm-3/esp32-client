@@ -11,6 +11,7 @@ define find_sources
 find $(ROOTS) -name '*.c' \
   -not -path "*/managed_components/*" \
   -not -path "*/build/*" \
+  -not -path "*/squareline/*" \
   2>/dev/null
 endef
 
@@ -18,6 +19,7 @@ define find_headers
 find $(ROOTS) -name '*.h' \
   -not -path "*/managed_components/*" \
   -not -path "*/build/*" \
+  -not -path "*/squareline/*" \
   2>/dev/null
 endef
 
