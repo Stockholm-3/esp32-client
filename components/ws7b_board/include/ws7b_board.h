@@ -1,11 +1,9 @@
 #pragma once
+#include "driver/i2c_master.h"
 #include "esp_err.h"
 #include "esp_lcd_panel_rgb.h"
 #include "esp_lcd_touch.h"
 #include "lvgl.h"
-#include "driver/i2c_master.h"
-
-
 
 #ifdef __cplusplus
 extern "C" {
