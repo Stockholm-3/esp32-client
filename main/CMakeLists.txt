@@ -1,11 +1,15 @@
 idf_component_register(
     SRCS "main.c"
     INCLUDE_DIRS "."
-    PRIV_REQUIRES
-        ui
-        wifi_manager
+    REQUIRES 
+        nvs_flash
+        esp_wifi
+        esp_event
+        lwip
+        log
+        freertos
+         wifi_manager
         time_manager
-        lvgl
 )
 
 target_include_directories(__idf_main PRIVATE ${CMAKE_SOURCE_DIR})
