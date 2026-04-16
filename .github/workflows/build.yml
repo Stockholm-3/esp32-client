@@ -1,0 +1,114 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore:
+          - "**.md"
+          - ".gitignore"
+          - "LICENSE"
+          - "docs/**"
+  pull_request:
+    branches: ["**"]
+    paths-ignore:
+          - "**.md"
+          - ".gitignore"
+          - "LICENSE"
+          - "docs/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Firmware (esp32s3, IDF v6.0)
+    runs-on: ubuntu-24.04
+
+    env:
+      IDF_VERSION: v6.0
+      IDF_TARGET: esp32s3
+      IDF_PATH: /home/runner/esp/esp-idf
+      IDF_TOOLS_PATH: /home/runner/.espressif
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache ESP-IDF repo
+        id: cache-idf
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/esp/esp-idf
+          key: esp-idf-v6.0
+
+      - name: Clone ESP-IDF
+        if: steps.cache-idf.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /home/runner/esp
+          git clone --depth 1 --branch ${{ env.IDF_VERSION }} --recursive \
+            https://github.com/espressif/esp-idf.git ${{ env.IDF_PATH }}
+
+      - name: Cache ESP-IDF tools
+        id: cache-tools
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.espressif
+          key: espressif-tools-v6.0-esp32s3
+
+      - name: Install ESP-IDF tools
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        run: ${{ env.IDF_PATH }}/install.sh ${{ env.IDF_TARGET }}
+
+      - name: Cache managed components
+        uses: actions/cache@v4
+        with:
+          path: managed_components
+          key: managed-components-${{ hashFiles('**/idf_component.yml') }}
+          restore-keys: managed-components-
+
+      - name: Cache build output
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: build-v6.0-esp32s3-${{ hashFiles('main/**', 'components/**', '**/CMakeLists.txt', 'sdkconfig.defaults') }}
+          restore-keys: build-v6.0-esp32s3-
+
+      - name: Set target
+        run: |
+          source ${{ env.IDF_PATH }}/export.sh
+          idf.py set-target ${{ env.IDF_TARGET }}
+
+      - name: Build firmware
+        run: |
+          source ${{ env.IDF_PATH }}/export.sh
+          idf.py build
+
+      - name: Print binary sizes
+        run: |
+          source ${{ env.IDF_PATH }}/export.sh
+          idf.py size-components
+
+      - name: Upload firmware
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-esp32s3-${{ github.sha }}
+          path: |
+            build/*.bin
+            build/*.elf
+            build/*.map
+            build/flasher_args.json
+          retention-days: 30
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ github.sha }}
+          path: |
+            build/CMakeFiles/**/*.log
+            build/**/*.log
+          retention-days: 7
