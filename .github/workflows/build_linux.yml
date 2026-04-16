@@ -61,7 +61,7 @@ jobs:
 
       - name: Install ESP-IDF tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
-        run: ${{ env.IDF_PATH}/install.sh ${{ env.IDF_TARGET }}
+        run: ${{ env.IDF_PATH }}/install.sh ${{ env.IDF_TARGET }}
 
       - name: Cache managed components
         uses: actions/cache@v4
