@@ -13,7 +13,7 @@ on:
   workflow_dispatch: # Allows manual triggering
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: simulator-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
