@@ -3,6 +3,9 @@
 #include "esp_lcd_panel_rgb.h"
 #include "esp_lcd_touch.h"
 #include "lvgl.h"
+#include "driver/i2c_master.h"
+
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -98,6 +101,9 @@ bool ws7b_lvgl_lock(int timeout_ms);
 
 /** @brief Release LVGL mutex */
 void ws7b_lvgl_unlock(void);
+
+/** @brief Returns the shared I2C bus handle, available after ws7b_board_init() */
+i2c_master_bus_handle_t ws7b_get_i2c_bus(void);
 
 #ifdef __cplusplus
 }

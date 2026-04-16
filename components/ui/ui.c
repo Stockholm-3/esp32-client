@@ -1,5 +1,5 @@
 #include "lvgl.h"
-
+#include "env_sensor.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -30,20 +30,12 @@ static lv_obj_t* create_metric_circle(lv_obj_t* parent, const char* title, lv_ob
 
     return obj;
 }
-
 static void update_weather_cb(lv_timer_t* timer) {
-    int temp = rand() % 35;
-    int hum  = 40 + (rand() % 30);
-    int pres = 1000 + (rand() % 20);
-
-    if (g_temp_label) {
-        lv_label_set_text_fmt(g_temp_label, "%d°C", temp);
-    }
-    if (g_hum_label) {
-        lv_label_set_text_fmt(g_hum_label, "%d%%", hum);
-    }
-    if (g_pres_label) {
-        lv_label_set_text_fmt(g_pres_label, "%d hPa", pres);
+    SensorData data;
+    if (sensor_read(&data) == ESP_OK) {
+        lv_label_set_text_fmt(g_temp_label, "%d C", (int)data.temperature);
+        lv_label_set_text_fmt(g_hum_label,  "%d%%", (int)data.humidity);
+        lv_label_set_text_fmt(g_pres_label, "%d hPa", (int)data.pressure);
     }
 }
 
