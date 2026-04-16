@@ -64,7 +64,6 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends python3-pip
-          # We only need the run-clang-tidy script; we use the IDF's binary for the actual linting
           pip install --quiet --break-system-packages clang-tidy
 
       - name: Prepare Compile Database
@@ -75,7 +74,8 @@ jobs:
       - name: Run Linter
         run: |
           source ${{ env.IDF_PATH }}/export.sh
-          # The Makefile CLANG_TIDY_EXE logic will now pick up the IDF binary
+          # Verify binary path before running
+          which xtensa-esp32s3-elf-clang-tidy || echo "Binary not found!"
           make lint-ci
 
       - name: Upload lint DB on failure

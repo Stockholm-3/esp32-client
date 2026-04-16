@@ -105,14 +105,15 @@ SCRUB_SCRIPT   := scripts/scrub_compile_commands.py
 FILTER_SCRIPT  := scripts/filter_lint.py
 PROJECT_ROOT   := $(shell pwd)
 
-# Surgical fix: Detect the Xtensa-specific binary from the IDF export
+# Surgical fix: Explicitly look for the Xtensa binary
 CLANG_TIDY_EXE := $(shell which xtensa-esp32s3-elf-clang-tidy 2>/dev/null || which clang-tidy)
 
 HEADER_FILTER  := ^$(PROJECT_ROOT)/(main|components)/(?!managed_components)
 
 lint-check-deps:
 	@command -v run-clang-tidy >/dev/null 2>&1 || \
-	  { echo "[ERROR] run-clang-tidy not found. Add libclang to your flake buildInputs."; exit 1; }
+	  { echo "[ERROR] run-clang-tidy wrapper not found."; exit 1; }
+	@if [ -z "$(CLANG_TIDY_EXE)" ]; then echo "[ERROR] No clang-tidy binary found in PATH."; exit 1; fi
 	@test -f $(COMPILE_DB_RAW) || \
 	  { echo "[ERROR] $(COMPILE_DB_RAW) not found. Run 'idf.py reconfigure' first."; exit 1; }
 	@test -f $(SCRUB_SCRIPT) || \
@@ -129,7 +130,7 @@ lint-scrub: lint-check-deps
 		--roots  $(ROOTS)
 
 lint: lint-scrub
-	@echo "Running clang-tidy..."
+	@echo "Running clang-tidy using $(CLANG_TIDY_EXE)..."
 	@SOURCE_FILES="$$($(call find_sources))"; \
 	if [ -z "$$SOURCE_FILES" ]; then echo "[SKIP] No source files found"; exit 0; fi; \
 	TMPFILE=$$(mktemp /tmp/lint.XXXXXX); \
@@ -138,6 +139,7 @@ lint: lint-scrub
 	  run-clang-tidy \
 	    -clang-tidy-binary "$(CLANG_TIDY_EXE)" \
 	    -p "$(LINT_DB_DIR)" \
+	    -checks='*' \
 	    -header-filter "$(HEADER_FILTER)" \
 	    -quiet \
 	  2>&1 \
@@ -146,12 +148,12 @@ lint: lint-scrub
 	FINDINGS=$$(grep -cP ":\d+:\d+:\s+(warning|error):" "$$TMPFILE" 2>/dev/null || true); \
 	rm -f "$$TMPFILE"; \
 	if [ "$${FINDINGS:-0}" -gt 0 ]; then \
-	  echo "[FAIL] clang-tidy found $${FINDINGS} issue(s) — see above"; exit 1; \
+	  echo "[FAIL] clang-tidy found $${FINDINGS} issue(s)"; exit 1; \
 	fi; \
-	echo "[OK] clang-tidy clean — no warnings or errors"
+	echo "[OK] clang-tidy clean"
 
 lint-ci: lint-scrub
-	@echo "Running clang-tidy (CI: warnings visible, only errors block the build)..."
+	@echo "Running clang-tidy (CI) using $(CLANG_TIDY_EXE)..."
 	@SOURCE_FILES="$$($(call find_sources))"; \
 	if [ -z "$$SOURCE_FILES" ]; then echo "[SKIP] No source files found"; exit 0; fi; \
 	TMPFILE=$$(mktemp /tmp/lint.XXXXXX); \
@@ -160,6 +162,7 @@ lint-ci: lint-scrub
 	  run-clang-tidy \
 	    -clang-tidy-binary "$(CLANG_TIDY_EXE)" \
 	    -p "$(LINT_DB_DIR)" \
+	    -checks='*' \
 	    -header-filter "$(HEADER_FILTER)" \
 	    -quiet \
 	  2>&1 \
@@ -169,12 +172,12 @@ lint-ci: lint-scrub
 	ERRORS=$$(grep -cP ":\d+:\d+:\s+error:" "$$TMPFILE" 2>/dev/null || true); \
 	rm -f "$$TMPFILE"; \
 	if [ "$${ERRORS:-0}" -gt 0 ]; then \
-	  echo "[FAIL] clang-tidy: $${ERRORS} error(s) must be fixed before merging (warnings: $${WARNINGS:-0})"; \
+	  echo "[FAIL] clang-tidy: $${ERRORS} error(s) must be fixed (warnings: $${WARNINGS:-0})"; \
 	  exit 1; \
 	elif [ "$${WARNINGS:-0}" -gt 0 ]; then \
-	  echo "[WARN] clang-tidy: $${WARNINGS} warning(s) — non-blocking, but worth fixing"; \
+	  echo "[WARN] clang-tidy: $${WARNINGS} warning(s) — non-blocking"; \
 	else \
-	  echo "[OK] clang-tidy clean — no warnings or errors"; \
+	  echo "[OK] clang-tidy clean"; \
 	fi
 
 lint-fix: lint-scrub
@@ -185,6 +188,7 @@ lint-fix: lint-scrub
 	  run-clang-tidy \
 	    -clang-tidy-binary "$(CLANG_TIDY_EXE)" \
 	    -p "$(LINT_DB_DIR)" \
+	    -checks='*' \
 	    -header-filter "$(HEADER_FILTER)" \
 	    -fix \
 	    -quiet \
