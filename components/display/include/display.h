@@ -1,7 +1,5 @@
 #pragma once
 #include "esp_err.h"
-#include "esp_lcd_panel_rgb.h"
-#include "esp_lcd_touch.h"
 #include "lvgl.h"
 
 #ifdef __cplusplus
@@ -88,19 +86,19 @@ extern "C" {
  * @param disp_out  receives the lv_disp_t* (may be NULL)
  * @param touch_out receives the lv_indev_t* (may be NULL)
  */
-esp_err_t ws7b_board_init(lv_display_t** disp_out, lv_indev_t** touch_out);
+esp_err_t display_init(lv_display_t** disp_out, lv_indev_t** touch_out);
 
 /** Returns idle CPU percentage (0-100) for LVGL SYSMON. */
-uint32_t ws7b_get_idle_percent(void);
+uint32_t display_get_idle_percent(void);
 
 /** @brief Set backlight brightness 0-255 via CH32V003 PWM */
-void ws7b_set_backlight(uint8_t brightness);
+void display_set_backlight(uint8_t brightness);
 
 /** @brief Take LVGL mutex before calling any lv_* functions */
-bool ws7b_lvgl_lock(int timeout_ms);
+bool display_lvgl_lock(int timeout_ms);
 
 /** @brief Release LVGL mutex */
-void ws7b_lvgl_unlock(void);
+void display_lvgl_unlock(void);
 
 #ifdef __cplusplus
 }

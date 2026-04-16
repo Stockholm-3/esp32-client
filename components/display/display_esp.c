@@ -1,9 +1,8 @@
 /*
- * ws7b_board.c — vsync-locked flush, no flicker
+ * display_esp.c — vsync-locked flush, no flicker
  */
 
-#include "ws7b_board.h"
-
+#include "display.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "esp_check.h"
@@ -49,7 +48,7 @@ static void ioexp_set_pin(uint8_t pin, uint8_t level) {
     ioexp_write(WS7B_IOEXP_REG_OUT, g_s_io_state);
 }
 
-void ws7b_set_backlight(uint8_t brightness) {
+void display_set_backlight(uint8_t brightness) {
     ioexp_write(WS7B_IOEXP_REG_PWM, brightness);
     ioexp_set_pin(WS7B_IOEXP_LCD_BL, brightness > 0 ? 1 : 0);
 }
@@ -117,9 +116,9 @@ static void lvgl_task(void* arg) {
     ESP_LOGI(g_tag, "LVGL task started");
     uint32_t delay_ms = WS7B_LVGL_TASK_MAX_DELAY_MS;
     while (1) {
-        if (ws7b_lvgl_lock(-1)) {
+        if (display_lvgl_lock(-1)) {
             delay_ms = lv_timer_handler();
-            ws7b_lvgl_unlock();
+            display_lvgl_unlock();
         }
         if (delay_ms > WS7B_LVGL_TASK_MAX_DELAY_MS) {
             delay_ms = WS7B_LVGL_TASK_MAX_DELAY_MS;
@@ -322,7 +321,7 @@ static lv_indev_t* lvgl_touch_init(void) {
 // ── Public init
 // ───────────────────────────────────────────────────────────────
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-esp_err_t ws7b_board_init(lv_display_t** disp_out, lv_indev_t** touch_out) {
+esp_err_t display_init(lv_display_t** disp_out, lv_indev_t** touch_out) {
 #if CONFIG_WS7B_QEMU_SIM
     ESP_LOGW(TAG, "QEMU simulation mode — hardware init skipped");
 #else
@@ -377,7 +376,7 @@ esp_err_t ws7b_board_init(lv_display_t** disp_out, lv_indev_t** touch_out) {
     }
 
 #if !CONFIG_WS7B_QEMU_SIM
-    ws7b_set_backlight(255);
+    display_set_backlight(255);
     ESP_LOGI(g_tag, "backlight on");
 #endif
 
@@ -394,13 +393,13 @@ esp_err_t ws7b_board_init(lv_display_t** disp_out, lv_indev_t** touch_out) {
 
 // ── Mutex helpers
 // ─────────────────────────────────────────────────────────────
-bool ws7b_lvgl_lock(int timeout_ms) {
+bool display_lvgl_lock(int timeout_ms) {
     assert(g_s_lvgl_mux);
     TickType_t ticks = timeout_ms < 0 ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
     return xSemaphoreTakeRecursive(g_s_lvgl_mux, ticks) == pdTRUE;
 }
 
-void ws7b_lvgl_unlock(void) {
+void display_lvgl_unlock(void) {
     assert(g_s_lvgl_mux);
     xSemaphoreGiveRecursive(g_s_lvgl_mux);
 }

@@ -13,6 +13,6 @@ dependencies:
 direct_dependencies:
 - idf
 - lvgl/lvgl
-manifest_hash: 2b33f873449df4ebfaf17001755d10a281cb7692d2502fd09a704bb6129acc10
+manifest_hash: 1e31b991fe59081c9ea33dc2f3bc5e94b85ce9728db1cf77fc7bfd9d24220bc2
 target: linux
 version: 3.0.0
