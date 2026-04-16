@@ -4,4 +4,7 @@ idf_component_register(
     PRIV_REQUIRES
         sim_board
         ui
+        wifi_manager
+        time_manager
+        lvgl
 )
