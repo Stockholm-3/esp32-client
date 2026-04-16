@@ -29,7 +29,7 @@ endef
 .PHONY: build flash monitor flash-monitor fm
 .PHONY: linux-build linux-run linux-clean linux-hardclean
 .PHONY: hardclean format-check format-fix format-ci
-.PHONY: lint lint-fix lint-ci lint-scrub lint-check-deps
+.PHONY: lint lint-fix lint-ci lint-scrub lint-check-deps linux-reconfigure
 
 # ----------------------------------------
 # Build / Flash / Monitor
@@ -59,6 +59,8 @@ hardclean:
 # ----------------------------------------
 linux-build:
 	cd simulator && IDF_TARGET=linux idf.py build
+linux-reconfigure:
+	cd simulator && IDF_TARGET=linux idf.py reconfigure
 
 linux-run: linux-build
 	./simulator/build/simulator.elf
