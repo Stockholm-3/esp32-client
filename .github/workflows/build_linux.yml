@@ -36,7 +36,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsdl2-dev libsdl2-2.0-0
+          sudo apt-get install -y libsdl2-dev libsdl2-2.0-0 libbsd-dev
 
       - name: Cache ESP-IDF repo
         id: cache-idf
