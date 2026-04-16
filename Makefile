@@ -1,3 +1,5 @@
+SHELL := bash
+
 PROJECT_NAME := app-template
 
 # ----------------------------------------
@@ -186,6 +188,9 @@ lint-ci: lint-scrub
 	@SOURCE_FILES="$$($(call find_sources))"; \
 	if [ -z "$$SOURCE_FILES" ]; then echo "[SKIP] No source files found"; exit 0; fi; \
 	TMPFILE=$$(mktemp); \
+        # Using 'set -o pipefail' ensures that if clang-tidy crashes, 
+	# the whole command exits with a failure code immediately.
+	set -o pipefail; \
 	echo "$$SOURCE_FILES" | tr '\n' '\0' | xargs -0 \
 	  run-clang-tidy \
 	    -p "$(LINT_DB_DIR)" \

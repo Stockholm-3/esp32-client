@@ -75,7 +75,9 @@ jobs:
       - name: Run Linter
         run: |
           source ${{ env.IDF_PATH }}/export.sh
-          # lint-ci includes the scrub step via the Makefile dependency
+          # 1. Point to the specific Xtensa Clang Tidy binary provided by IDF
+          # 2. Use 'make lint' if you want to fail on warnings, or 'lint-ci' for just errors.
+          export CLANG_TIDY=xtensa-esp32s3-elf-clang-tidy
           make lint-ci
 
       - name: Upload lint DB on failure
