@@ -141,7 +141,7 @@ lint: lint-scrub
 	  run-clang-tidy \
 	    -clang-tidy-binary "$(CLANG_TIDY_EXE)" \
 	    -p "$(LINT_DB_DIR)" \
-	    -checks='*' \
+	    -checks='' \
 	    -header-filter "$(HEADER_FILTER)" \
 	    -quiet \
 	  2>&1 \
@@ -164,7 +164,7 @@ lint-ci: lint-scrub
 	  run-clang-tidy \
 	    -clang-tidy-binary "$(CLANG_TIDY_EXE)" \
 	    -p "$(LINT_DB_DIR)" \
-	    -checks='*' \
+	    -checks='' \
 	    -header-filter "$(HEADER_FILTER)" \
 	    -quiet \
 	  2>&1 \
@@ -190,7 +190,7 @@ lint-fix: lint-scrub
 	  run-clang-tidy \
 	    -clang-tidy-binary "$(CLANG_TIDY_EXE)" \
 	    -p "$(LINT_DB_DIR)" \
-	    -checks='*' \
+	    -checks='' \
 	    -header-filter "$(HEADER_FILTER)" \
 	    -fix \
 	    -quiet \
