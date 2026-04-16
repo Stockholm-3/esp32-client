@@ -84,8 +84,6 @@ format-fix:
 	echo "$$FILES" | xargs clang-format -i
 	@echo "[OK] formatted"
 
-# format-ci — same as format-check but with a clear remediation message.
-# Use this in CI pipelines.
 format-ci:
 	@echo "Checking formatting (CI)..."
 	@FILES="$$($(call find_sources))"; \
@@ -99,44 +97,16 @@ format-ci:
 
 # ----------------------------------------
 # Static analysis (clang-tidy)
-#
-# Three-layer defence against ESP-IDF/Xtensa noise:
-#
-#   1. scrub_compile_commands.py
-#      - Expands @response-files that hide Xtensa GCC flags
-#      - Strips all flags unknown to clang
-#      - Injects -isystem paths for the Xtensa newlib sysroot
-#      - Keeps only entries for YOUR files
-#      Output: build/lint/compile_commands.json
-#
-#   2. -header-filter regex
-#      Tells clang-tidy to only EMIT diagnostics for headers under
-#      your project root.  Foreign headers are still parsed (clang
-#      needs to understand them) but never reported on.
-#
-#   3. filter_lint.py
-#      Post-processes clang-tidy stdout+stderr, drops all notes, and
-#      colorizes warnings (yellow) and errors (red) when writing to a
-#      terminal.
-#
-# TARGETS
-# -------
-#   lint      — show all warnings + errors (dev use). Fails if any found.
-#   lint-ci   — show all warnings + errors (CI use). Fails only on errors.
-#   lint-fix  — apply safe automatic fixes in-place. Never use in CI.
-#
-# WORKFLOW
-# --------
-#   idf.py reconfigure        # once, or after CMakeLists changes
-#   make lint                 # scrub → run → filter
 # ----------------------------------------
-
 BUILD_DIR      := build
 LINT_DB_DIR    := $(BUILD_DIR)/lint
 COMPILE_DB_RAW := $(BUILD_DIR)/compile_commands.json
 SCRUB_SCRIPT   := scripts/scrub_compile_commands.py
 FILTER_SCRIPT  := scripts/filter_lint.py
 PROJECT_ROOT   := $(shell pwd)
+
+# Surgical fix: Detect the Xtensa-specific binary from the IDF export
+CLANG_TIDY_EXE := $(shell which xtensa-esp32s3-elf-clang-tidy 2>/dev/null || which clang-tidy)
 
 HEADER_FILTER  := ^$(PROJECT_ROOT)/(main|components)/(?!managed_components)
 
@@ -152,22 +122,21 @@ lint-check-deps:
 
 lint-scrub: lint-check-deps
 	@echo "Scrubbing compile_commands.json -> $(LINT_DB_DIR)/compile_commands.json ..."
+	@mkdir -p $(LINT_DB_DIR)
 	@python3 $(SCRUB_SCRIPT) \
-	    --input  $(COMPILE_DB_RAW) \
-	    --output $(LINT_DB_DIR)/compile_commands.json \
-	    --roots  $(ROOTS)
+		--input  $(COMPILE_DB_RAW) \
+		--output $(LINT_DB_DIR)/compile_commands.json \
+		--roots  $(ROOTS)
 
-# lint — show all warnings and errors. Fails if anything is found.
-# If you see [FAIL] with no diagnostics listed, run:
-#   make lint 2>&1 | cat
-# to bypass the filter and see raw clang-tidy output.
 lint: lint-scrub
 	@echo "Running clang-tidy..."
 	@SOURCE_FILES="$$($(call find_sources))"; \
 	if [ -z "$$SOURCE_FILES" ]; then echo "[SKIP] No source files found"; exit 0; fi; \
-	TMPFILE=$$(mktemp); \
+	TMPFILE=$$(mktemp /tmp/lint.XXXXXX); \
+	set -o pipefail; \
 	echo "$$SOURCE_FILES" | tr '\n' '\0' | xargs -0 \
 	  run-clang-tidy \
+	    -clang-tidy-binary "$(CLANG_TIDY_EXE)" \
 	    -p "$(LINT_DB_DIR)" \
 	    -header-filter "$(HEADER_FILTER)" \
 	    -quiet \
@@ -181,18 +150,15 @@ lint: lint-scrub
 	fi; \
 	echo "[OK] clang-tidy clean — no warnings or errors"
 
-# lint-ci — show all warnings and errors, but only fail on errors.
-# Use this in CI pipelines. Warnings are visible but non-blocking.
 lint-ci: lint-scrub
 	@echo "Running clang-tidy (CI: warnings visible, only errors block the build)..."
 	@SOURCE_FILES="$$($(call find_sources))"; \
 	if [ -z "$$SOURCE_FILES" ]; then echo "[SKIP] No source files found"; exit 0; fi; \
-	TMPFILE=$$(mktemp); \
-        # Using 'set -o pipefail' ensures that if clang-tidy crashes, 
-	# the whole command exits with a failure code immediately.
+	TMPFILE=$$(mktemp /tmp/lint.XXXXXX); \
 	set -o pipefail; \
 	echo "$$SOURCE_FILES" | tr '\n' '\0' | xargs -0 \
 	  run-clang-tidy \
+	    -clang-tidy-binary "$(CLANG_TIDY_EXE)" \
 	    -p "$(LINT_DB_DIR)" \
 	    -header-filter "$(HEADER_FILTER)" \
 	    -quiet \
@@ -211,13 +177,13 @@ lint-ci: lint-scrub
 	  echo "[OK] clang-tidy clean — no warnings or errors"; \
 	fi
 
-# lint-fix — apply safe automatic fixes in-place. Never use in CI.
 lint-fix: lint-scrub
 	@echo "Running clang-tidy with auto-fix..."
 	@SOURCE_FILES="$$($(call find_sources))"; \
 	if [ -z "$$SOURCE_FILES" ]; then echo "[SKIP] No source files found"; exit 0; fi; \
 	echo "$$SOURCE_FILES" | tr '\n' '\0' | xargs -0 \
 	  run-clang-tidy \
+	    -clang-tidy-binary "$(CLANG_TIDY_EXE)" \
 	    -p "$(LINT_DB_DIR)" \
 	    -header-filter "$(HEADER_FILTER)" \
 	    -fix \

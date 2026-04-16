@@ -60,24 +60,22 @@ jobs:
         if: steps.cache-tools.outputs.cache-hit != 'true'
         run: ${{ env.IDF_PATH }}/install.sh ${{ env.IDF_TARGET }}
 
-      - name: Install clang-tidy
+      - name: Install clang-tidy wrapper
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends clang-tidy python3-pip
+          sudo apt-get install -y --no-install-recommends python3-pip
+          # We only need the run-clang-tidy script; we use the IDF's binary for the actual linting
           pip install --quiet --break-system-packages clang-tidy
 
       - name: Prepare Compile Database
         run: |
           source ${{ env.IDF_PATH }}/export.sh
-          # Reconfigure is the "drastic change" proof way to generate the DB
           idf.py reconfigure
 
       - name: Run Linter
         run: |
           source ${{ env.IDF_PATH }}/export.sh
-          # 1. Point to the specific Xtensa Clang Tidy binary provided by IDF
-          # 2. Use 'make lint' if you want to fail on warnings, or 'lint-ci' for just errors.
-          export CLANG_TIDY=xtensa-esp32s3-elf-clang-tidy
+          # The Makefile CLANG_TIDY_EXE logic will now pick up the IDF binary
           make lint-ci
 
       - name: Upload lint DB on failure
