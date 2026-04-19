@@ -100,6 +100,12 @@ bool display_lvgl_lock(int timeout_ms);
 /** @brief Release LVGL mutex */
 void display_lvgl_unlock(void);
 
+/** @brief Record activity for idle CPU calculation */
+void display_record_activity(void);
+
+/** @brief Set screensaver timeout in seconds */
+void display_set_screensaver_timeout_seconds(uint32_t timeout_seconds);
+
 #ifdef __cplusplus
 }
 #endif

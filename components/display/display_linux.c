@@ -17,6 +17,7 @@ static uint8_t* g_fb              = NULL;
 static pthread_mutex_t g_lvgl_mux = PTHREAD_MUTEX_INITIALIZER;
 static bool g_setup_complete      = false;
 
+static uint32_t g_s_screensaver_timeout_seconds = 5U * 60U;
 static int16_t g_mouse_x    = 0;
 static int16_t g_mouse_y    = 0;
 static bool g_mouse_pressed = false;
@@ -45,6 +46,10 @@ static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px
 }
 
 static void lvgl_mouse_cb(lv_indev_t* indev, lv_indev_data_t* data) {
+    (void)indev;
+    if (g_mouse_pressed) {
+        display_record_activity();
+    }
     data->point.x = g_mouse_x;
     data->point.y = g_mouse_y;
     data->state   = g_mouse_pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
@@ -152,3 +157,10 @@ void display_lvgl_unlock(void) { pthread_mutex_unlock(&g_lvgl_mux); }
 
 void display_set_backlight(uint8_t brightness) { (void)brightness; }
 uint32_t display_get_idle_percent(void) { return 0; }
+
+void display_record_activity(void) {}
+
+void display_set_screensaver_timeout_seconds(uint32_t timeout_seconds) {
+    g_s_screensaver_timeout_seconds = timeout_seconds;
+    (void)g_s_screensaver_timeout_seconds;
+}
