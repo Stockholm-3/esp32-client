@@ -1,7 +1,8 @@
+#include "display.h"
 #include "driver/i2c_master.h"
 #include "env_sensor.h"
 #include "esp_log.h"
-#include "ws7b_board.h"
+#include "freertos/FreeRTOS.h"
 
 #define TAG "env_sensor"
 #define BME280_ADDR 0x77
