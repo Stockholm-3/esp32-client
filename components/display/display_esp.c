@@ -16,6 +16,8 @@
 #include "freertos/task.h"
 #include "lvgl.h"
 
+#include <string.h>
+
 static const char* g_tag = "ws7b";
 
 // ── Hardware handles
@@ -402,4 +404,36 @@ bool display_lvgl_lock(int timeout_ms) {
 void display_lvgl_unlock(void) {
     assert(g_s_lvgl_mux);
     xSemaphoreGiveRecursive(g_s_lvgl_mux);
+}
+
+uint32_t ws7b_get_idle_percent(void) {
+    static uint32_t s_last_idle  = 0;
+    static uint32_t s_last_total = 0;
+
+    UBaseType_t count   = uxTaskGetNumberOfTasks();
+    TaskStatus_t* tasks = pvPortMalloc(count * sizeof(TaskStatus_t));
+    if (!tasks) {
+        return 0;
+}
+
+    uint32_t total_time = 0;
+    count               = uxTaskGetSystemState(tasks, count, &total_time);
+
+    uint32_t idle = 0;
+    for (UBaseType_t i = 0; i < count; i++) {
+        if (strncmp(tasks[i].pcTaskName, "IDLE", 4) == 0) {
+            idle += tasks[i].ulRunTimeCounter;
+}
+    }
+    vPortFree(tasks);
+
+    uint32_t d_idle  = idle - s_last_idle;
+    uint32_t d_total = total_time - s_last_total;
+    s_last_idle      = idle;
+    s_last_total     = total_time;
+
+    if (d_total == 0) {
+        return 0;
+}
+    return (d_idle * 100U) / d_total;
 }

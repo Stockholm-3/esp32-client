@@ -10,7 +10,7 @@
 #endif
 
 // IMAGE DATA: assets/sun_behind_cloud_3d.png
-const LV_ATTRIBUTE_MEM_ALIGN uint8_t ui_img_sun_behind_cloud_3d_png_data[] = {
+const LV_ATTRIBUTE_MEM_ALIGN uint8_t UI_IMG_SUN_BEHIND_CLOUD_3D_PNG_DATA[] = {
     0x00,
     0x00,
     0x00,
@@ -12303,10 +12303,10 @@ const LV_ATTRIBUTE_MEM_ALIGN uint8_t ui_img_sun_behind_cloud_3d_png_data[] = {
     0x00,
 
 };
-const lv_image_dsc_t ui_img_sun_behind_cloud_3d_png = {
+const lv_image_dsc_t UI_IMG_SUN_BEHIND_CLOUD_3D_PNG = {
     .header.w     = 64,
     .header.h     = 64,
-    .data_size    = sizeof(ui_img_sun_behind_cloud_3d_png_data),
+    .data_size    = sizeof(UI_IMG_SUN_BEHIND_CLOUD_3D_PNG_DATA),
     .header.cf    = LV_COLOR_FORMAT_NATIVE_WITH_ALPHA,
     .header.magic = LV_IMAGE_HEADER_MAGIC,
-    .data         = ui_img_sun_behind_cloud_3d_png_data};
+    .data         = UI_IMG_SUN_BEHIND_CLOUD_3D_PNG_DATA};
