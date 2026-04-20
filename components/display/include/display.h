@@ -1,4 +1,5 @@
 #pragma once
+#include "driver/i2c_master.h"
 #include "esp_err.h"
 #include "lvgl.h"
 
@@ -99,6 +100,9 @@ bool display_lvgl_lock(int timeout_ms);
 
 /** @brief Release LVGL mutex */
 void display_lvgl_unlock(void);
+
+/** @brief Returns the shared I2C bus handle, available after ws7b_board_init() */
+i2c_master_bus_handle_t ws7b_get_i2c_bus(void);
 
 #ifdef __cplusplus
 }

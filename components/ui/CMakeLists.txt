@@ -14,4 +14,5 @@ idf_component_register(
         "include"
     REQUIRES
         lvgl__lvgl
+        env_sensor
 )
