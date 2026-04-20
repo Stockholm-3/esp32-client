@@ -18,9 +18,9 @@ static pthread_mutex_t g_lvgl_mux = PTHREAD_MUTEX_INITIALIZER;
 static bool g_setup_complete      = false;
 
 static uint32_t g_s_screensaver_timeout_seconds = 5U * 60U;
-static int16_t g_mouse_x    = 0;
-static int16_t g_mouse_y    = 0;
-static bool g_mouse_pressed = false;
+static int16_t g_mouse_x                        = 0;
+static int16_t g_mouse_y                        = 0;
+static bool g_mouse_pressed                     = false;
 
 // --- Internal SDL/LVGL Logic ---
 

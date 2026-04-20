@@ -32,11 +32,11 @@ static SemaphoreHandle_t g_s_vsync_sem = NULL;
 
 // ── Inactivity / screensaver state
 // ─────────────────────────────────────────────────────────
-static lv_timer_t* g_s_screensaver_timer = NULL;
-static uint64_t g_s_last_activity_us = 0;
+static lv_timer_t* g_s_screensaver_timer        = NULL;
+static uint64_t g_s_last_activity_us            = 0;
 static uint32_t g_s_screensaver_timeout_seconds = 5U * 60U; // 5 minutes
-static uint8_t g_s_active_backlight = 255;
-static bool g_s_screensaver_active = false;
+static uint8_t g_s_active_backlight             = 255;
+static bool g_s_screensaver_active              = false;
 
 // ── IO expander helpers
 // ───────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ static void screensaver_timer_cb(lv_timer_t* timer) {
         return;
     }
 
-    uint64_t now_us = esp_timer_get_time();
+    uint64_t now_us     = esp_timer_get_time();
     uint64_t elapsed_us = now_us - g_s_last_activity_us;
     uint64_t timeout_us = (uint64_t)g_s_screensaver_timeout_seconds * 1000000ULL;
 
@@ -422,7 +422,7 @@ esp_err_t display_init(lv_display_t** disp_out, lv_indev_t** touch_out) {
 
 #if !CONFIG_WS7B_QEMU_SIM
     display_set_backlight(255);
-    g_s_last_activity_us = esp_timer_get_time();
+    g_s_last_activity_us  = esp_timer_get_time();
     g_s_screensaver_timer = lv_timer_create(screensaver_timer_cb, 1000U, NULL);
     assert(g_s_screensaver_timer);
     ESP_LOGI(g_tag, "backlight on");
