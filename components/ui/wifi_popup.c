@@ -36,7 +36,7 @@ static lv_obj_t* make_label(lv_obj_t* parent, int x, int y, int w, int h, const 
     lv_obj_set_style_text_color(l, color, 0);
     if (font) {
         lv_obj_set_style_text_font(l, font, 0);
-}
+    }
     return l;
 }
 
@@ -152,7 +152,7 @@ static void build_wifi_popup(void) {
     int ys[]            = {44, 96, 148, 200, 252};
     for (int i = 0; i < 5; i++) {
         make_net_panel(g_panel_wifi_popup, ys[i], names[i], subs[i]);
-}
+    }
 
     // Footer
     lv_obj_t* ftr = lv_obj_create(g_panel_wifi_popup);
@@ -234,7 +234,7 @@ static void build_password_popup(void) {
     lv_obj_set_style_radius(net_info, 0, 0);
 
     g_lbl_pw_net_name = make_label(net_info, 36, 10, 400, 20, "NetworkName", lv_color_hex(0xE0E0F0),
-                                 &lv_font_montserrat_16);
+                                   &lv_font_montserrat_16);
     make_label(net_info, 36, 32, 400, 14, "WPA2 \xc2\xb7 Protected", lv_color_hex(0x8888AA),
                &lv_font_montserrat_14);
 

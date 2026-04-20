@@ -414,7 +414,7 @@ uint32_t ws7b_get_idle_percent(void) {
     TaskStatus_t* tasks = pvPortMalloc(count * sizeof(TaskStatus_t));
     if (!tasks) {
         return 0;
-}
+    }
 
     uint32_t total_time = 0;
     count               = uxTaskGetSystemState(tasks, count, &total_time);
@@ -423,7 +423,7 @@ uint32_t ws7b_get_idle_percent(void) {
     for (UBaseType_t i = 0; i < count; i++) {
         if (strncmp(tasks[i].pcTaskName, "IDLE", 4) == 0) {
             idle += tasks[i].ulRunTimeCounter;
-}
+        }
     }
     vPortFree(tasks);
 
@@ -434,6 +434,6 @@ uint32_t ws7b_get_idle_percent(void) {
 
     if (d_total == 0) {
         return 0;
-}
+    }
     return (d_idle * 100U) / d_total;
 }
