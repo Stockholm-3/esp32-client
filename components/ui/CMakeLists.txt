@@ -1,6 +1,17 @@
 idf_component_register(
-    SRCS "ui.c"
-    INCLUDE_DIRS "include"
+    SRCS
+        "ui.c"
+        "wifi_popup.c"
+        "squareline/ui.c"
+        "squareline/ui_helpers.c"
+        "squareline/ui_events.c"
+        "squareline/ui_themes.c"
+        "squareline/ui_theme_manager.c"
+        "squareline/components/ui_comp_hook.c"
+        "squareline/images/ui_img_sun_behind_cloud_3d_png.c"
+        "squareline/screens/ui_scr_home.c"
+    INCLUDE_DIRS
+        "include"
     REQUIRES
         lvgl__lvgl
 )

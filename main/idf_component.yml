@@ -15,8 +15,7 @@ dependencies:
   #   # All dependencies of `main` are public by default.
   #   public: true
   lvgl/lvgl:
-    version: ">=8.3.9,<9"
-  espressif/esp_lvgl_port: "^2.7.2"
+    version: ">=9.2.0"
   espressif/esp_lcd_touch_gt911: "^1.2.0"
   joltwallet/littlefs: "^1.14.8"
 

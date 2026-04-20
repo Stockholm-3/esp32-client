@@ -4,17 +4,17 @@ on:
   push:
     branches: ["**"]
     paths-ignore:
-          - "**.md"
-          - ".gitignore"
-          - "LICENSE"
-          - "docs/**"
+      - "**.md"
+      - ".gitignore"
+      - "LICENSE"
+      - "docs/**"
   pull_request:
     branches: ["**"]
     paths-ignore:
-          - "**.md"
-          - ".gitignore"
-          - "LICENSE"
-          - "docs/**"
+      - "**.md"
+      - ".gitignore"
+      - "LICENSE"
+      - "docs/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -39,8 +39,8 @@ jobs:
         id: cache-idf
         uses: actions/cache@v4
         with:
-          path: /home/runner/esp/esp-idf
-          key: esp-idf-v6.0
+          path: ${{ env.IDF_PATH }}
+          key: esp-idf-${{ env.IDF_VERSION }}
 
       - name: Clone ESP-IDF
         if: steps.cache-idf.outputs.cache-hit != 'true'
@@ -53,42 +53,29 @@ jobs:
         id: cache-tools
         uses: actions/cache@v4
         with:
-          path: /home/runner/.espressif
-          key: espressif-tools-v6.0-esp32s3
+          path: ${{ env.IDF_TOOLS_PATH }}
+          key: espressif-tools-${{ env.IDF_VERSION }}-${{ env.IDF_TARGET }}
 
       - name: Install ESP-IDF tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
         run: ${{ env.IDF_PATH }}/install.sh ${{ env.IDF_TARGET }}
 
-      - name: Install clang-tidy
+      - name: Install clang-tidy wrapper
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            clang-tidy \
-            python3-pip
+          sudo apt-get install -y --no-install-recommends python3-pip
           pip install --quiet --break-system-packages clang-tidy
 
-      - name: Cache compile_commands.json
-        id: cache-compdb
-        uses: actions/cache@v4
-        with:
-          path: build/compile_commands.json
-          key: compdb-v6.0-esp32s3-${{ hashFiles('**/CMakeLists.txt', '**/idf_component.yml') }}
-
-      - name: Generate compile_commands.json
-        if: steps.cache-compdb.outputs.cache-hit != 'true'
+      - name: Prepare Compile Database
         run: |
           source ${{ env.IDF_PATH }}/export.sh
           idf.py reconfigure
 
-      - name: Scrub compile_commands.json
+      - name: Run Linter
         run: |
           source ${{ env.IDF_PATH }}/export.sh
-          make lint-scrub
-
-      - name: Run clang-tidy
-        run: |
-          source ${{ env.IDF_PATH }}/export.sh
+          # Verify binary path before running
+          which xtensa-esp32s3-elf-clang-tidy || echo "Binary not found!"
           make lint-ci
 
       - name: Upload lint DB on failure

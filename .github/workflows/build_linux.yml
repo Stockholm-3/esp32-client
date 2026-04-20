@@ -1,0 +1,95 @@
+name: Simulator Build
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore:
+      - "**.md"
+      - ".gitignore"
+      - "LICENSE"
+      - "docs/**"
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch: # Allows manual triggering
+
+concurrency:
+  group: simulator-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_linux:
+    name: Simulator (Linux, IDF v6.0)
+    runs-on: ubuntu-24.04
+
+    env:
+      IDF_VERSION: v6.0
+      IDF_TARGET: linux
+      IDF_PATH: /home/runner/esp/esp-idf
+      IDF_TOOLS_PATH: /home/runner/.espressif
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev libsdl2-2.0-0 libbsd-dev
+
+      - name: Cache ESP-IDF repo
+        id: cache-idf
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/esp/esp-idf
+          key: esp-idf-v6.0-linux
+
+      - name: Clone ESP-IDF
+        if: steps.cache-idf.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /home/runner/esp
+          git clone --depth 1 --branch ${{ env.IDF_VERSION }} --recursive \
+            https://github.com/espressif/esp-idf.git ${{ env.IDF_PATH }}
+
+      - name: Cache ESP-IDF tools
+        id: cache-tools
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.espressif
+          key: espressif-tools-v6.0-linux
+
+      - name: Install ESP-IDF tools
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        run: ${{ env.IDF_PATH }}/install.sh ${{ env.IDF_TARGET }}
+
+      - name: Cache managed components
+        uses: actions/cache@v4
+        with:
+          path: simulator/managed_components
+          key: managed-components-sim-${{ hashFiles('**/idf_component.yml') }}
+          restore-keys: managed-components-sim-
+
+      - name: Build Simulator
+        run: |
+          source ${{ env.IDF_PATH }}/export.sh
+          make linux-reconfigure
+          make linux-build
+
+      - name: Upload Simulator Binary
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-linux-${{ github.sha }}
+          path: |
+            simulator/build/simulator.elf
+          retention-days: 7
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sim-build-logs-${{ github.sha }}
+          path: |
+            simulator/build/CMakeFiles/**/*.log
+            simulator/build/**/*.log

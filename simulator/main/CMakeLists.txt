@@ -1,7 +1,5 @@
 idf_component_register(
-    SRCS "main.c"
-    INCLUDE_DIRS "."
-    PRIV_REQUIRES
-        sim_board
-        ui
+    SRCS "../../main/main.c"
+    INCLUDE_DIRS "../../main"
+    REQUIRES display ui log
 )

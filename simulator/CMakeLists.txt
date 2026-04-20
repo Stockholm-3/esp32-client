@@ -12,7 +12,6 @@ set(COMPONENTS main)
 # We add the parent's components/ directory so IDF can resolve it.
 set(EXTRA_COMPONENT_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/../components"   # shared: ui
-    "${CMAKE_CURRENT_SOURCE_DIR}/components"      # simulator-only: sim_board
 )
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
