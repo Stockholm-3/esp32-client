@@ -12,7 +12,7 @@ static void on_time_synced(TimeState state, struct tm *timeinfo) {
     if (state == TIME_STATE_SYNCED && timeinfo) {
         char time_str[64];
         strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", timeinfo);
-        ESP_LOGI(TAG, "✅ TIME SYNCED: %s", time_str);
+        ESP_LOGI(TAG, "TIME SYNCED: %s", time_str);
     }
 }
 

@@ -1,4 +1,3 @@
-// time_manager_esp.c
 #include "time_manager.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -37,13 +36,13 @@ void time_manager_init(TimeEventCb cb) {
     event_callback = cb;
     
     // Set timezone (customize as needed)
-    setenv("TZ", "UTC0", 1);
+    setenv("TZ", "CET-1CEST-2,M3.5.0/2,M10.5.0/3", 1);
     tzset();
     
     // Initialize SNTP using esp_sntp API (for ESP-IDF v4.4+)
     esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
     esp_sntp_setservername(0, "pool.ntp.org");
-    esp_sntp_setservername(1, "time.google.com");
+    //esp_sntp_setservername(1, "time.google.com");
     esp_sntp_set_time_sync_notification_cb(sntp_sync_callback);
     esp_sntp_init();
     
