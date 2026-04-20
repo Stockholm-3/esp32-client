@@ -27,9 +27,6 @@ static i2c_master_dev_handle_t g_s_ioexp_dev = NULL;
 static esp_lcd_panel_handle_t g_s_panel      = NULL;
 static esp_lcd_touch_handle_t g_s_touch      = NULL;
 
-// Returns the shared I2C bus handle for use by other components
-i2c_master_bus_handle_t ws7b_get_i2c_bus(void) { return g_s_i2c_bus; }
-
 // ── LVGL state
 // ────────────────────────────────────────────────────────────────
 static SemaphoreHandle_t g_s_lvgl_mux  = NULL;
