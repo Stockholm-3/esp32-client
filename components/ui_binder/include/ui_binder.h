@@ -1,6 +1,6 @@
 #pragma once
 #include <time.h>
-#include "lvgl.h"
+
 
 // initialization for LVGL callbacks for changes in settings (location, price zone, timeout)
 void ui_binder_init(void);
