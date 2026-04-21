@@ -1,4 +1,4 @@
-#include "squareline/screens/ui_scr_home.h"
+#include "squareline/ui.h"
 #include "ui_binder.h"
 
 #include <stdio.h>

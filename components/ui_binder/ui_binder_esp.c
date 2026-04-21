@@ -1,4 +1,5 @@
 #include "display.h"
+#include "lvgl.h"
 #include "squareline/screens/ui_scr_home.h"
 #include "ui_binder.h"
 
