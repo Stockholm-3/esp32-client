@@ -6,35 +6,35 @@
 #include <string.h>
 #include <time.h>
 
-static const char* TAG            = "time_manager";
-static TimeState current_state    = TIME_STATE_UNSYNCED;
-static TimeEventCb event_callback = NULL;
-static struct tm cached_time;
-static bool time_valid = false;
+static const char* g_tag            = "time_manager";
+static TimeState g_current_state    = TIME_STATE_UNSYNCED;
+static TimeEventCb g_event_callback = NULL;
+static struct tm g_cached_time;
+static bool g_time_valid = false;
 
 static void sntp_sync_callback(struct timeval* tv) {
-    ESP_LOGI(TAG, "SNTP time sync completed");
+    ESP_LOGI(g_tag, "SNTP time sync completed");
 
     time_t now = time(NULL);
     struct tm timeinfo;
     localtime_r(&now, &timeinfo);
 
     if (timeinfo.tm_year > 120) {
-        cached_time   = timeinfo;
-        time_valid    = true;
-        current_state = TIME_STATE_SYNCED;
+        g_cached_time   = timeinfo;
+        g_time_valid    = true;
+        g_current_state = TIME_STATE_SYNCED;
 
-        if (event_callback) {
-            event_callback(current_state, &timeinfo);
+        if (g_event_callback) {
+            g_event_callback(g_current_state, &timeinfo);
         }
     } else {
-        ESP_LOGW(TAG, "Invalid time received");
-        current_state = TIME_STATE_FAILED;
+        ESP_LOGW(g_tag, "Invalid time received");
+        g_current_state = TIME_STATE_FAILED;
     }
 }
 
 void time_manager_init(TimeEventCb cb) {
-    event_callback = cb;
+    g_event_callback = cb;
 
     // Set timezone (customize as needed)
     setenv("TZ", "CET-1CEST-2,M3.5.0/2,M10.5.0/3", 1);
@@ -47,16 +47,16 @@ void time_manager_init(TimeEventCb cb) {
     esp_sntp_set_time_sync_notification_cb(sntp_sync_callback);
     esp_sntp_init();
 
-    current_state = TIME_STATE_SYNCING;
-    ESP_LOGI(TAG, "Time manager initialized (ESP32/NTP mode)");
+    g_current_state = TIME_STATE_SYNCING;
+    ESP_LOGI(g_tag, "Time manager initialized (ESP32/NTP mode)");
 
-    if (event_callback) {
-        event_callback(current_state, NULL);
+    if (g_event_callback) {
+        g_event_callback(g_current_state, NULL);
     }
 }
 
 bool time_manager_get_time(struct tm* timeinfo) {
-    if (!time_valid) {
+    if (!g_time_valid) {
         return false;
     }
 
@@ -65,15 +65,15 @@ bool time_manager_get_time(struct tm* timeinfo) {
     return true;
 }
 
-TimeState time_manager_get_state(void) { return current_state; }
+TimeState time_manager_get_state(void) { return g_current_state; }
 
 void time_manager_resync(void) {
-    if (current_state == TIME_STATE_SYNCED) {
-        ESP_LOGI(TAG, "Manual resync requested");
+    if (g_current_state == TIME_STATE_SYNCED) {
+        ESP_LOGI(g_tag, "Manual resync requested");
         esp_sntp_stop();
         esp_sntp_init();
-        current_state = TIME_STATE_SYNCING;
-        time_valid    = false;
+        g_current_state = TIME_STATE_SYNCING;
+        g_time_valid    = false;
     }
 }
 

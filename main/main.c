@@ -2,7 +2,9 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "time_manager.h"
 #include "ui.h"
+#include "ui_binder.h"
 
 static const char* g_tag = "main";
 
@@ -21,7 +23,14 @@ void app_main(void) {
     ui_build(disp);
     display_lvgl_unlock();
 
+    ui_binder_init();
+    time_manager_init(NULL);
+
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
+        struct tm timeinfo;
+        if (time_manager_get_time(&timeinfo)) {
+            ui_binder_update_localtime(&timeinfo);
+        }
     }
 }
