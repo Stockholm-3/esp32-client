@@ -32,16 +32,8 @@ void ui_init(void) {
                               lv_palette_main(LV_PALETTE_RED), true, LV_FONT_DEFAULT);
     lv_disp_set_theme(dispp, theme);
     ui_scr_home_screen_init();
-    ui_scr_weather_screen_init();
-    ui_scr_elpris_screen_init();
-    ui_scr_settings_screen_init();
     ui____initial_actions0 = lv_obj_create(NULL);
     lv_disp_load_scr(ui_scr_home);
 }
 
-void ui_destroy(void) {
-    ui_scr_home_screen_destroy();
-    ui_scr_weather_screen_destroy();
-    ui_scr_elpris_screen_destroy();
-    ui_scr_settings_screen_destroy();
-}
+void ui_destroy(void) { ui_scr_home_screen_destroy(); }
