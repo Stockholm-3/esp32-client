@@ -438,6 +438,7 @@ esp_err_t display_init(lv_display_t** disp_out, lv_indev_t** touch_out) {
     assert(g_s_screensaver_timer);
 
     // ── Dim overlay
+    // ──────────────────────────────────────────────────────────────
     g_s_dim_overlay = lv_obj_create(lv_layer_top());
     lv_obj_set_size(g_s_dim_overlay, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_color(g_s_dim_overlay, lv_color_black(), 0);
