@@ -32,11 +32,9 @@ static SemaphoreHandle_t g_s_vsync_sem = NULL;
 
 // ── Inactivity / screensaver state
 // ─────────────────────────────────────────────────────────
-static void (*g_s_activity_cb)(void)     = NULL;
+static void (*g_s_activity_cb)(void) = NULL;
 
-void display_set_activity_callback(void (*cb)(void)) {
-    g_s_activity_cb = cb;
-}
+void display_set_activity_callback(void (*cb)(void)) { g_s_activity_cb = cb; }
 
 // ── IO expander helpers
 // ───────────────────────────────────────────────────────

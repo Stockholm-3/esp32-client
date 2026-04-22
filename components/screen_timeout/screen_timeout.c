@@ -10,11 +10,11 @@
 
 // ── State
 // ────────────────────────────────────────────────────────────────────
-static lv_timer_t* g_s_timer           = NULL;
-static uint64_t    g_s_last_activity_us = 0;
-static uint32_t    g_s_timeout_seconds  = 5U * 60U;
-static bool        g_s_active           = false;
-static lv_obj_t*   g_s_dim_overlay      = NULL;
+static lv_timer_t* g_s_timer         = NULL;
+static uint64_t g_s_last_activity_us = 0;
+static uint32_t g_s_timeout_seconds  = 5U * 60U;
+static bool g_s_active               = false;
+static lv_obj_t* g_s_dim_overlay     = NULL;
 
 // ── Timer callback (fires every 1 s via LVGL timer)
 // ─────────────────────────────────────
