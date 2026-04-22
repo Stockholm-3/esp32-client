@@ -4,6 +4,7 @@
 #include "esp_netif.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "settings_manager.h"
 #include "time_manager.h"
 #include "ui.h"
 #include "ui_binder.h"
@@ -28,6 +29,7 @@ void app_main(void) {
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
+    settings_manager_init();
     time_manager_init(NULL);
 
     while (1) {
