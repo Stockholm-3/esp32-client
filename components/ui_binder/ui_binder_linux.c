@@ -12,6 +12,16 @@ static void on_location_defocused(lv_event_t* e) {
     if (s_location_cb)
         s_location_cb(lv_textarea_get_text(ui_ta_locationinput));
 }
+
+void ui_binder_update_wifi_status(WifiManagerState state) {
+    const char* text = state == WIFI_MANAGER_STATE_CONNECTED    ? "WiFi"
+                       : state == WIFI_MANAGER_STATE_CONNECTING ? "..."
+                                                                : "No WiFi";
+    lv_label_set_text(ui_lbl_wifi_status, text);
+}
+
+void ui_binder_update_wifi_name(const char* ssid) { lv_label_set_text(ui_lbl_wifi_name, ssid); }
+
 static void on_price_changed(lv_event_t* e) {
     (void)e;
     if (s_price_cb)

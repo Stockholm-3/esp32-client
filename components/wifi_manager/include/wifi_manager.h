@@ -22,6 +22,17 @@ typedef struct {
     int max_retry_ms;  // max retry delay in ms
 } WifiManagerConfig;
 
+/* Struct for wifi list scaning*/
+typedef struct {
+    char   ssid[33];
+    int8_t rssi;
+    bool   secured;
+} WifiApInfo;
+
+typedef void (*WifiScanDoneCb)(const WifiApInfo *aps, uint16_t count);
+
+void wifi_manager_scan_start(WifiScanDoneCb cb);
+
 /**
  * @brief Start Wi-Fi STA mode
  * @param ssid Wi-Fi SSID

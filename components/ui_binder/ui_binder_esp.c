@@ -16,6 +16,23 @@ static void on_location_defocused(lv_event_t* e) {
     }
 }
 
+void ui_binder_update_wifi_status(WifiManagerState state) {
+    const char* text = state == WIFI_MANAGER_STATE_CONNECTED    ? "WiFi"
+                       : state == WIFI_MANAGER_STATE_CONNECTING ? "..."
+                                                                : "No WiFi";
+    if (display_lvgl_lock(100)) {
+        lv_label_set_text(ui_lbl_wifi_status, text);
+        display_lvgl_unlock();
+    }
+}
+
+void ui_binder_update_wifi_name(const char* ssid) {
+    if (display_lvgl_lock(100)) {
+        lv_label_set_text(ui_lbl_wifi_name, ssid);
+        display_lvgl_unlock();
+    }
+}
+
 static void on_price_changed(lv_event_t* e) {
     (void)e;
     if (g_s_price_cb) {
