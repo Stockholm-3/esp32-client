@@ -1,6 +1,7 @@
 #include "ui.h"
 
 #include "display.h"
+#include "screen_timeout.h"
 #include "squareline/screens/ui_scr_elpris.h"
 #include "squareline/screens/ui_scr_home.h"
 #include "squareline/screens/ui_scr_settings.h"
@@ -61,7 +62,7 @@ void ui_build(lv_disp_t* disp) {
     if (ui_Dropdown2) {
         uint32_t sel     = lv_dropdown_get_selected(ui_Dropdown2);
         uint32_t minutes = timeout_minutes_from_idx(sel);
-        display_set_screensaver_timeout_seconds(minutes * 60U);
+        screen_timeout_set_seconds(minutes * 60U);
     }
     ui_connect_timeout_settings();
 }
@@ -78,8 +79,8 @@ static void timeout_changed_cb(lv_event_t* e) {
     lv_obj_t* dropdown = lv_event_get_target(e);
     uint32_t sel       = lv_dropdown_get_selected(dropdown);
     uint32_t minutes   = timeout_minutes_from_idx(sel);
-    display_set_screensaver_timeout_seconds(minutes * 60U);
-    display_record_activity();
+    screen_timeout_set_seconds(minutes * 60U);
+    screen_timeout_record_activity();
 }
 
 static void ui_connect_timeout_settings(void) {

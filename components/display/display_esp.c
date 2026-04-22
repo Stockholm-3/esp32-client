@@ -32,12 +32,11 @@ static SemaphoreHandle_t g_s_vsync_sem = NULL;
 
 // ── Inactivity / screensaver state
 // ─────────────────────────────────────────────────────────
-static lv_timer_t* g_s_screensaver_timer        = NULL;
-static uint64_t g_s_last_activity_us            = 0;
-static uint32_t g_s_screensaver_timeout_seconds = 5U * 60U; // 5 minutes
-static uint8_t g_s_active_backlight             = 255;
-static bool g_s_screensaver_active              = false;
-static lv_obj_t* g_s_dim_overlay                = NULL;
+static void (*g_s_activity_cb)(void)     = NULL;
+
+void display_set_activity_callback(void (*cb)(void)) {
+    g_s_activity_cb = cb;
+}
 
 // ── IO expander helpers
 // ───────────────────────────────────────────────────────
@@ -60,52 +59,6 @@ static void ioexp_set_pin(uint8_t pin, uint8_t level) {
 void display_set_backlight(uint8_t brightness) {
     ioexp_write(WS7B_IOEXP_REG_PWM, brightness);
     ioexp_set_pin(WS7B_IOEXP_LCD_BL, brightness > 0 ? 1 : 0);
-}
-
-void display_record_activity(void) {
-    g_s_last_activity_us = esp_timer_get_time();
-    if (g_s_dim_overlay) {
-        lv_obj_add_flag(g_s_dim_overlay, LV_OBJ_FLAG_HIDDEN);
-    }
-    if (g_s_screensaver_active) {
-        g_s_screensaver_active = false;
-        display_set_backlight(g_s_active_backlight);
-    }
-}
-
-void display_set_screensaver_timeout_seconds(uint32_t timeout_seconds) {
-    g_s_screensaver_timeout_seconds = timeout_seconds;
-
-    if (timeout_seconds == 0U && g_s_screensaver_active) {
-        g_s_screensaver_active = false;
-        display_set_backlight(g_s_active_backlight);
-    }
-
-    display_record_activity();
-}
-
-static void screensaver_timer_cb(lv_timer_t* timer) {
-    (void)timer;
-
-    if (g_s_screensaver_timeout_seconds == 0U || g_s_screensaver_active) {
-        return;
-    }
-
-    uint64_t now_us     = esp_timer_get_time();
-    uint64_t elapsed_us = now_us - g_s_last_activity_us;
-    uint64_t timeout_us = (uint64_t)g_s_screensaver_timeout_seconds * 1000000ULL;
-
-    if (elapsed_us >= timeout_us) {
-        g_s_screensaver_active = true;
-        if (g_s_dim_overlay) {
-            lv_obj_add_flag(g_s_dim_overlay, LV_OBJ_FLAG_HIDDEN);
-        }
-        display_set_backlight(0);
-    } else if (elapsed_us >= timeout_us / 2U) {
-        if (g_s_dim_overlay) {
-            lv_obj_remove_flag(g_s_dim_overlay, LV_OBJ_FLAG_HIDDEN);
-        }
-    }
 }
 
 // ── Frame-complete ISR callback
@@ -153,7 +106,9 @@ static void lvgl_touch_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     esp_lcd_touch_read_data(tp);
     esp_lcd_touch_get_data(tp, points, &cnt, 1);
     if (cnt > 0) {
-        display_record_activity();
+        if (g_s_activity_cb) {
+            g_s_activity_cb();
+        }
         data->point.x = (int32_t)points[0].x;
         data->point.y = (int32_t)points[0].y;
         data->state   = LV_INDEV_STATE_PRESSED;
@@ -433,20 +388,6 @@ esp_err_t display_init(lv_display_t** disp_out, lv_indev_t** touch_out) {
 
 #if !CONFIG_WS7B_QEMU_SIM
     display_set_backlight(255);
-    g_s_last_activity_us  = esp_timer_get_time();
-    g_s_screensaver_timer = lv_timer_create(screensaver_timer_cb, 1000U, NULL);
-    assert(g_s_screensaver_timer);
-
-    // ── Dim overlay
-    // ──────────────────────────────────────────────────────────────
-    g_s_dim_overlay = lv_obj_create(lv_layer_top());
-    lv_obj_set_size(g_s_dim_overlay, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_style_bg_color(g_s_dim_overlay, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(g_s_dim_overlay, LV_OPA_70, 0);
-    lv_obj_set_style_border_width(g_s_dim_overlay, 0, 0);
-    lv_obj_remove_flag(g_s_dim_overlay, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_flag(g_s_dim_overlay, LV_OBJ_FLAG_HIDDEN);
-
     ESP_LOGI(g_tag, "backlight on");
 #endif
 

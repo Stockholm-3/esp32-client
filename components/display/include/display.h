@@ -94,17 +94,17 @@ uint32_t display_get_idle_percent(void);
 /** @brief Set backlight brightness 0-255 via CH32V003 PWM */
 void display_set_backlight(uint8_t brightness);
 
+/**
+ * @brief Register a callback invoked on every touch event.
+ *        Use this to notify screen_timeout of user activity.
+ */
+void display_set_activity_callback(void (*cb)(void));
+
 /** @brief Take LVGL mutex before calling any lv_* functions */
 bool display_lvgl_lock(int timeout_ms);
 
 /** @brief Release LVGL mutex */
 void display_lvgl_unlock(void);
-
-/** @brief Record activity for idle CPU calculation */
-void display_record_activity(void);
-
-/** @brief Set screensaver timeout in seconds */
-void display_set_screensaver_timeout_seconds(uint32_t timeout_seconds);
 
 #ifdef __cplusplus
 }

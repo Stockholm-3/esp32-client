@@ -15,5 +15,6 @@ idf_component_register(
         "include"
     REQUIRES
         display
+        screen_timeout
         lvgl__lvgl
 )
