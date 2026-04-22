@@ -9,5 +9,6 @@ endif()
 idf_component_register(
     SRCS ${SRC}
     INCLUDE_DIRS "include"
+    REQUIRES wifi_manager
     PRIV_REQUIRES ${REQS}
 )

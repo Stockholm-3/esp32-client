@@ -2,22 +2,27 @@
 
 #include "squareline/screens/ui_scr_home.h"
 
+#include <string.h>
+
 // TabView y=24, tab bar height=78 → tab content starts at screen y=102
 #define TAB_Y 102
 // Vertical offset from tab content top
 #define POPUP_Y_OFS 50
 
 // Password popup content height (no keyboard — keyboard is a separate sibling object)
-#define PW_CONTENT_H 154 // header(44) + net_info(50) + field(60)
+#define PW_CONTENT_H 200 // header(44) + net_info(50) + field(60)
 #define KB_H 248
 
-static lv_obj_t* g_wifi_backdrop        = NULL;
-static lv_obj_t* g_panel_wifi_popup     = NULL;
-static lv_obj_t* g_pw_backdrop          = NULL;
-static lv_obj_t* g_panel_password_popup = NULL;
-static lv_obj_t* g_pw_keyboard          = NULL;
-static lv_obj_t* g_lbl_pw_net_name      = NULL;
-static lv_obj_t* g_ta_password          = NULL;
+static lv_obj_t* g_wifi_backdrop            = NULL;
+static lv_obj_t* g_panel_wifi_popup         = NULL;
+static lv_obj_t* g_pw_backdrop              = NULL;
+static lv_obj_t* g_panel_password_popup     = NULL;
+static lv_obj_t* g_pw_keyboard              = NULL;
+static lv_obj_t* g_lbl_pw_net_name          = NULL;
+static lv_obj_t* g_ta_password              = NULL;
+static lv_obj_t* g_net_container            = NULL;
+static char g_selected_ssid[33]             = "";
+static wifi_popup_connect_cb_t g_connect_cb = NULL;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -61,10 +66,16 @@ static void close_wifi_popup_cb(lv_event_t* e) {
     lv_obj_add_flag(g_wifi_backdrop, LV_OBJ_FLAG_HIDDEN);
 }
 
+static void on_scan_again_cb(lv_event_t* e) {
+    (void)e;
+    wifi_manager_scan_start(wifi_popup_update_networks);
+}
+
 static void show_wifi_popup_cb(lv_event_t* e) {
     (void)e;
     lv_obj_remove_flag(g_wifi_backdrop, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(g_panel_wifi_popup, LV_OBJ_FLAG_HIDDEN);
+    wifi_manager_scan_start(wifi_popup_update_networks);
 }
 
 static void open_password_popup_cb(lv_event_t* e) {
@@ -77,6 +88,20 @@ static void open_password_popup_cb(lv_event_t* e) {
     lv_obj_remove_flag(g_pw_backdrop, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(g_panel_password_popup, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(g_pw_keyboard, LV_OBJ_FLAG_HIDDEN);
+    const char* ssid = lv_label_get_text(name_lbl);
+    lv_label_set_text(g_lbl_pw_net_name, ssid);
+    strncpy(g_selected_ssid, ssid, 32);
+    g_selected_ssid[32] = '\0';
+}
+
+static void on_connect_pressed_cb(lv_event_t* e) {
+    (void)e;
+    if (g_connect_cb) {
+        g_connect_cb(g_selected_ssid, lv_textarea_get_text(g_ta_password));
+    }
+    lv_obj_add_flag(g_panel_password_popup, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_pw_keyboard, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_pw_backdrop, LV_OBJ_FLAG_HIDDEN);
 }
 
 static void close_password_popup_cb(lv_event_t* e) {
@@ -90,9 +115,9 @@ static void close_password_popup_cb(lv_event_t* e) {
 
 // ── Network panels ────────────────────────────────────────────────────────────
 
-static lv_obj_t* make_net_panel(lv_obj_t* parent, int y, const char* name, const char* sub) {
+static lv_obj_t* make_net_panel(lv_obj_t* parent, const char* name, const char* sub) {
     lv_obj_t* p = lv_obj_create(parent);
-    lv_obj_set_pos(p, 0, y);
+    lv_obj_set_pos(p, 0, 0);
     lv_obj_set_size(p, 420, 52);
     style_panel(p);
     lv_obj_set_style_bg_color(p, lv_color_hex(0x2A2A3E), 0);
@@ -146,13 +171,14 @@ static void build_wifi_popup(void) {
     lv_obj_center(lbl_x);
     lv_obj_add_event_cb(btn_close, close_wifi_popup_cb, LV_EVENT_CLICKED, NULL);
 
-    // Network rows
-    const char* names[] = {"Network 1", "Network 2", "Network 3", "Network 4", "Network 5"};
-    const char* subs[]  = {"WPA2", "WPA2", "WPA3", "WPA2", "Open"};
-    int ys[]            = {44, 96, 148, 200, 252};
-    for (int i = 0; i < 5; i++) {
-        make_net_panel(g_panel_wifi_popup, ys[i], names[i], subs[i]);
-    }
+    g_net_container = lv_obj_create(g_panel_wifi_popup);
+    lv_obj_set_pos(g_net_container, 0, 44);
+    lv_obj_set_size(g_net_container, 420, 300);
+    lv_obj_set_style_pad_all(g_net_container, 0, 0);
+    lv_obj_set_style_border_width(g_net_container, 0, 0);
+    lv_obj_set_style_bg_opa(g_net_container, LV_OPA_TRANSP, 0);
+    lv_obj_set_layout(g_net_container, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(g_net_container, LV_FLEX_FLOW_COLUMN);
 
     // Footer
     lv_obj_t* ftr = lv_obj_create(g_panel_wifi_popup);
@@ -176,6 +202,7 @@ static void build_wifi_popup(void) {
     lv_label_set_text(lbl_scan, "Scan again");
     lv_obj_set_style_text_color(lbl_scan, lv_color_hex(0xFFFFFF), 0);
     lv_obj_center(lbl_scan);
+    lv_obj_add_event_cb(btn_scan, on_scan_again_cb, LV_EVENT_CLICKED, NULL);
 }
 
 // ── Password popup ────────────────────────────────────────────────────────────
@@ -241,7 +268,7 @@ static void build_password_popup(void) {
     // Password field
     lv_obj_t* field = lv_obj_create(g_panel_password_popup);
     lv_obj_set_pos(field, 0, 94);
-    lv_obj_set_size(field, 640, 60);
+    lv_obj_set_size(field, 640, 70);
     style_panel(field);
     lv_obj_set_style_bg_opa(field, LV_OPA_TRANSP, 0);
 
@@ -249,7 +276,7 @@ static void build_password_popup(void) {
 
     g_ta_password = lv_textarea_create(field);
     lv_obj_set_pos(g_ta_password, 16, 28);
-    lv_obj_set_size(g_ta_password, 580, 34);
+    lv_obj_set_size(g_ta_password, 430, 34);
     lv_textarea_set_placeholder_text(g_ta_password, "Enter password...");
     lv_textarea_set_password_mode(g_ta_password, true);
     lv_textarea_set_one_line(g_ta_password, true);
@@ -257,6 +284,16 @@ static void build_password_popup(void) {
     lv_obj_set_style_bg_opa(g_ta_password, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(g_ta_password, lv_color_hex(0x4A6FA5), 0);
     lv_obj_set_style_border_width(g_ta_password, 1, 0);
+
+    // Connect button
+    lv_obj_t* btn_connect = lv_button_create(field);
+    lv_obj_set_pos(btn_connect, 458, 26);
+    lv_obj_set_size(btn_connect, 150, 38);
+    lv_obj_set_style_bg_color(btn_connect, lv_color_hex(0x4A6FA5), 0);
+    lv_obj_t* lbl = lv_label_create(btn_connect);
+    lv_label_set_text(lbl, "Connect");
+    lv_obj_center(lbl);
+    lv_obj_add_event_cb(btn_connect, on_connect_pressed_cb, LV_EVENT_CLICKED, NULL);
 
     // Keyboard: sibling of popup on lv_scr_act(), placed directly below popup content.
     // Use lv_obj_align(TOP_LEFT) to override the BOTTOM_MID alignment stored by lv_keyboard_create.
@@ -276,3 +313,13 @@ void wifi_popup_init(lv_obj_t* parent) {
     build_password_popup();
     lv_obj_add_event_cb(ui_btn_wifi_change, show_wifi_popup_cb, LV_EVENT_CLICKED, NULL);
 }
+
+void wifi_popup_update_networks(const WifiApInfo* aps, uint16_t count) {
+    lv_obj_clean(g_net_container);
+    for (uint16_t i = 0; i < count; i++) {
+        const char* sub = (int)aps[i].secured ? "WPA2" : "Open";
+        make_net_panel(g_net_container, aps[i].ssid, sub);
+    }
+}
+
+void wifi_popup_on_connect(wifi_popup_connect_cb_t cb) { g_connect_cb = cb; }

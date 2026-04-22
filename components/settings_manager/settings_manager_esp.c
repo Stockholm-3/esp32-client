@@ -7,6 +7,8 @@
 
 #define NVS_NAMESPACE "settings"
 
+static char g_s_ssid[33]      = "";
+static char g_s_password[65]  = "";
 static char g_s_location[128] = "";
 static int g_s_price_zone     = 0;
 static int g_s_timeout        = 0;
@@ -51,8 +53,12 @@ void(settings_manager_init(void)) {
     nvs_handle_t h;
     if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
         size_t len = sizeof(g_s_location);
-        // if key doesn't exist nvs_get return error and s_locatin vill stay ""
         nvs_get_str(h, "location", g_s_location, &len);
+
+        len = sizeof(g_s_ssid);
+        nvs_get_str(h, "ssid", g_s_ssid, &len);
+        len = sizeof(g_s_password);
+        nvs_get_str(h, "password", g_s_password, &len);
 
         uint8_t val = 0;
         if (nvs_get_u8(h, "price_zone", &val) == ESP_OK) {
@@ -75,3 +81,19 @@ void(settings_manager_init(void)) {
 const char* settings_manager_get_location(void) { return g_s_location; }
 int settings_manager_get_price_zone(void) { return g_s_price_zone; }
 int settings_manager_get_timeout(void) { return g_s_timeout; }
+const char* settings_manager_get_ssid(void) { return g_s_ssid; }
+const char* settings_manager_get_password(void) { return g_s_password; }
+
+void settings_manager_save_wifi(const char* ssid, const char* password) {
+    strncpy(g_s_ssid, ssid, 32);
+    g_s_ssid[32] = '\0';
+    strncpy(g_s_password, password, 64);
+    g_s_password[64] = '\0';
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_str(h, "ssid", g_s_ssid);
+        nvs_set_str(h, "password", g_s_password);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}

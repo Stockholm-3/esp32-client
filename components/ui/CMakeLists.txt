@@ -15,4 +15,5 @@ idf_component_register(
         "include"
     REQUIRES
         lvgl__lvgl
+        wifi_manager
 )
