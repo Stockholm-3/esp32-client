@@ -2,6 +2,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "settings_manager.h"
 #include "time_manager.h"
 #include "ui.h"
 #include "ui_binder.h"
@@ -24,6 +25,7 @@ void app_main(void) {
     display_lvgl_unlock();
 
     ui_binder_init();
+    settings_manager_init();
     time_manager_init(NULL);
 
     while (1) {
