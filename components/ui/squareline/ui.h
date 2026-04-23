@@ -17,23 +17,13 @@ extern "C" {
 #include "ui_theme_manager.h"
 #include "ui_themes.h"
 
-
 ///////////////////// SCREENS ////////////////////
-
 #include "screens/ui_scr_home.h"
-#include "screens/ui_scr_weather.h"
-#include "screens/ui_scr_elpris.h"
-#include "screens/ui_scr_settings.h"
 
 ///////////////////// VARIABLES ////////////////////
 
-
 // EVENTS
-
 extern lv_obj_t * ui____initial_actions0;
-
-// IMAGES AND IMAGE SETS
-LV_IMG_DECLARE(ui_img_sun_behind_cloud_3d_png);    // assets/sun_behind_cloud_3d.png
 
 // UI INIT
 void ui_init(void);

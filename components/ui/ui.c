@@ -1,70 +1,44 @@
 #include "ui.h"
 
 #include "display.h"
-#include "screen_timeout.h"
-#include "squareline/screens/ui_scr_elpris.h"
-#include "squareline/screens/ui_scr_home.h"
-#include "squareline/screens/ui_scr_settings.h"
-#include "squareline/screens/ui_scr_weather.h"
 #include "squareline/ui.h"
+#include "screen_timeout.h"
+#include "wifi_popup.h"
 
 static uint32_t timeout_minutes_from_idx(uint32_t idx);
 static void timeout_changed_cb(lv_event_t* e);
 static void ui_connect_timeout_settings(void);
 
-static void go_home_cb(lv_event_t* e) {
+static void on_ta_clicked(lv_event_t* e) {
+    lv_obj_remove_flag(ui_Keyboard1, LV_OBJ_FLAG_HIDDEN);
+    lv_keyboard_set_textarea(ui_Keyboard1, lv_event_get_target_obj(e));
+}
+
+static void on_ta_defocused(lv_event_t* e) {
     (void)e;
-    lv_scr_load(ui_scr_home);
+    lv_obj_add_flag(ui_Keyboard1, LV_OBJ_FLAG_HIDDEN);
 }
 
-static void go_weather_cb(lv_event_t* e) {
-    (void)e;
-    lv_scr_load(ui_scr_weather);
-}
-
-static void go_elpris_cb(lv_event_t* e) {
-    (void)e;
-    lv_scr_load(ui_scr_elpris);
-}
-
-static void go_settings_cb(lv_event_t* e) {
-    (void)e;
-    lv_scr_load(ui_scr_settings);
-}
-
-static void ui_connect_nav(void) {
-    lv_obj_add_event_cb(ui_btn_home, go_home_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_btn_home2, go_home_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_btn_home3, go_home_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_btn_home4, go_home_cb, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_add_event_cb(ui_btn__weather, go_weather_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_btn__weather2, go_weather_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_btn__weather3, go_weather_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_btn__weather4, go_weather_cb, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_add_event_cb(ui_btn_elpris, go_elpris_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_btn_elpris2, go_elpris_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_btn_elpris3, go_elpris_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_btn_elpris4, go_elpris_cb, LV_EVENT_CLICKED, NULL);
-
-    lv_obj_add_event_cb(ui_btn_settings, go_settings_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_btn_settings2, go_settings_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_btn_settings3, go_settings_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(ui_btn_settings4, go_settings_cb, LV_EVENT_CLICKED, NULL);
-}
-
-void ui_build(lv_disp_t* disp) {
+void ui_build(lv_display_t* disp) {
     (void)disp;
     ui_init();
-    ui_connect_nav();
 
-    if (ui_Dropdown2) {
-        uint32_t sel     = lv_dropdown_get_selected(ui_Dropdown2);
+    lv_obj_set_parent(ui_Keyboard1, lv_scr_act());
+    lv_obj_align(ui_Keyboard1, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_size(ui_Keyboard1, 1024, 248);
+    lv_obj_add_flag(ui_Keyboard1, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_add_event_cb(ui_ta_locationinput, on_ta_clicked, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(ui_ta_locationinput, on_ta_defocused, LV_EVENT_DEFOCUSED, NULL);
+
+    if (ui_dd_timeout) {
+        uint32_t sel     = lv_dropdown_get_selected(ui_dd_timeout);
         uint32_t minutes = timeout_minutes_from_idx(sel);
         screen_timeout_set_seconds(minutes * 60U);
     }
     ui_connect_timeout_settings();
+
+    wifi_popup_init(ui_tabsettings);
 }
 
 static uint32_t timeout_minutes_from_idx(uint32_t idx) {
@@ -84,8 +58,8 @@ static void timeout_changed_cb(lv_event_t* e) {
 }
 
 static void ui_connect_timeout_settings(void) {
-    if (!ui_Dropdown2) {
+    if (!ui_dd_timeout) {
         return;
     }
-    lv_obj_add_event_cb(ui_Dropdown2, timeout_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(ui_dd_timeout, timeout_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
 }

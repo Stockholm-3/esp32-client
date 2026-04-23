@@ -10,6 +10,9 @@
 extern "C" {
 #endif
 
+void show_keyboard(lv_event_t * e);
+void hide_keyboard(lv_event_t * e);
+
 #ifdef __cplusplus
 } /*extern "C"*/
 #endif
