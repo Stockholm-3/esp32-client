@@ -50,8 +50,9 @@ static void wifi_hw_init(void) {
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
-        ESP_ERROR_CHECK(nvs_flash_init());
+        ret = nvs_flash_init();
     }
+    ESP_ERROR_CHECK(ret);
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -116,6 +117,8 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
     }
 }
 
+void wifi_manager_hw_preinit(void) { wifi_hw_init(); }
+
 int wifi_manager_start(const char* ssid, const char* password, const WifiManagerConfig* config) {
     if (g_has_credentials) {
         return -1;
@@ -144,11 +147,12 @@ void wifi_manager_scan_start(WifiScanDoneCb cb) {
 }
 
 void wifi_manager_stop(void) {
-    esp_wifi_stop();
+    if (g_has_credentials) {
+        esp_wifi_disconnect();
+    }
     g_retry_pending   = false;
     g_retry_count     = 0;
     g_has_credentials = false;
-    g_hw_initialized  = false;
     set_state(WIFI_MANAGER_STATE_IDLE);
 }
 

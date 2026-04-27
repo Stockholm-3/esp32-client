@@ -2,6 +2,7 @@
 
 #include "squareline/screens/ui_scr_home.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 // TabView y=24, tab bar height=78 → tab content starts at screen y=102
@@ -23,6 +24,24 @@ static lv_obj_t* g_ta_password              = NULL;
 static lv_obj_t* g_net_container            = NULL;
 static char g_selected_ssid[33]             = "";
 static wifi_popup_connect_cb_t g_connect_cb = NULL;
+
+typedef struct {
+    WifiApInfo* aps;
+    uint16_t count;
+} ScanData;
+
+static lv_obj_t* make_net_panel(lv_obj_t* parent, const char* name, const char* sub);
+
+static void update_networks_async(void* user_data) {
+    ScanData* data = (ScanData*)user_data;
+    lv_obj_clean(g_net_container);
+    for (uint16_t i = 0; i < data->count; i++) {
+        const char* sub = (int)data->aps[i].secured ? "WPA2" : "Open";
+        make_net_panel(g_net_container, data->aps[i].ssid, sub);
+    }
+    free(data->aps);
+    free(data);
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -315,11 +334,18 @@ void wifi_popup_init(lv_obj_t* parent) {
 }
 
 void wifi_popup_update_networks(const WifiApInfo* aps, uint16_t count) {
-    lv_obj_clean(g_net_container);
-    for (uint16_t i = 0; i < count; i++) {
-        const char* sub = (int)aps[i].secured ? "WPA2" : "Open";
-        make_net_panel(g_net_container, aps[i].ssid, sub);
+    ScanData* data = malloc(sizeof(ScanData));
+    if (!data) {
+        return;
     }
+    data->aps = malloc(count * sizeof(WifiApInfo));
+    if (!data->aps) {
+        free(data);
+        return;
+    }
+    memcpy(data->aps, aps, count * sizeof(WifiApInfo));
+    data->count = count;
+    lv_async_call(update_networks_async, data);
 }
 
 void wifi_popup_on_connect(wifi_popup_connect_cb_t cb) { g_connect_cb = cb; }

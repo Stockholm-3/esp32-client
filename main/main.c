@@ -41,9 +41,10 @@ void app_main(void) {
     }
 
     ui_build(disp);
+    ui_binder_init();
     display_lvgl_unlock();
 
-    ui_binder_init();
+    wifi_manager_hw_preinit();
     settings_manager_init();
     time_manager_init(NULL);
 
