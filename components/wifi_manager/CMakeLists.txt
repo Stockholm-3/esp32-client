@@ -3,7 +3,7 @@ if(IDF_TARGET STREQUAL "linux")
     set(WIFI_REQS log)
 else()
     set(WIFI_SRC "wifi_manager_esp.c")
-    set(WIFI_REQS log freertos esp_wifi nvs_flash esp_timer)
+    set(WIFI_REQS log freertos esp_wifi esp_timer)
 endif()
 
 idf_component_register(
