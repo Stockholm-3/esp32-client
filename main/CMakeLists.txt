@@ -6,9 +6,8 @@ idf_component_register(
         ui
         ui_binder
         time_manager
-        esp_netif
-        esp_event
         settings_manager
+        wifi_manager
 )
 
 target_include_directories(__idf_main PRIVATE ${CMAKE_SOURCE_DIR})

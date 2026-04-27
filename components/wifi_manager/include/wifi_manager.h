@@ -31,6 +31,11 @@ typedef struct {
 
 typedef void (*WifiScanDoneCb)(const WifiApInfo *aps, uint16_t count);
 
+/**
+ * @brief Initialize TCP/IP stack and event loop (must be called before time_manager_init)
+ */
+void wifi_manager_hw_preinit(void);
+
 void wifi_manager_scan_start(WifiScanDoneCb cb);
 
 /**
