@@ -1,45 +1,41 @@
+# display — LVGL wiring layer.
+#
+# Selects display_esp.c on ESP targets (depends on ws7b_board for hardware)
+# or display_linux.c on the Linux target (SDL2 + pthread, no hardware deps).
+
 if(IDF_TARGET STREQUAL "linux")
-    set(DISPLAY_SRC "display_linux.c")
-    set(DISPLAY_REQS 
-        log 
-        esp_common 
-        esp_timer
-    )
-    set(DISPLAY_PRIV_REQS
+    set(DISPLAY_SRCS "display_linux.c")
+    set(DISPLAY_REQUIRES
+        ws7b_config
+        log
+        esp_common
         lvgl__lvgl
     )
+    set(DISPLAY_PRIV_REQUIRES "")
 else()
-    set(DISPLAY_SRC "display_esp.c")
-    set(DISPLAY_REQS 
-        esp_lcd 
-        esp_lcd_touch 
-        driver 
-        freertos 
-        log 
-        esp_common 
-        esp_timer 
-        esp_driver_gpio
-    )
-    set(DISPLAY_PRIV_REQS
-        espressif__esp_lcd_touch_gt911
+    set(DISPLAY_SRCS "display_esp.c")
+    set(DISPLAY_REQUIRES
+        ws7b_config
+        ws7b_board
+        esp_lcd
+        esp_timer
+        freertos
+        log
+        esp_common
         lvgl__lvgl
+    )
+    set(DISPLAY_PRIV_REQUIRES
+        espressif__esp_lcd_touch_gt911
     )
 endif()
 
 idf_component_register(
-    SRCS "${DISPLAY_SRC}"
+    SRCS         ${DISPLAY_SRCS}
     INCLUDE_DIRS "include"
-    REQUIRES ${DISPLAY_REQS} lvgl__lvgl
-    PRIV_REQUIRES ${DISPLAY_PRIV_REQS}
+    REQUIRES     ${DISPLAY_REQUIRES}
+    PRIV_REQUIRES ${DISPLAY_PRIV_REQUIRES}
 )
 
 if(IDF_TARGET STREQUAL "linux")
-    # ${COMPONENT_LIB} is the internal variable for this component's library
     target_link_libraries(${COMPONENT_LIB} PRIVATE SDL2 pthread)
-    
-    # Optional: If you use LVGL as a managed component on Linux too, 
-    # ensure the include path is available. If LVGL is provided via 
-    # idf_component_register, this is usually handled, but if you have 
-    # issues with SDL2 headers not being found, you can add:
-    # target_compile_options(${COMPONENT_LIB} PRIVATE "-D_REENTRANT")
 endif()
