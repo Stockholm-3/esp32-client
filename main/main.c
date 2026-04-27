@@ -1,5 +1,7 @@
 #include "display.h"
+#include "esp_event.h"
 #include "esp_log.h"
+#include "esp_netif.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "time_manager.h"
@@ -21,9 +23,11 @@ void app_main(void) {
     }
 
     ui_build(disp);
+    ui_binder_init();
     display_lvgl_unlock();
 
-    ui_binder_init();
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
     time_manager_init(NULL);
 
     while (1) {
