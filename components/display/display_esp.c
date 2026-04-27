@@ -26,6 +26,10 @@ static const char* g_tag = "display";
 static SemaphoreHandle_t g_s_lvgl_mux = NULL;
 static SemaphoreHandle_t g_s_vsync    = NULL;
 
+static void (*g_s_activity_cb)(void) = NULL;
+
+void display_set_activity_callback(void (*cb)(void)) { g_s_activity_cb = cb; }
+
 /*
  * Called from ISR context by the RGB panel driver at the end of every frame.
  * Signals the flush callback that it is safe to swap the active framebuffer.
@@ -75,6 +79,9 @@ static void lvgl_touch_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     esp_lcd_touch_get_data(tp, points, &cnt, 1);
 
     if (cnt > 0) {
+        if (g_s_activity_cb) {
+            g_s_activity_cb();
+        }
         data->point.x = (int32_t)points[0].x;
         data->point.y = (int32_t)points[0].y;
         data->state   = LV_INDEV_STATE_PRESSED;

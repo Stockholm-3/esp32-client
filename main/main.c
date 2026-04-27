@@ -2,6 +2,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "screen_timeout.h"
 #include "ui.h"
 
 static const char* g_tag = "main";
@@ -19,6 +20,8 @@ void app_main(void) {
     }
 
     ui_build(disp);
+    screen_timeout_init(5U * 60U);
+    display_set_activity_callback(screen_timeout_record_activity);
     display_lvgl_unlock();
 
     while (1) {
