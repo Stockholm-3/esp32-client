@@ -40,7 +40,6 @@ static int get_backoff_delay_ms(void) {
 /* mock data for wifi simulation*/
 void wifi_manager_hw_preinit(void) {}
 
-
 void wifi_manager_scan_start(WifiScanDoneCb cb) {
     if (!cb)
         return;
