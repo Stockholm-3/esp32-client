@@ -3,7 +3,6 @@ idf_component_register(
     INCLUDE_DIRS "."
     PRIV_REQUIRES
         display
-        screen_timeout
         ui
 )
 
