@@ -41,6 +41,12 @@ bool display_lvgl_lock(int timeout_ms);
 void display_lvgl_unlock(void);
 
 /**
+ * @brief Register a callback invoked on every touch event.
+ *        Use this to notify screen_timeout of user activity.
+ */
+void display_set_activity_callback(void (*cb)(void));
+
+/**
  * @brief Set the LCD backlight brightness.
  *
  * Delegates to ws7b_board_set_backlight() on the ESP target; no-op on Linux.
