@@ -111,15 +111,26 @@ SCRUB_SCRIPT   := scripts/scrub_compile_commands.py
 FILTER_SCRIPT  := scripts/filter_lint.py
 PROJECT_ROOT   := $(shell pwd)
 
-# Surgical fix: Explicitly look for the Xtensa binary
+# Prefer the Xtensa-specific clang-tidy if available, fall back to host clang-tidy.
 CLANG_TIDY_EXE := $(shell which xtensa-esp32s3-elf-clang-tidy 2>/dev/null || which clang-tidy)
 
+# Only report diagnostics in our own source tree; skip managed_components.
 HEADER_FILTER  := ^$(PROJECT_ROOT)/(main|components)/(?!managed_components)
+
+# Extra args passed to every clang-tidy invocation via run-clang-tidy.
+# These suppress the cascade of errors that originate in newlib/Xtensa/nix
+# headers so they never reach our filter script at all.
+TIDY_EXTRA_ARGS := \
+  -extra-arg="-Wno-unknown-attributes" \
+  -extra-arg="-Wno-unknown-pragmas" \
+  -extra-arg="-Wno-ignored-attributes" \
+  -extra-arg="-Wno-error"
 
 lint-check-deps:
 	@command -v run-clang-tidy >/dev/null 2>&1 || \
-	  { echo "[ERROR] run-clang-tidy wrapper not found."; exit 1; }
-	@if [ -z "$(CLANG_TIDY_EXE)" ]; then echo "[ERROR] No clang-tidy binary found in PATH."; exit 1; fi
+	  { echo "[ERROR] run-clang-tidy not found."; exit 1; }
+	@[ -n "$(CLANG_TIDY_EXE)" ] || \
+	  { echo "[ERROR] No clang-tidy binary found in PATH."; exit 1; }
 	@test -f $(COMPILE_DB_RAW) || \
 	  { echo "[ERROR] $(COMPILE_DB_RAW) not found. Run 'idf.py reconfigure' first."; exit 1; }
 	@test -f $(SCRUB_SCRIPT) || \
@@ -135,6 +146,9 @@ lint-scrub: lint-check-deps
 		--output $(LINT_DB_DIR)/compile_commands.json \
 		--roots  $(ROOTS)
 
+# -----------------------------------------------------------------------
+# lint — run clang-tidy, show all findings, fail on any warning or error
+# -----------------------------------------------------------------------
 lint: lint-scrub
 	@echo "Running clang-tidy using $(CLANG_TIDY_EXE)..."
 	@SOURCE_FILES="$$($(call find_sources))"; \
@@ -147,6 +161,7 @@ lint: lint-scrub
 	    -p "$(LINT_DB_DIR)" \
 	    -checks='' \
 	    -header-filter "$(HEADER_FILTER)" \
+	    $(TIDY_EXTRA_ARGS) \
 	    -quiet \
 	  2>&1 \
 	  | python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)" \
@@ -158,6 +173,9 @@ lint: lint-scrub
 	fi; \
 	echo "[OK] clang-tidy clean"
 
+# -----------------------------------------------------------------------
+# lint-ci — errors block, warnings are advisory
+# -----------------------------------------------------------------------
 lint-ci: lint-scrub
 	@echo "Running clang-tidy (CI) using $(CLANG_TIDY_EXE)..."
 	@SOURCE_FILES="$$($(call find_sources))"; \
@@ -170,6 +188,7 @@ lint-ci: lint-scrub
 	    -p "$(LINT_DB_DIR)" \
 	    -checks='' \
 	    -header-filter "$(HEADER_FILTER)" \
+	    $(TIDY_EXTRA_ARGS) \
 	    -quiet \
 	  2>&1 \
 	  | python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)" \
@@ -186,8 +205,18 @@ lint-ci: lint-scrub
 	  echo "[OK] clang-tidy clean"; \
 	fi
 
+# -----------------------------------------------------------------------
+# lint-fix — apply safe automatic fixes, constrained to YOUR files only
+#
+# Key flags:
+#   -source-filter  — run-clang-tidy only collects/applies fix YAML for
+#                     files matching this regex; Xtensa/nix/glibc headers
+#                     are never touched regardless of errors inside them.
+#   -fix            — merge and apply the collected YAML patches.
+#   -format         — reformat changed lines with clang-format after fixing.
+# -----------------------------------------------------------------------
 lint-fix: lint-scrub
-	@echo "Running clang-tidy with auto-fix..."
+	@echo "Running clang-tidy with auto-fix (project files only)..."
 	@SOURCE_FILES="$$($(call find_sources))"; \
 	if [ -z "$$SOURCE_FILES" ]; then echo "[SKIP] No source files found"; exit 0; fi; \
 	echo "$$SOURCE_FILES" | tr '\n' '\0' | xargs -0 \
@@ -196,6 +225,11 @@ lint-fix: lint-scrub
 	    -p "$(LINT_DB_DIR)" \
 	    -checks='' \
 	    -header-filter "$(HEADER_FILTER)" \
+	    -source-filter "$(HEADER_FILTER)" \
+	    $(TIDY_EXTRA_ARGS) \
 	    -fix \
+	    -format \
 	    -quiet \
-	  && echo "[OK] fixes applied"
+	  2>&1 \
+	  | python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)"; \
+	echo "[OK] fixes applied (if any)"

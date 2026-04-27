@@ -48,11 +48,11 @@ void ui_build(lv_display_t* disp) {
 // TODO(ui_binder): timeout_minutes_from_idx, timeout_changed_cb, and
 // ui_connect_timeout_settings should move to ui_binder once it is ready.
 static uint32_t timeout_minutes_from_idx(uint32_t idx) {
-    static const uint32_t timeout_minutes[] = {5U, 10U, 15U, 20U, 25U, 30U};
-    if (idx >= (sizeof(timeout_minutes) / sizeof(timeout_minutes[0]))) {
-        return timeout_minutes[0];
+    static const uint32_t TIMEOUT_MINUTES[] = {5U, 10U, 15U, 20U, 25U, 30U};
+    if (idx >= (sizeof(TIMEOUT_MINUTES) / sizeof(TIMEOUT_MINUTES[0]))) {
+        return TIMEOUT_MINUTES[0];
     }
-    return timeout_minutes[idx];
+    return TIMEOUT_MINUTES[idx];
 }
 
 static void timeout_changed_cb(lv_event_t* e) {

@@ -20,7 +20,7 @@ static lv_obj_t* g_s_dim_overlay     = NULL;
 static void timeout_timer_cb(lv_timer_t* timer) {
     (void)timer;
 
-    if (g_s_timeout_seconds == 0U || g_s_active) {
+    if (g_s_timeout_seconds == 0U || (int)g_s_active) {
         return;
     }
 
@@ -71,7 +71,7 @@ void screen_timeout_record_activity(void) {
 void screen_timeout_set_seconds(uint32_t timeout_seconds) {
     g_s_timeout_seconds = timeout_seconds;
 
-    if (timeout_seconds == 0U && g_s_active) {
+    if (timeout_seconds == 0U && (int)g_s_active) {
         g_s_active = false;
         display_set_backlight(255);
     }
