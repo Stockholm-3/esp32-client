@@ -13,5 +13,7 @@ idf_component_register(
     INCLUDE_DIRS
         "include"
     REQUIRES
+        display
+        screen_timeout
         lvgl__lvgl
 )
