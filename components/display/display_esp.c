@@ -32,12 +32,6 @@ static esp_lcd_touch_handle_t g_s_touch      = NULL;
 static SemaphoreHandle_t g_s_lvgl_mux  = NULL;
 static SemaphoreHandle_t g_s_vsync_sem = NULL;
 
-// ── Inactivity / screensaver state
-// ─────────────────────────────────────────────────────────
-static void (*g_s_activity_cb)(void) = NULL;
-
-void display_set_activity_callback(void (*cb)(void)) { g_s_activity_cb = cb; }
-
 // ── IO expander helpers
 // ───────────────────────────────────────────────────────
 static uint8_t g_s_io_state = 0xFF;
@@ -106,9 +100,6 @@ static void lvgl_touch_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     esp_lcd_touch_read_data(tp);
     esp_lcd_touch_get_data(tp, points, &cnt, 1);
     if (cnt > 0) {
-        if (g_s_activity_cb) {
-            g_s_activity_cb();
-        }
         data->point.x = (int32_t)points[0].x;
         data->point.y = (int32_t)points[0].y;
         data->state   = LV_INDEV_STATE_PRESSED;
