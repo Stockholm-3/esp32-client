@@ -12,6 +12,7 @@ find $(ROOTS) -name '*.c' \
   -not -path "*/managed_components/*" \
   -not -path "*/build/*" \
   -not -path "*/squareline/*" \
+  -not -path "*/lib/*" \
   2>/dev/null
 endef
 
@@ -20,6 +21,7 @@ find $(ROOTS) -name '*.h' \
   -not -path "*/managed_components/*" \
   -not -path "*/build/*" \
   -not -path "*/squareline/*" \
+  -not -path "*/lib/*" \
   2>/dev/null
 endef
 
