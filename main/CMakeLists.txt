@@ -4,6 +4,7 @@ idf_component_register(
     PRIV_REQUIRES
         display
         ui
+        bme280
 )
 
 target_include_directories(__idf_main PRIVATE ${CMAKE_SOURCE_DIR})
