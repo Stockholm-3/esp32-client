@@ -1,0 +1,3 @@
+[submodule "components/lib/bingus-lib"]
+	path = components/lib/bingus-lib
+	url = git@github.com:Stockholm-3/bingus-lib.git
