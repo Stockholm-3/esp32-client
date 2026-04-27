@@ -75,6 +75,8 @@ extern "C" {
 #define WS7B_LVGL_TASK_MAX_DELAY_MS 500
 #define WS7B_LVGL_TASK_MIN_DELAY_MS 10
 
+#define WS7B_LVGL_TASK_CORE 0
+
 #ifdef __cplusplus
 }
 #endif

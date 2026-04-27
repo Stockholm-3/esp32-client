@@ -187,7 +187,7 @@ esp_err_t display_init(lv_display_t** disp_out, lv_indev_t** touch_out) {
     lv_indev_t* indev  = touch ? setup_lvgl_touch(touch) : NULL;
 
     BaseType_t ret = xTaskCreatePinnedToCore(lvgl_task, "lvgl", WS7B_LVGL_TASK_STACK, NULL,
-                                             WS7B_LVGL_TASK_PRIORITY, NULL, tskNO_AFFINITY);
+                                             WS7B_LVGL_TASK_PRIORITY, NULL, WS7B_LVGL_TASK_CORE);
 
     if (ret != pdPASS) {
         ESP_LOGE(g_tag, "LVGL task create failed");
