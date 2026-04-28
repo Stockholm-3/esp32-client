@@ -44,8 +44,13 @@ void app_main(void) {
     ESP_ERROR_CHECK(display_init(&disp, &touch));
     ESP_LOGI(g_tag, "Display initialized");
 
-    ESP_ERROR_CHECK(bme280_sensor_init_with_task(ws7b_board_get_i2c_bus(), on_bme280_sample, NULL));
-    ESP_LOGI(g_tag, "BME280 initialized");
+    esp_err_t bme_err =
+        bme280_sensor_init_with_task(ws7b_board_get_i2c_bus(), on_bme280_sample, NULL);
+    if (bme_err != ESP_OK) {
+        ESP_LOGW(g_tag, "BME280 not found, skipping (%s)", esp_err_to_name(bme_err));
+    } else {
+        ESP_LOGI(g_tag, "BME280 initialized");
+    }
 
     if (!display_lvgl_lock(-1)) {
         ESP_LOGE(g_tag, "Failed to acquire LVGL lock");
