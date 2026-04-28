@@ -86,3 +86,20 @@ void ui_binder_set_timeout(int index) {
 void ui_binder_on_location_changed(ui_binder_location_cb_t cb) { g_s_location_cb = cb; }
 void ui_binder_on_price_changed(ui_binder_dropdown_cb_t cb) { g_s_price_cb = cb; }
 void ui_binder_on_timeout_changed(ui_binder_dropdown_cb_t cb) { g_s_timeout_cb = cb; }
+
+void ui_binder_update_bme280(const Bme280Reading* reading) {
+    char buf[10];
+    if (!display_lvgl_lock(100)) {
+        return;
+    }
+    snprintf(buf, sizeof(buf), "%.1f", (double)reading->temperature_c);
+    lv_label_set_text(ui_lbl_temp_val, buf);
+    lv_arc_set_value(ui_arc_temp, (int32_t)reading->temperature_c);
+    snprintf(buf, sizeof(buf), "%.0f", (double)reading->pressure_hpa);
+    lv_label_set_text(ui_lbl_press_val, buf);
+    lv_arc_set_value(ui_arc_pressure, (int32_t)reading->pressure_hpa);
+    snprintf(buf, sizeof(buf), "%.0f", (double)reading->humidity_pct);
+    lv_label_set_text(ui_lbl_hum_val, buf);
+    lv_arc_set_value(ui_arc_humidity, (int32_t)reading->humidity_pct);
+    display_lvgl_unlock();
+}

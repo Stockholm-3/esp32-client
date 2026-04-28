@@ -14,13 +14,17 @@
 
 static const char* g_tag = "main";
 
-static char g_current_ssid[33] = "";
+static char g_current_ssid[33]     = "";
+static Bme280Reading g_bme_reading = {0};
+static volatile bool g_bme_updated = false;
 
 static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
     (void)user_ctx;
     ESP_LOGI(g_tag, "BME280 — temp: %.2f °C  pressure: %.2f hPa  humidity: %.2f %%RH",
              (double)reading->temperature_c, (double)reading->pressure_hpa,
              (double)reading->humidity_pct);
+    g_bme_reading = *reading;
+    g_bme_updated = true;
 }
 
 static void on_wifi_connect(const char* ssid, const char* password) {
@@ -80,6 +84,10 @@ void app_main(void) {
         struct tm timeinfo;
         if (time_manager_get_time(&timeinfo)) {
             ui_binder_update_localtime(&timeinfo);
+        }
+        if (g_bme_updated) {
+            g_bme_updated = false;
+            ui_binder_update_bme280(&g_bme_reading);
         }
     }
 }

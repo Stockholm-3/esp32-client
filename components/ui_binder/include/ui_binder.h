@@ -1,5 +1,6 @@
 #pragma once
 #include <time.h>
+#include "bme280_sensor.h"
 #include "wifi_manager.h"
 
 // initialization for LVGL callbacks for changes in settings (location, price zone, timeout)
@@ -22,3 +23,4 @@ void ui_binder_on_price_changed(ui_binder_dropdown_cb_t cb);
 void ui_binder_on_timeout_changed(ui_binder_dropdown_cb_t cb);
 void ui_binder_update_wifi_status(WifiManagerState state);
 void ui_binder_update_wifi_name(const char *ssid);
+void ui_binder_update_bme280(const Bme280Reading *reading);

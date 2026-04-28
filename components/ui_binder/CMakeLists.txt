@@ -1,14 +1,14 @@
 if(IDF_TARGET STREQUAL "linux")
     set(SRC "ui_binder_linux.c")
-    set(REQS ui)
+    set(PRIV_REQS ui)
 else()
     set(SRC "ui_binder_esp.c")
-    set(REQS display ui)
+    set(PRIV_REQS display ui)
 endif()
 
 idf_component_register(
     SRCS ${SRC}
     INCLUDE_DIRS "include"
-    REQUIRES wifi_manager
-    PRIV_REQUIRES ${REQS}
+    REQUIRES wifi_manager bme280_sensor
+    PRIV_REQUIRES ${PRIV_REQS}
 )
