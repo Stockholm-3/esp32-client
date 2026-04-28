@@ -1,13 +1,14 @@
 if(IDF_TARGET STREQUAL "linux")
-    set(SRC "time_manager_linux_stub.c")
-    set(REQS log)
+    set(SRC "ui_binder_linux.c")
+    set(REQS ui)
 else()
-    set(SRC "time_manager_esp.c")
-    set(REQS log lwip esp_timer)
+    set(SRC "ui_binder_esp.c")
+    set(REQS display ui)
 endif()
 
 idf_component_register(
     SRCS ${SRC}
     INCLUDE_DIRS "include"
+    REQUIRES wifi_manager
     PRIV_REQUIRES ${REQS}
 )

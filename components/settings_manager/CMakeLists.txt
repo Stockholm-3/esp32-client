@@ -1,9 +1,9 @@
 if(IDF_TARGET STREQUAL "linux")
-    set(SRC "time_manager_linux_stub.c")
-    set(REQS log)
+    set(SRC "settings_manager_linux_stub.c")
+    set(REQS ui_binder)
 else()
-    set(SRC "time_manager_esp.c")
-    set(REQS log lwip esp_timer)
+    set(SRC "settings_manager_esp.c")
+    set(REQS ui_binder nvs_flash)
 endif()
 
 idf_component_register(

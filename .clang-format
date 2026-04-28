@@ -2,8 +2,6 @@
 # Base Style
 # ----------------------------------------
 BasedOnStyle: LLVM
-Language: Cpp
-Standard: Cpp03
 
 # ----------------------------------------
 # Indentation
