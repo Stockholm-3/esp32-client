@@ -182,6 +182,46 @@ extern lv_obj_t * ui_Keyboard1;
 extern lv_obj_t * ui_panel_statusbar;
 extern lv_obj_t * ui_lbl_localtime;
 extern lv_obj_t * ui_lbl_wifi_status;
+
+// Traffic light dots (home screen electricity recommendation)
+extern lv_obj_t * ui_panel_traffic_light;
+extern lv_obj_t * ui_dot_light_green;
+extern lv_obj_t * ui_dot_light_amber;
+extern lv_obj_t * ui_dot_light_red;
+
+// Hourly strip (home tab "Next Hours" section)
+extern lv_obj_t * ui_panel_home_h1;
+extern lv_obj_t * ui_lbl_home_htime1;
+extern lv_obj_t * ui_lbl_home_htemp1;
+extern lv_obj_t * ui_panel_home_h2;
+extern lv_obj_t * ui_lbl_home_htime2;
+extern lv_obj_t * ui_lbl_home_htemp2;
+extern lv_obj_t * ui_panel_home_h3;
+extern lv_obj_t * ui_lbl_home_htime3;
+extern lv_obj_t * ui_lbl_home_htemp3;
+extern lv_obj_t * ui_panel_home_h4;
+extern lv_obj_t * ui_lbl_home_htime4;
+extern lv_obj_t * ui_lbl_home_htemp4;
+extern lv_obj_t * ui_panel_home_h5;
+extern lv_obj_t * ui_lbl_home_htime5;
+extern lv_obj_t * ui_lbl_home_htemp5;
+extern lv_obj_t * ui_panel_home_h6;
+extern lv_obj_t * ui_lbl_home_htime6;
+extern lv_obj_t * ui_lbl_home_htemp6;
+
+// Battery screen widgets (ui_scr_battery.c)
+extern lv_obj_t * ui_panel_batt_hero;
+extern lv_obj_t * ui_arc_battery;
+extern lv_obj_t * ui_lbl_batt_pct;
+extern lv_obj_t * ui_lbl_batt_status;
+extern lv_obj_t * ui_panel_batt_stats;
+extern lv_obj_t * ui_lbl_batt_voltage;
+extern lv_obj_t * ui_lbl_batt_current;
+extern lv_obj_t * ui_lbl_batt_cycles;
+extern lv_obj_t * ui_panel_batt_trend;
+extern lv_obj_t * ui_chart_batt_trend;
+extern void ui_scr_battery_init(void);
+
 // CUSTOM VARIABLES
 extern lv_obj_t * uic_scr_home;
 extern lv_obj_t * uic_panel_left;

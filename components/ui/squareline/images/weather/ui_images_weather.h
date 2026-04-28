@@ -1,0 +1,40 @@
+#ifndef UI_IMAGES_WEATHER_H
+#define UI_IMAGES_WEATHER_H
+
+#include "lvgl.h"
+
+extern const lv_image_dsc_t UI_IMG_WMO_CLEAR_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_MAINLY_CLEAR_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_PARTLY_CLOUDY_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_OVERCAST_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_FOG_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_RIME_FOG_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_DRIZZLE_LIGHT_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_DRIZZLE_MODERATE_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_DRIZZLE_DENSE_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_FREEZING_DRIZZLE_LIGHT_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_FREEZING_DRIZZLE_DENSE_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_RAIN_SLIGHT_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_RAIN_MODERATE_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_RAIN_HEAVY_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_FREEZING_RAIN_LIGHT_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_FREEZING_RAIN_HEAVY_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_SNOW_SLIGHT_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_SNOW_MODERATE_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_SNOW_HEAVY_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_SNOW_GRAINS_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_RAIN_SHOWERS_SLIGHT_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_RAIN_SHOWERS_MODERATE_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_RAIN_SHOWERS_VIOLENT_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_SNOW_SHOWERS_SLIGHT_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_SNOW_SHOWERS_HEAVY_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_THUNDERSTORM_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_THUNDERSTORM_HAIL_SLIGHT_PNG;
+extern const lv_image_dsc_t UI_IMG_WMO_THUNDERSTORM_HAIL_HEAVY_PNG;
+extern const lv_image_dsc_t UI_IMG_WX_SUNNY_PNG;
+extern const lv_image_dsc_t UI_IMG_WX_PARTLY_PNG;
+extern const lv_image_dsc_t UI_IMG_WX_CLOUDY_PNG;
+extern const lv_image_dsc_t UI_IMG_WX_RAIN_PNG;
+extern const lv_image_dsc_t UI_IMG_WX_SNOW_PNG;
+
+#endif // UI_IMAGES_WEATHER_H
