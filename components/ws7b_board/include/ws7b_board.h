@@ -2,8 +2,24 @@
 #define WS7B_BOARD_H
 
 #include "esp_err.h"
-#include "esp_lcd_panel_ops.h"
-#include "esp_lcd_touch.h"
+#include "sdkconfig.h"
+
+/*
+ * Note: We guard hardware-specific includes and types to ensure
+ * the header remains compilable on Linux/Simulator targets.
+ */
+#ifndef CONFIG_IDF_TARGET_LINUX
+#    include "driver/i2c_master.h"
+#    include "esp_lcd_panel_ops.h"
+#    include "esp_lcd_touch.h"
+#else
+/**
+ * @brief Mock handles for Linux/Simulator build.
+ */
+typedef void* esp_lcd_panel_handle_t;
+typedef void* esp_lcd_touch_handle_t;
+typedef void* i2c_master_bus_handle_t;
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,39 +28,57 @@ extern "C" {
 /**
  * @brief Initialise all hardware on the Waveshare 7" ESP32-S3 board.
  *
- * Performs the following steps in order:
- *   1. I2C master bus
- *   2. CH32V003 IO expander — configures outputs, resets LCD and touch
- *   3. GT911 touch controller — probes both known I2C addresses
- *   4. RGB LCD panel — double PSRAM framebuffers, DMA bounce buffer
- *
- * Must be called once before ws7b_board_get_panel() or
- * ws7b_board_get_touch() are used.
- *
  * @return ESP_OK on success, propagated ESP error on any failure.
  */
+#ifdef CONFIG_IDF_TARGET_LINUX
+static inline esp_err_t ws7b_board_init(void) { return ESP_OK; }
+#else
 esp_err_t ws7b_board_init(void);
+#endif
 
 /**
  * @brief Return the RGB panel handle obtained during ws7b_board_init().
  *
  * @return Valid handle after ws7b_board_init(), NULL otherwise.
  */
+#ifdef CONFIG_IDF_TARGET_LINUX
+static inline esp_lcd_panel_handle_t ws7b_board_get_panel(void) { return (void*)0; }
+#else
 esp_lcd_panel_handle_t ws7b_board_get_panel(void);
+#endif
 
 /**
  * @brief Return the GT911 touch handle obtained during ws7b_board_init().
  *
  * @return Valid handle if a GT911 was found, NULL otherwise.
  */
+#ifdef CONFIG_IDF_TARGET_LINUX
+static inline esp_lcd_touch_handle_t ws7b_board_get_touch(void) { return (void*)0; }
+#else
 esp_lcd_touch_handle_t ws7b_board_get_touch(void);
+#endif
 
 /**
  * @brief Set the LCD backlight brightness via the IO expander PWM register.
  *
  * @param brightness  0 = off, 255 = full brightness.
  */
+#ifdef CONFIG_IDF_TARGET_LINUX
+static inline void ws7b_board_set_backlight(uint8_t brightness) { (void)brightness; }
+#else
 void ws7b_board_set_backlight(uint8_t brightness);
+#endif
+
+/**
+ * @brief Return the shared I2C master bus handle.
+ *
+ * @return Valid bus handle after ws7b_board_init(), NULL otherwise.
+ */
+#ifdef CONFIG_IDF_TARGET_LINUX
+static inline i2c_master_bus_handle_t ws7b_board_get_i2c_bus(void) { return (void*)0; }
+#else
+i2c_master_bus_handle_t ws7b_board_get_i2c_bus(void);
+#endif
 
 #ifdef __cplusplus
 }

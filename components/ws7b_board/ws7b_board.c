@@ -248,3 +248,5 @@ void ws7b_board_set_backlight(uint8_t brightness) {
     ioexp_write(WS7B_IOEXP_REG_PWM, brightness);
     ioexp_set_pin(WS7B_IOEXP_LCD_BL, brightness > 0 ? 1 : 0);
 }
+
+i2c_master_bus_handle_t ws7b_board_get_i2c_bus(void) { return g_s_i2c_bus; }
