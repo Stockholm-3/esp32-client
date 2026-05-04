@@ -40,7 +40,7 @@ static lv_obj_t* make_stat_card(lv_obj_t* parent, const char* title, const char*
     return lbl_val;
 }
 
-void ui_scr_battery_init(void) {
+void ui_tab_battery_init(void) {
     // ── Hero card ────────────────────────────────────────────────────────────
     ui_panel_batt_hero = lv_obj_create(ui_tabbattery);
     lv_obj_set_size(ui_panel_batt_hero, 1004, 230);
