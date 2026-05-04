@@ -16,31 +16,25 @@ Checks: >
 # Check Options
 # ----------------------------------------
 CheckOptions:
-
   # ===== Naming Rules =====
-
   # Global variables
   - key: readability-identifier-naming.GlobalVariablePrefix
     value: g_
   - key: readability-identifier-naming.GlobalVariableCase
     value: lower_case
-
   # Struct members
   - key: readability-identifier-naming.MemberCase
     value: lower_case
-
   # Constants
   - key: readability-identifier-naming.ConstantCase
     value: UPPER_CASE
   - key: readability-identifier-naming.StaticConstVariableCase
     value: UPPER_CASE
-
   # Variables & parameters
   - key: readability-identifier-naming.VariableCase
     value: lower_case
   - key: readability-identifier-naming.ParameterCase
     value: lower_case
-
   # Types
   - key: readability-identifier-naming.TypedefCase
     value: CamelCase
@@ -50,19 +44,16 @@ CheckOptions:
     value: CamelCase
   - key: readability-identifier-naming.EnumCase
     value: CamelCase
-
   # Enum constants & macros
   - key: readability-identifier-naming.EnumConstantCase
     value: UPPER_CASE
   - key: readability-identifier-naming.MacroCase
     value: UPPER_CASE
-
   # Functions
   - key: readability-identifier-naming.FunctionCase
     value: lower_case
   - key: readability-identifier-naming.InternalFunctionCase
     value: lower_case
-
   # Header guards
   - key: readability-identifier-naming.HeaderGuardCase
     value: UPPER_CASE
@@ -70,18 +61,23 @@ CheckOptions:
   # ===== Readability Rules =====
   # Require braces for all control statements
   - key: readability-braces-around-statements.ShortStatementLines
-    value: 1
-
+    value: '1'
   # Function size warning threshold
   - key: readability-function-size.LineThreshold
-    value: 100
+    value: '100'
+  # Cognitive complexity: raised threshold + ignore macro expansions so that
+  # ESP_RETURN_ON_FALSE / ESP_RETURN_ON_ERROR chains don't inflate the score.
   - key: readability-function-cognitive-complexity.Threshold
-    value: 200
-
+    value: '25'
+  - key: readability-function-cognitive-complexity.IgnoreMacros
+    value: 'true'
+  # Operator precedence: don't warn inside macros — the expansion site is not
+  # something the caller can parenthesise.
+  - key: readability-math-missing-parentheses.IgnoreMacros
+    value: 'true'
   # Suggest const correctness
   - key: readability-non-const-parameter.IgnoreAllCaps
-    value: 1
-
+    value: '1'
 
 # ----------------------------------------
 # CI Behavior
@@ -97,4 +93,4 @@ WarningsAsErrors: >
 # ----------------------------------------
 # Formatting
 # ----------------------------------------
-FormatStyle: filecla
+FormatStyle: file

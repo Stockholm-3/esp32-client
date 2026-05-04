@@ -11,7 +11,11 @@ idf_component_register(
         "squareline/images/ui_img_sun_behind_cloud_3d_png.c"
         "squareline/screens/ui_scr_home.c"
     INCLUDE_DIRS
+        "."
         "include"
     REQUIRES
+        display
+        screen_timeout
         lvgl__lvgl
+        wifi_manager
 )

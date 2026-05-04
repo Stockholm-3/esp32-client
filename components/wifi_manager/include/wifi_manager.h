@@ -43,6 +43,23 @@ typedef struct {
     int max_retry_ms;
 } WifiManagerConfig;
 
+/* Struct for wifi list scaning*/
+typedef struct {
+    char   ssid[33];
+    int8_t rssi;
+    bool   secured;
+} WifiApInfo;
+
+typedef void (*WifiScanDoneCb)(const WifiApInfo *aps, uint16_t count);
+
+/**
+ * @brief Initialize TCP/IP stack and event loop (must be called before time_manager_init)
+ */
+void wifi_manager_hw_preinit(void);
+
+
+void wifi_manager_scan_start(WifiScanDoneCb cb);
+
 /**
  * @brief Start Wi-Fi STA mode.
  *
