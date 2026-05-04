@@ -107,19 +107,6 @@ static void retry_timer_cb(int sig) {
     g_retry_count = 0;
     set_state(WIFI_MANAGER_STATE_CONNECTED, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
 }
-/* mock data for wifi simulation*/
-void wifi_manager_hw_preinit(void) {}
-
-void wifi_manager_scan_start(WifiScanDoneCb cb) {
-    if (!cb)
-        return;
-    static const WifiApInfo mock[] = {
-        {"HomeNetwork_5G", -45, true},
-        {"Office_WiFi", -67, true},
-        {"Guest", -80, false},
-    };
-    cb(mock, 3);
-}
 
 int wifi_manager_start(const char* ssid, const char* password, const WifiManagerConfig* config) {
     if (g_initialized) {
