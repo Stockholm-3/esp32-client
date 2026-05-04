@@ -1,0 +1,19 @@
+DOXYFILE_ENCODING      = UTF-8
+PROJECT_NAME           = "ESP32 Client"
+PROJECT_BRIEF          = "ESP32 display terminal for LEOP energy server"
+OUTPUT_DIRECTORY       = docs
+
+OPTIMIZE_OUTPUT_FOR_C  = YES
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+
+INPUT                  = components main
+RECURSIVE              = YES
+EXCLUDE                = build managed_components simulator
+FILE_PATTERNS          = *.c *.h
+
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+
+QUIET                  = YES
+WARNINGS               = YES
