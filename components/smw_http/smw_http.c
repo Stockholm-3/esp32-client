@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const char* TAG = "smw_http";
+static const char* g_tag = "smw_http";
 
 typedef struct {
     HttpClientAsyncHandle* handle;
@@ -23,7 +23,7 @@ static SmwTaskStatus smw_http_poll(void* context, uint32_t now_ms) {
         // Initialize the async operation
         ctx->handle = http_client_async_begin(&ctx->req, ctx->user_cb, ctx->user_ctx);
         if (!ctx->handle) {
-            ESP_LOGE(TAG, "Failed to begin async HTTP request");
+            ESP_LOGE(g_tag, "Failed to begin async HTTP request");
             free(ctx);
             return (SmwTaskStatus){.next_wake_ms = 0, .code = SMW_TASK_DONE};
         }

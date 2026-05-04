@@ -31,6 +31,9 @@ uint32_t get_system_ms(void) { return (uint32_t)(xTaskGetTickCount() * portTICK_
 
 static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
     (void)user_ctx;
+    ESP_LOGI(g_tag, "BME280 — temp: %.2f °C  pressure: %.2f hPa  humidity: %.2f %%RH",
+             (double)reading->temperature_c, (double)reading->pressure_hpa,
+             (double)reading->humidity_pct);
     g_bme_reading = *reading;
     g_bme_updated = true;
 }
@@ -48,13 +51,11 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     if (state == WIFI_MANAGER_STATE_CONNECTED) {
         ui_binder_update_wifi_name(g_current_ssid);
 
-        // Initialize time manager only once we have a network connection
         time_manager_init(NULL);
     }
 }
 
 void app_main(void) {
-    // 1. Initialize NVS and system networking components first!
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -68,24 +69,28 @@ void app_main(void) {
     lv_display_t* disp = NULL;
     lv_indev_t* touch  = NULL;
     ESP_ERROR_CHECK(display_init(&disp, &touch));
+    ESP_LOGI(g_tag, "Display initialized");
 
     esp_err_t bme_err =
         bme280_sensor_init_with_task(ws7b_board_get_i2c_bus(), on_bme280_sample, NULL);
     if (bme_err != ESP_OK) {
         ESP_LOGW(g_tag, "BME280 not found, skipping (%s)", esp_err_to_name(bme_err));
+    } else {
+        ESP_LOGI(g_tag, "BME280 initialized");
     }
 
-    if (display_lvgl_lock(-1)) {
-        ui_build(disp);
-        screen_timeout_init(5U * 60U);
-        display_set_activity_callback(screen_timeout_record_activity);
-        ui_binder_init();
-        display_lvgl_unlock();
+    if (!display_lvgl_lock(-1)) {
+        ESP_LOGE(g_tag, "Failed to acquire LVGL lock");
+        return;
     }
+    ui_build(disp);
+    screen_timeout_init(5U * 60U);
+    display_set_activity_callback(screen_timeout_record_activity);
+    ui_binder_init();
+    display_lvgl_unlock();
 
     settings_manager_init();
 
-    // Setup callbacks
     wifi_popup_on_connect(on_wifi_connect);
     wifi_manager_register_callback(on_wifi_state);
 
@@ -99,6 +104,7 @@ void app_main(void) {
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
+
         smw_process(&g_smw_worker, get_system_ms());
 
         struct tm timeinfo;
