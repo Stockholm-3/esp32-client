@@ -1,8 +1,11 @@
 #include "bme280_sensor.h"
 #include "display.h"
+#include "esp_event.h"
 #include "esp_log.h"
+#include "esp_netif.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "nvs_flash.h"
 #include "screen_timeout.h"
 #include "settings_manager.h"
 #include "smw.h"
@@ -24,7 +27,6 @@ static volatile bool g_bme_updated = false;
 static SmwWorker g_smw_worker;
 static SmwTask g_smw_tasks[SMW_MAX_TASKS];
 
-// 2. Implement the external functions for the SMW framework
 uint32_t get_system_ms(void) { return (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS); }
 
 static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
@@ -39,19 +41,31 @@ static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
 static void on_wifi_connect(const char* ssid, const char* password) {
     strncpy(g_current_ssid, ssid, 32);
     g_current_ssid[32] = '\0';
-    wifi_manager_stop();
-    wifi_manager_start(ssid, password, NULL);
+    wifi_manager_change_network(ssid, password);
     settings_manager_save_wifi(ssid, password);
 }
 
-static void on_wifi_state(WifiManagerState state) {
+static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) {
+    (void)reason;
     ui_binder_update_wifi_status(state);
     if (state == WIFI_MANAGER_STATE_CONNECTED) {
         ui_binder_update_wifi_name(g_current_ssid);
+
+        time_manager_init(NULL);
     }
 }
 
 void app_main(void) {
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
     lv_display_t* disp = NULL;
     lv_indev_t* touch  = NULL;
     ESP_ERROR_CHECK(display_init(&disp, &touch));
@@ -75,9 +89,7 @@ void app_main(void) {
     ui_binder_init();
     display_lvgl_unlock();
 
-    wifi_manager_hw_preinit();
     settings_manager_init();
-    time_manager_init(NULL);
 
     wifi_popup_on_connect(on_wifi_connect);
     wifi_manager_register_callback(on_wifi_state);
