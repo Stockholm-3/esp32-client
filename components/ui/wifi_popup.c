@@ -14,19 +14,19 @@
 #define PW_CONTENT_H 200 // header(44) + net_info(50) + field(60)
 #define KB_H 248
 
-static lv_obj_t* g_wifi_backdrop            = NULL;
-static lv_obj_t* g_panel_wifi_popup         = NULL;
-static lv_obj_t* g_pw_backdrop              = NULL;
-static lv_obj_t* g_panel_password_popup     = NULL;
-static lv_obj_t* g_pw_keyboard              = NULL;
-static lv_obj_t* g_lbl_pw_net_name          = NULL;
-static lv_obj_t* g_ta_password              = NULL;
-static lv_obj_t* g_net_container            = NULL;
-static char g_selected_ssid[33]             = "";
-static wifi_popup_connect_cb_t g_connect_cb = NULL;
+static lv_obj_t* g_wifi_backdrop        = NULL;
+static lv_obj_t* g_panel_wifi_popup     = NULL;
+static lv_obj_t* g_pw_backdrop          = NULL;
+static lv_obj_t* g_panel_password_popup = NULL;
+static lv_obj_t* g_pw_keyboard          = NULL;
+static lv_obj_t* g_lbl_pw_net_name      = NULL;
+static lv_obj_t* g_ta_password          = NULL;
+static lv_obj_t* g_net_container        = NULL;
+static char g_selected_ssid[33]         = "";
+static WifiPopupConnectCbT g_connect_cb = NULL;
 
 typedef struct {
-    WifiApInfo* aps;
+    WifiManagerApInfo* aps;
     uint16_t count;
 } ScanData;
 
@@ -36,7 +36,8 @@ static void update_networks_async(void* user_data) {
     ScanData* data = (ScanData*)user_data;
     lv_obj_clean(g_net_container);
     for (uint16_t i = 0; i < data->count; i++) {
-        const char* sub = (int)data->aps[i].secured ? "WPA2" : "Open";
+        // Map authmode (0 is usually open, > 0 is WPA/WPA2/etc.)
+        const char* sub = (data->aps[i].authmode == 0) ? "Open" : "WPA2";
         make_net_panel(g_net_container, data->aps[i].ssid, sub);
     }
     free(data->aps);
@@ -87,14 +88,14 @@ static void close_wifi_popup_cb(lv_event_t* e) {
 
 static void on_scan_again_cb(lv_event_t* e) {
     (void)e;
-    wifi_manager_scan_start(wifi_popup_update_networks);
+    wifi_manager_scan(wifi_popup_update_networks);
 }
 
 static void show_wifi_popup_cb(lv_event_t* e) {
     (void)e;
     lv_obj_remove_flag(g_wifi_backdrop, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(g_panel_wifi_popup, LV_OBJ_FLAG_HIDDEN);
-    wifi_manager_scan_start(wifi_popup_update_networks);
+    wifi_manager_scan(wifi_popup_update_networks);
 }
 
 static void open_password_popup_cb(lv_event_t* e) {
@@ -333,19 +334,19 @@ void wifi_popup_init(lv_obj_t* parent) {
     lv_obj_add_event_cb(ui_btn_wifi_change, show_wifi_popup_cb, LV_EVENT_CLICKED, NULL);
 }
 
-void wifi_popup_update_networks(const WifiApInfo* aps, uint16_t count) {
+void wifi_popup_update_networks(const WifiManagerApInfo* aps, uint16_t count) {
     ScanData* data = malloc(sizeof(ScanData));
     if (!data) {
         return;
     }
-    data->aps = malloc(count * sizeof(WifiApInfo));
+    data->aps = malloc(count * sizeof(WifiManagerApInfo));
     if (!data->aps) {
         free(data);
         return;
     }
-    memcpy(data->aps, aps, count * sizeof(WifiApInfo));
+    memcpy(data->aps, aps, count * sizeof(WifiManagerApInfo));
     data->count = count;
     lv_async_call(update_networks_async, data);
 }
 
-void wifi_popup_on_connect(wifi_popup_connect_cb_t cb) { g_connect_cb = cb; }
+void wifi_popup_on_connect(WifiPopupConnectCbT cb) { g_connect_cb = cb; }

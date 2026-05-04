@@ -1,8 +1,11 @@
 #include "bme280_sensor.h"
 #include "display.h"
+#include "esp_event.h"
 #include "esp_log.h"
+#include "esp_netif.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "nvs_flash.h"
 #include "screen_timeout.h"
 #include "settings_manager.h"
 #include "smw.h"
@@ -24,14 +27,10 @@ static volatile bool g_bme_updated = false;
 static SmwWorker g_smw_worker;
 static SmwTask g_smw_tasks[SMW_MAX_TASKS];
 
-// 2. Implement the external functions for the SMW framework
 uint32_t get_system_ms(void) { return (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS); }
 
 static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
     (void)user_ctx;
-    ESP_LOGI(g_tag, "BME280 — temp: %.2f °C  pressure: %.2f hPa  humidity: %.2f %%RH",
-             (double)reading->temperature_c, (double)reading->pressure_hpa,
-             (double)reading->humidity_pct);
     g_bme_reading = *reading;
     g_bme_updated = true;
 }
@@ -39,46 +38,54 @@ static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
 static void on_wifi_connect(const char* ssid, const char* password) {
     strncpy(g_current_ssid, ssid, 32);
     g_current_ssid[32] = '\0';
-    wifi_manager_stop();
-    wifi_manager_start(ssid, password, NULL);
+    wifi_manager_change_network(ssid, password);
     settings_manager_save_wifi(ssid, password);
 }
 
-static void on_wifi_state(WifiManagerState state) {
+static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) {
+    (void)reason;
     ui_binder_update_wifi_status(state);
     if (state == WIFI_MANAGER_STATE_CONNECTED) {
         ui_binder_update_wifi_name(g_current_ssid);
+
+        // Initialize time manager only once we have a network connection
+        time_manager_init(NULL);
     }
 }
 
 void app_main(void) {
+    // 1. Initialize NVS and system networking components first!
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
     lv_display_t* disp = NULL;
     lv_indev_t* touch  = NULL;
     ESP_ERROR_CHECK(display_init(&disp, &touch));
-    ESP_LOGI(g_tag, "Display initialized");
 
     esp_err_t bme_err =
         bme280_sensor_init_with_task(ws7b_board_get_i2c_bus(), on_bme280_sample, NULL);
     if (bme_err != ESP_OK) {
         ESP_LOGW(g_tag, "BME280 not found, skipping (%s)", esp_err_to_name(bme_err));
-    } else {
-        ESP_LOGI(g_tag, "BME280 initialized");
     }
 
-    if (!display_lvgl_lock(-1)) {
-        ESP_LOGE(g_tag, "Failed to acquire LVGL lock");
-        return;
+    if (display_lvgl_lock(-1)) {
+        ui_build(disp);
+        screen_timeout_init(5U * 60U);
+        display_set_activity_callback(screen_timeout_record_activity);
+        ui_binder_init();
+        display_lvgl_unlock();
     }
-    ui_build(disp);
-    screen_timeout_init(5U * 60U);
-    display_set_activity_callback(screen_timeout_record_activity);
-    ui_binder_init();
-    display_lvgl_unlock();
 
-    wifi_manager_hw_preinit();
     settings_manager_init();
-    time_manager_init(NULL);
 
+    // Setup callbacks
     wifi_popup_on_connect(on_wifi_connect);
     wifi_manager_register_callback(on_wifi_state);
 
@@ -92,7 +99,6 @@ void app_main(void) {
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
-
         smw_process(&g_smw_worker, get_system_ms());
 
         struct tm timeinfo;
