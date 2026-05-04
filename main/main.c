@@ -5,6 +5,7 @@
 #include "freertos/task.h"
 #include "screen_timeout.h"
 #include "settings_manager.h"
+#include "smw.h"
 #include "time_manager.h"
 #include "ui.h"
 #include "ui_binder.h"
@@ -12,11 +13,19 @@
 #include "wifi_popup.h"
 #include "ws7b_board.h"
 
+#define SMW_MAX_TASKS 100
+
 static const char* g_tag = "main";
 
 static char g_current_ssid[33]     = "";
 static Bme280Reading g_bme_reading = {0};
 static volatile bool g_bme_updated = false;
+
+static SmwWorker g_smw_worker;
+static SmwTask g_smw_tasks[SMW_MAX_TASKS];
+
+// 2. Implement the external functions for the SMW framework
+uint32_t get_system_ms(void) { return (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS); }
 
 static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
     (void)user_ctx;
@@ -79,8 +88,13 @@ void app_main(void) {
         wifi_manager_start(ssid, pass, NULL);
     }
 
+    smw_init(&g_smw_worker, g_smw_tasks, SMW_MAX_TASKS);
+
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
+
+        smw_process(&g_smw_worker, get_system_ms());
+
         struct tm timeinfo;
         if (time_manager_get_time(&timeinfo)) {
             ui_binder_update_localtime(&timeinfo);
