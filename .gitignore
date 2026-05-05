@@ -48,3 +48,4 @@ __pycache__/
 .espressif/
 /managed_components/
 /sdkconfig
+docs/
