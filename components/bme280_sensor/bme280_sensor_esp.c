@@ -153,7 +153,7 @@ static float compensate_temperature(int32_t adc_t, int32_t* t_fine) {
     double var1 = ((double)adc_t / 16384.0 - (double)cal->dig_t1 / 1024.0) * (double)cal->dig_t2;
     double var2 = ((double)adc_t / 131072.0 - (double)cal->dig_t1 / 8192.0) *
                   ((double)adc_t / 131072.0 - (double)cal->dig_t1 / 8192.0) * (double)cal->dig_t3;
-    *t_fine     = (int32_t)(var1 + var2);
+    *t_fine = (int32_t)(var1 + var2);
     return (float)((var1 + var2) / 5120.0);
 }
 
