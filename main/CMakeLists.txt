@@ -5,6 +5,12 @@ idf_component_register(
         display
         screen_timeout
         ui
+        bme280_sensor
+        ui_binder
+        time_manager
+        settings_manager
+        wifi_manager
+        lib
 )
 
 target_include_directories(__idf_main PRIVATE ${CMAKE_SOURCE_DIR})

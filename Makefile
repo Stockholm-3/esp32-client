@@ -61,6 +61,7 @@ hardclean:
 # ----------------------------------------
 linux-build:
 	cd simulator && IDF_TARGET=linux idf.py build
+
 linux-reconfigure:
 	cd simulator && IDF_TARGET=linux idf.py reconfigure
 
@@ -142,9 +143,9 @@ lint-scrub: lint-check-deps
 	@echo "Scrubbing compile_commands.json -> $(LINT_DB_DIR)/compile_commands.json ..."
 	@mkdir -p $(LINT_DB_DIR)
 	@python3 $(SCRUB_SCRIPT) \
-		--input  $(COMPILE_DB_RAW) \
-		--output $(LINT_DB_DIR)/compile_commands.json \
-		--roots  $(ROOTS)
+	    --input  $(COMPILE_DB_RAW) \
+	    --output $(LINT_DB_DIR)/compile_commands.json \
+	    --roots  $(ROOTS)
 
 # -----------------------------------------------------------------------
 # lint — run clang-tidy, show all findings, fail on any warning or error
@@ -164,7 +165,7 @@ lint: lint-scrub
 	    $(TIDY_EXTRA_ARGS) \
 	    -quiet \
 	  2>&1 \
-	  | python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)" \
+	  | python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)" --force-color \
 	  | tee "$$TMPFILE"; \
 	FINDINGS=$$(grep -cP ":\d+:\d+:\s+(warning|error):" "$$TMPFILE" 2>/dev/null || true); \
 	rm -f "$$TMPFILE"; \
@@ -191,7 +192,7 @@ lint-ci: lint-scrub
 	    $(TIDY_EXTRA_ARGS) \
 	    -quiet \
 	  2>&1 \
-	  | python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)" \
+	  | python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)" --force-color \
 	  | tee "$$TMPFILE"; \
 	WARNINGS=$$(grep -cP ":\d+:\d+:\s+warning:" "$$TMPFILE" 2>/dev/null || true); \
 	ERRORS=$$(grep -cP ":\d+:\d+:\s+error:" "$$TMPFILE" 2>/dev/null || true); \
@@ -206,14 +207,7 @@ lint-ci: lint-scrub
 	fi
 
 # -----------------------------------------------------------------------
-# lint-fix — apply safe automatic fixes, constrained to YOUR files only
-#
-# Key flags:
-#   -source-filter  — run-clang-tidy only collects/applies fix YAML for
-#                     files matching this regex; Xtensa/nix/glibc headers
-#                     are never touched regardless of errors inside them.
-#   -fix            — merge and apply the collected YAML patches.
-#   -format         — reformat changed lines with clang-format after fixing.
+# lint-fix — apply safe automatic fixes
 # -----------------------------------------------------------------------
 lint-fix: lint-scrub
 	@echo "Running clang-tidy with auto-fix (project files only)..."
@@ -231,5 +225,5 @@ lint-fix: lint-scrub
 	    -format \
 	    -quiet \
 	  2>&1 \
-	  | python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)"; \
+	  | python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)" --force-color; \
 	echo "[OK] fixes applied (if any)"

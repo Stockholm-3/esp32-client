@@ -48,9 +48,11 @@ idf_component_register(
         "squareline/screens/ui_tab_elpris.c"
         "squareline/screens/ui_tab_settings.c"
     INCLUDE_DIRS
+        "."
         "include"
     REQUIRES
         display
         screen_timeout
         lvgl__lvgl
+        wifi_manager
 )

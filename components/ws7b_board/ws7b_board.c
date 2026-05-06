@@ -230,6 +230,8 @@ esp_err_t ws7b_board_init(void) {
     ESP_LOGI(g_tag, "I2C bus ready (SDA=%d SCL=%d @ %d Hz)", WS7B_I2C_SDA, WS7B_I2C_SCL,
              WS7B_I2C_FREQ_HZ);
 
+    vTaskDelay(pdMS_TO_TICKS(50));
+
     ESP_RETURN_ON_ERROR(init_ioexp(), g_tag, "IO expander init failed");
 
     ESP_RETURN_ON_ERROR(init_touch(), g_tag, "Touch init failed");
@@ -248,3 +250,5 @@ void ws7b_board_set_backlight(uint8_t brightness) {
     ioexp_write(WS7B_IOEXP_REG_PWM, brightness);
     ioexp_set_pin(WS7B_IOEXP_LCD_BL, brightness > 0 ? 1 : 0);
 }
+
+i2c_master_bus_handle_t ws7b_board_get_i2c_bus(void) { return g_s_i2c_bus; }
