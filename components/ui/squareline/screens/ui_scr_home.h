@@ -56,6 +56,9 @@ extern lv_obj_t * ui_tabelpris;
 extern lv_obj_t * ui_tabsettings;
 extern lv_obj_t * ui_Keyboard1;
 extern lv_obj_t * ui_ta_locationinput;
+extern lv_obj_t * ui_dd_price;
+extern lv_obj_t * ui_dd_timeout;
+extern lv_obj_t * ui_lbl_wifi_name;
 extern lv_obj_t * ui_btn_wifi_change;
 extern lv_obj_t * ui_dd_timeout;
 extern lv_obj_t * ui_panel_statusbar;
@@ -140,4 +143,3 @@ extern lv_obj_t * uic_lbl_elec_price;
 #endif
 
 #endif
-
