@@ -227,3 +227,23 @@ lint-fix: lint-scrub
 	  2>&1 \
 	  | python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)" --force-color; \
 	echo "[OK] fixes applied (if any)"
+# ------------------------------------------------------------
+# Documentation
+# ------------------------------------------------------------
+.PHONY: docs
+docs:
+	@echo "Generating documentation..."
+	@doxygen
+	@echo "Documentation generated in docs/html/index.html"
+
+.PHONY: docs-clean
+docs-clean:
+	@echo "Removing documentation..."
+	@rm -rf docs
+	@echo "Documentation removed."
+
+.PHONY: docs-open
+docs-open:
+	@echo "Opening documentation..."
+	@xdg-open docs/html/index.html
+	@echo "Documentation opened in default browser."

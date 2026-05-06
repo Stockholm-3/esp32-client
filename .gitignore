@@ -48,3 +48,6 @@ __pycache__/
 .espressif/
 /managed_components/
 /sdkconfig
+
+#Doxygen documentation
+docs/

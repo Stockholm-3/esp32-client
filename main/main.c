@@ -1,3 +1,11 @@
+/**
+ * @file main.c
+ * @brief Application entry point for the ESP32 client.
+ *
+ * @details Initialises peripherals (display, BME280, NVS, network stack),
+ *          registers Wi-Fi and sensor callbacks, and runs the main task loop.
+ */
+
 #include "bme280_sensor.h"
 #include "display.h"
 #include "esp_event.h"
@@ -16,19 +24,36 @@
 #include "wifi_popup.h"
 #include "ws7b_board.h"
 
+/** @brief Maximum number of tasks in the SMW scheduler queue. */
 #define SMW_MAX_TASKS 100
 
+/** @brief Log tag for this module. */
 static const char* g_tag = "main";
 
-static char g_current_ssid[33]     = "";
+/** @brief SSID of the currently active Wi-Fi network (32 chars + NUL). */
+static char g_current_ssid[33] = "";
+/** @brief Most recent BME280 sensor reading. */
 static Bme280Reading g_bme_reading = {0};
+/** @brief Set to true when a new BME280 sample has arrived and not yet consumed. */
 static volatile bool g_bme_updated = false;
 
+/** @brief SMW scheduler instance. */
 static SmwWorker g_smw_worker;
+/** @brief Task array for the SMW scheduler. */
 static SmwTask g_smw_tasks[SMW_MAX_TASKS];
 
+/**
+ * @brief Returns the current system time in milliseconds.
+ * @return Elapsed milliseconds since system start (uint32_t).
+ */
 uint32_t get_system_ms(void) { return (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS); }
 
+/**
+ * @brief Callback invoked when a new BME280 sample is ready.
+ *
+ * @param reading   Pointer to the latest sensor reading (temperature, pressure, humidity).
+ * @param user_ctx  User-supplied context pointer (unused).
+ */
 static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
     (void)user_ctx;
     ESP_LOGI(g_tag, "BME280 — temp: %.2f °C  pressure: %.2f hPa  humidity: %.2f %%RH",
@@ -38,6 +63,12 @@ static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
     g_bme_updated = true;
 }
 
+/**
+ * @brief Callback invoked when the user submits Wi-Fi credentials via the popup.
+ *
+ * @param ssid      Network SSID to connect to.
+ * @param password  Network password.
+ */
 static void on_wifi_connect(const char* ssid, const char* password) {
     strncpy(g_current_ssid, ssid, 32);
     g_current_ssid[32] = '\0';
@@ -45,6 +76,12 @@ static void on_wifi_connect(const char* ssid, const char* password) {
     settings_manager_save_wifi(ssid, password);
 }
 
+/**
+ * @brief Callback invoked on Wi-Fi manager state changes.
+ *
+ * @param state   New connection state.
+ * @param reason  Failure reason (currently unused).
+ */
 static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) {
     (void)reason;
     ui_binder_update_wifi_status(state);
@@ -55,6 +92,20 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     }
 }
 
+/**
+ * @brief Application main function (FreeRTOS entry point).
+ *
+ * @details Initialisation sequence:
+ *  1. NVS Flash
+ *  2. Network interface and default event loop
+ *  3. Display (LVGL)
+ *  4. BME280 sensor (non-fatal if absent)
+ *  5. UI, screen timeout, ui_binder
+ *  6. Settings manager
+ *  7. Wi-Fi manager (restores saved credentials)
+ *  8. SMW scheduler
+ *  9. Main loop (1 s tick: SMW processing, clock update, BME280 UI refresh)
+ */
 void app_main(void) {
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
