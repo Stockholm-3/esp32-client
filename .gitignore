@@ -54,3 +54,4 @@ docs/
 
 #just in case
 .envrc
+.direnv/
