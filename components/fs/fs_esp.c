@@ -1,6 +1,8 @@
 #include "esp_littlefs.h"
 #include "esp_log.h"
+#include "esp_vfs_fat.h"
 #include "fs.h"
+#include "sdmmc_cmd.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -9,99 +11,65 @@
 #include <string.h>
 #include <sys/stat.h>
 
-static const char* g_tag = "fs";
+static const char* g_tag = "fs_mgr";
 
-static bool g_mounted = false;
-
-esp_err_t fs_init(bool format_if_failed) {
-    if (g_mounted) {
-        ESP_LOGW(g_tag, "Already mounted");
-        return ESP_OK;
+esp_err_t fs_mount_littlefs(const char* partition_label, const char* mount_point,
+                            bool format_if_failed) {
+    if (!partition_label || !mount_point) {
+        return ESP_ERR_INVALID_ARG;
     }
 
-    const esp_vfs_littlefs_conf_t CONF = {
-        .base_path              = FS_MOUNT_POINT,
-        .partition_label        = FS_PARTITION_LABEL,
-        .format_if_mount_failed = (uint8_t)format_if_failed,
-        .dont_mount             = 0U,
-    };
+    esp_vfs_littlefs_conf_t conf = {.base_path              = mount_point,
+                                    .partition_label        = partition_label,
+                                    .format_if_mount_failed = format_if_failed,
+                                    .dont_mount             = false};
 
-    esp_err_t err = esp_vfs_littlefs_register(&CONF);
+    esp_err_t err = esp_vfs_littlefs_register(&conf);
     if (err != ESP_OK) {
-        ESP_LOGE(g_tag, "Mount failed (%s) — partition label: '%s'", esp_err_to_name(err),
-                 FS_PARTITION_LABEL);
+        ESP_LOGE(g_tag, "Failed to mount LittleFS %s at %s (%s)", partition_label, mount_point,
+                 esp_err_to_name(err));
         return err;
     }
 
-    g_mounted = true;
-    ESP_LOGI(g_tag, "Mounted '%s' on %s", FS_PARTITION_LABEL, FS_MOUNT_POINT);
-    fs_log_info();
+    ESP_LOGI(g_tag, "Mounted LittleFS [%s] -> %s", partition_label, mount_point);
     return ESP_OK;
 }
 
-esp_err_t fs_deinit(void) {
-    if (!g_mounted) {
-        return ESP_OK;
+esp_err_t fs_mount_sdcard(const char* mount_point) {
+    if (!mount_point) {
+        return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t err = esp_vfs_littlefs_unregister(FS_PARTITION_LABEL);
+    esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+        .format_if_mount_failed = false, .max_files = 5, .allocation_unit_size = 16 * 1024};
+
+    sdmmc_host_t host               = SDMMC_HOST_DEFAULT();
+    sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
+    sdmmc_card_t* card;
+
+    esp_err_t err = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config, &mount_config, &card);
+    if (err != ESP_OK) {
+        ESP_LOGE(g_tag, "Failed to mount SD Card at %s (%s)", mount_point, esp_err_to_name(err));
+        return err;
+    }
+
+    ESP_LOGI(g_tag, "Mounted SD Card -> %s", mount_point);
+    return ESP_OK;
+}
+
+esp_err_t fs_unmount(const char* mount_point) {
+    // Note: unregistering is handled by specific drivers.
+    // We attempt LittleFS first, then FAT.
+    esp_err_t err = esp_vfs_littlefs_unregister(mount_point);
+    if (err != ESP_OK) {
+        err = esp_vfs_fat_sdcard_unmount(mount_point,
+                                         NULL); // NULL because card pointer isn't stored locally
+    }
+
     if (err == ESP_OK) {
-        g_mounted = false;
-        ESP_LOGI(g_tag, "Unmounted");
-    } else {
-        ESP_LOGE(g_tag, "Unmount failed: %s", esp_err_to_name(err));
+        ESP_LOGI(g_tag, "Unmounted %s", mount_point);
     }
     return err;
-}
-
-bool fs_is_mounted(void) { return g_mounted; }
-
-esp_err_t fs_info(size_t* total_bytes, size_t* used_bytes) {
-    if (!g_mounted) {
-        return ESP_ERR_INVALID_STATE;
-    }
-    return esp_littlefs_info(FS_PARTITION_LABEL, total_bytes, used_bytes);
-}
-
-void fs_log_info(void) {
-    size_t total = 0;
-    size_t used  = 0;
-
-    if (fs_info(&total, &used) == ESP_OK) {
-        ESP_LOGI(g_tag, "%zu KB total  %zu KB used  %zu KB free", total / 1024, used / 1024,
-                 (total - used) / 1024);
-    }
-}
-
-esp_err_t fs_list(const char* dir_path) {
-    if (!g_mounted) {
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    DIR* dir = opendir(dir_path);
-    if (!dir) {
-        ESP_LOGE(g_tag, "opendir('%s'): %s", dir_path, strerror(errno));
-        return ESP_FAIL;
-    }
-
-    ESP_LOGI(g_tag, "Listing directory: %s", dir_path);
-
-    const struct dirent* entry;
-    char full_path[512];
-
-    while ((entry = readdir(dir)) != NULL) {
-        int written = snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, entry->d_name);
-
-        if (written >= sizeof(full_path)) {
-            ESP_LOGW(g_tag, "Path too long, skipping: %s", entry->d_name);
-            continue;
-        }
-
-        ESP_LOGI(g_tag, "  %-40s  %ld B", entry->d_name, fs_size(full_path));
-    }
-
-    closedir(dir);
-    return ESP_OK;
 }
 
 bool fs_exists(const char* path) {
@@ -109,18 +77,7 @@ bool fs_exists(const char* path) {
     return stat(path, &st) == 0;
 }
 
-esp_err_t fs_remove(const char* path) {
-    if (!fs_exists(path)) {
-        return ESP_ERR_NOT_FOUND;
-    }
-    if (remove(path) != 0) {
-        ESP_LOGE(g_tag, "remove('%s'): %s", path, strerror(errno));
-        return ESP_FAIL;
-    }
-    return ESP_OK;
-}
-
-long fs_size(const char* path) {
+long fs_get_size(const char* path) {
     struct stat st;
     if (stat(path, &st) != 0) {
         return -1;
@@ -128,43 +85,49 @@ long fs_size(const char* path) {
     return (long)st.st_size;
 }
 
-esp_err_t fs_write(const char* path, const void* data, size_t len) {
-    if (!g_mounted) {
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    FILE* f = fopen(path, "wb");
-    if (!f) {
-        ESP_LOGE(g_tag, "fopen('%s'): %s", path, strerror(errno));
+esp_err_t fs_list(const char* dir_path) {
+    DIR* dir = opendir(dir_path);
+    if (!dir) {
+        ESP_LOGE(g_tag, "opendir('%s') failed: %s", dir_path, strerror(errno));
         return ESP_FAIL;
     }
 
-    const size_t WRITTEN = fwrite(data, 1, len, f);
-    fclose(f);
-
-    if (WRITTEN != len) {
-        ESP_LOGE(g_tag, "fwrite: wrote %zu of %zu bytes", WRITTEN, len);
-        return ESP_FAIL;
+    ESP_LOGI(g_tag, "Listing: %s", dir_path);
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != NULL) {
+        char full_path[256];
+        fs_build_path(full_path, sizeof(full_path), dir_path, entry->d_name);
+        ESP_LOGI(g_tag, "  %-32s | %ld bytes", entry->d_name, fs_get_size(full_path));
     }
+
+    closedir(dir);
     return ESP_OK;
 }
 
-esp_err_t fs_read(const char* path, void* buf, size_t buf_len, size_t* bytes_read) {
-    if (!g_mounted) {
-        return ESP_ERR_INVALID_STATE;
+esp_err_t fs_write(const char* path, const void* data, size_t len) {
+    FILE* f = fopen(path, "wb");
+    if (!f) {
+        ESP_LOGE(g_tag, "fopen('%s') for write failed: %s", path, strerror(errno));
+        return ESP_FAIL;
     }
 
+    size_t written = fwrite(data, 1, len, f);
+    fclose(f);
+
+    return (written == len) ? ESP_OK : ESP_FAIL;
+}
+
+esp_err_t fs_read(const char* path, void* buf, size_t buf_len, size_t* bytes_read) {
     FILE* f = fopen(path, "rb");
     if (!f) {
-        ESP_LOGE(g_tag, "fopen('%s'): %s", path, strerror(errno));
         return ESP_ERR_NOT_FOUND;
     }
 
-    const size_t N = fread(buf, 1, buf_len, f);
+    size_t n = fread(buf, 1, buf_len, f);
     fclose(f);
 
     if (bytes_read) {
-        *bytes_read = N;
+        *bytes_read = n;
     }
     return ESP_OK;
 }
@@ -177,19 +140,18 @@ esp_err_t fs_write_str(const char* path, const char* str) {
 }
 
 char* fs_read_str(const char* path) {
-    const long SIZE = fs_size(path);
-    if (SIZE < 0) {
+    long size = fs_get_size(path);
+    if (size < 0) {
         return NULL;
     }
 
-    char* buf = malloc((size_t)SIZE + 1);
+    char* buf = malloc(size + 1);
     if (!buf) {
-        ESP_LOGE(g_tag, "malloc(%ld) failed", SIZE + 1);
         return NULL;
     }
 
     size_t n = 0;
-    if (fs_read(path, buf, (size_t)SIZE, &n) != ESP_OK) {
+    if (fs_read(path, buf, size, &n) != ESP_OK) {
         free(buf);
         return NULL;
     }
@@ -198,6 +160,23 @@ char* fs_read_str(const char* path) {
     return buf;
 }
 
-void fs_path(char* out, size_t out_len, const char* relative) {
-    snprintf(out, out_len, "%s/%s", FS_MOUNT_POINT, relative);
+esp_err_t fs_remove(const char* path) {
+    if (remove(path) != 0) {
+        return (errno == ENOENT) ? ESP_ERR_NOT_FOUND : ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
+void fs_build_path(char* out, size_t out_len, const char* mount_point, const char* relative) {
+    if (!out || !mount_point || !relative) {
+        return;
+    }
+
+    // Ensure no double slashes between mount_point and relative path
+    size_t m_len    = strlen(mount_point);
+    const char* sep = (m_len > 0 && mount_point[m_len - 1] == '/') ? ""
+                      : (relative[0] == '/')                       ? ""
+                                                                   : "/";
+
+    snprintf(out, out_len, "%s%s%s", mount_point, sep, relative);
 }
