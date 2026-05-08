@@ -89,7 +89,7 @@ static void* simulation_thread(void* arg) {
 
     s_window =
         SDL_CreateWindow("WS7B Simulator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                         WS7B_LCD_H_RES, WS7B_LCD_V_RES, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+                         WS7B_LCD_H_RES, WS7B_LCD_V_RES, SDL_WINDOW_SHOWN); // Removed RESIZABLE
 
     if (!s_window) {
         ESP_LOGE(TAG, "SDL window error: %s", SDL_GetError());
