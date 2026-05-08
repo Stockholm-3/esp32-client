@@ -1,3 +1,4 @@
+#include "driver/sdmmc_host.h"
 #include "esp_littlefs.h"
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
