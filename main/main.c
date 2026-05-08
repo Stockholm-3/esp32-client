@@ -13,6 +13,8 @@
 #include "esp_netif.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "loc_server.h"
+#include "mdns.h"
 #include "nvs_flash.h"
 #include "screen_timeout.h"
 #include "settings_manager.h"
@@ -26,6 +28,11 @@
 
 /** @brief Maximum number of tasks in the SMW scheduler queue. */
 #define SMW_MAX_TASKS 100
+
+/** @brief Local web-client ip-settings*/
+#define LOC_SERVER_STATIC_IP "192.168.33.33"
+#define LOC_SERVER_GATEWAY "192.168.33.1"
+#define LOC_SERVER_NETMASK "255.255.255.0"
 
 /** @brief Log tag for this module. */
 static const char* g_tag = "main";
@@ -87,9 +94,10 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     ui_binder_update_wifi_status(state);
     if (state == WIFI_MANAGER_STATE_CONNECTED) {
         ui_binder_update_wifi_name(g_current_ssid);
-
         time_manager_init(NULL);
+        loc_server_start();
     }
+    loc_server_notify_wifi_state(state);
 }
 
 /**
@@ -117,6 +125,10 @@ void app_main(void) {
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+    mdns_init();
+    mdns_hostname_set("esp32-client");
+    mdns_instance_name_set("ESP32 Settings");
+
     lv_display_t* disp = NULL;
     lv_indev_t* touch  = NULL;
     ESP_ERROR_CHECK(display_init(&disp, &touch));
@@ -141,9 +153,18 @@ void app_main(void) {
     display_lvgl_unlock();
 
     settings_manager_init();
+    loc_server_init();
 
     wifi_popup_on_connect(on_wifi_connect);
     wifi_manager_register_callback(on_wifi_state);
+
+    esp_netif_t* netif          = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    esp_netif_ip_info_t ip_info = {0};
+    esp_netif_str_to_ip4(LOC_SERVER_STATIC_IP, &ip_info.ip);
+    esp_netif_str_to_ip4(LOC_SERVER_GATEWAY, &ip_info.gw);
+    esp_netif_str_to_ip4(LOC_SERVER_NETMASK, &ip_info.netmask);
+    esp_netif_dhcpc_stop(netif);
+    esp_netif_set_ip_info(netif, &ip_info);
 
     const char* ssid = settings_manager_get_ssid();
     const char* pass = settings_manager_get_password();

@@ -9,3 +9,6 @@ void        settings_manager_save_wifi(const char *ssid, const char *password);
 const char* settings_manager_get_location(void);
 int         settings_manager_get_price_zone(void);
 int         settings_manager_get_timeout(void);
+void settings_manager_save_location(const char* city);
+void settings_manager_save_price_zone(int index);
+void settings_manager_save_timeout(int index);

@@ -150,10 +150,12 @@ static esp_err_t load_calibration(void) {
 
 static float compensate_temperature(int32_t adc_t, int32_t* t_fine) {
     const Bme280Calib* cal = &g_ctx.calib;
-    double var1 = ((double)adc_t / 16384.0 - (double)cal->dig_t1 / 1024.0) * (double)cal->dig_t2;
-    double var2 = ((double)adc_t / 131072.0 - (double)cal->dig_t1 / 8192.0) *
-                  ((double)adc_t / 131072.0 - (double)cal->dig_t1 / 8192.0) * (double)cal->dig_t3;
-    *t_fine = (int32_t)(var1 + var2);
+    double var1 =
+        (((double)adc_t / 16384.0) - ((double)cal->dig_t1 / 1024.0)) * (double)cal->dig_t2;
+    double var2 = (((double)adc_t / 131072.0) - ((double)cal->dig_t1 / 8192.0)) *
+                  (((double)adc_t / 131072.0) - ((double)cal->dig_t1 / 8192.0)) *
+                  (double)cal->dig_t3;
+    *t_fine     = (int32_t)(var1 + var2);
     return (float)((var1 + var2) / 5120.0);
 }
 
@@ -163,13 +165,14 @@ static float compensate_pressure(int32_t adc_p, int32_t t_fine) {
     double var2            = var1 * var1 * (double)cal->dig_p6 / 32768.0;
     var2                   = var2 + (var1 * (double)cal->dig_p5 * 2.0);
     var2                   = (var2 / 4.0) + ((double)cal->dig_p4 * 65536.0);
-    var1 = ((double)cal->dig_p3 * var1 * var1 / 524288.0 + (double)cal->dig_p2 * var1) / 524288.0;
-    var1 = (1.0 + var1 / 32768.0) * (double)cal->dig_p1;
+    var1 =
+        (((double)cal->dig_p3 * var1 * var1 / 524288.0) + ((double)cal->dig_p2 * var1)) / 524288.0;
+    var1 = (1.0 + (var1 / 32768.0)) * (double)cal->dig_p1;
     if (var1 == 0.0) {
         return 0.0F; /* Avoid division by zero */
     }
     double pressure = 1048576.0 - (double)adc_p;
-    pressure        = (pressure - var2 / 4096.0) * 6250.0 / var1;
+    pressure        = (pressure - (var2 / 4096.0)) * 6250.0 / var1;
     var1            = (double)cal->dig_p9 * pressure * pressure / 2147483648.0;
     var2            = pressure * (double)cal->dig_p8 / 32768.0;
     pressure        = pressure + ((var1 + var2 + (double)cal->dig_p7) / 16.0);
@@ -179,11 +182,12 @@ static float compensate_pressure(int32_t adc_p, int32_t t_fine) {
 static float compensate_humidity(int32_t adc_h, int32_t t_fine) {
     const Bme280Calib* cal = &g_ctx.calib;
     double var_h           = (double)t_fine - 76800.0;
-    var_h = ((double)adc_h - ((double)cal->dig_h4 * 64.0 + (double)cal->dig_h5 / 16384.0 * var_h)) *
-            ((double)cal->dig_h2 / 65536.0 *
-             (1.0 + (double)cal->dig_h6 / 67108864.0 * var_h *
-                        (1.0 + (double)cal->dig_h3 / 67108864.0 * var_h)));
-    var_h = var_h * (1.0 - (double)cal->dig_h1 * var_h / 524288.0);
+    var_h =
+        ((double)adc_h - (((double)cal->dig_h4 * 64.0) + ((double)cal->dig_h5 / 16384.0 * var_h))) *
+        ((double)cal->dig_h2 / 65536.0 *
+         (1.0 + ((double)cal->dig_h6 / 67108864.0 * var_h *
+                 (1.0 + ((double)cal->dig_h3 / 67108864.0 * var_h)))));
+    var_h = var_h * (1.0 - ((double)cal->dig_h1 * var_h / 524288.0));
     if (var_h > 100.0) {
         var_h = 100.0;
     } else if (var_h < 0.0) {

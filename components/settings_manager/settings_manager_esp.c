@@ -13,7 +13,7 @@ static char g_s_location[128] = "";
 static int g_s_price_zone     = 0;
 static int g_s_timeout        = 0;
 
-static void on_location_changed(const char* city) {
+void settings_manager_save_location(const char* city) {
     strncpy(g_s_location, city, sizeof(g_s_location) - 1);
     nvs_handle_t h;
     if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
@@ -22,8 +22,7 @@ static void on_location_changed(const char* city) {
         nvs_close(h);
     }
 }
-
-static void on_price_changed(int index) {
+void settings_manager_save_price_zone(int index) {
     g_s_price_zone = index;
     nvs_handle_t h;
     if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
@@ -33,7 +32,7 @@ static void on_price_changed(int index) {
     }
 }
 
-static void on_timeout_changed(int index) {
+void settings_manager_save_timeout(int index) {
     g_s_timeout = index;
     nvs_handle_t h;
     if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
@@ -74,9 +73,9 @@ void(settings_manager_init(void)) {
     ui_binder_set_price_zone(g_s_price_zone);
     ui_binder_set_timeout(g_s_timeout);
 
-    ui_binder_on_location_changed(on_location_changed);
-    ui_binder_on_price_changed(on_price_changed);
-    ui_binder_on_timeout_changed(on_timeout_changed);
+    ui_binder_on_location_changed(settings_manager_save_location);
+    ui_binder_on_price_changed(settings_manager_save_price_zone);
+    ui_binder_on_timeout_changed(settings_manager_save_timeout);
 }
 const char* settings_manager_get_location(void) { return g_s_location; }
 int settings_manager_get_price_zone(void) { return g_s_price_zone; }

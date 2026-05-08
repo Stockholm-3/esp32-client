@@ -5,14 +5,20 @@
 
 #include <stdio.h>
 
-static ui_binder_location_cb_t g_s_location_cb = NULL;
-static ui_binder_dropdown_cb_t g_s_price_cb    = NULL;
-static ui_binder_dropdown_cb_t g_s_timeout_cb  = NULL;
+static ui_binder_location_cb_t g_s_location_cb  = NULL;
+static ui_binder_dropdown_cb_t g_s_price_cb     = NULL;
+static ui_binder_dropdown_cb_t g_s_timeout_cb   = NULL;
+static ui_binder_location_cb_t g_s_location_cb2 = NULL;
+static ui_binder_dropdown_cb_t g_s_price_cb2    = NULL;
+static ui_binder_dropdown_cb_t g_s_timeout_cb2  = NULL;
 
 static void on_location_defocused(lv_event_t* e) {
     (void)e;
     if (g_s_location_cb) {
         g_s_location_cb(lv_textarea_get_text(ui_ta_locationinput));
+    }
+    if (g_s_location_cb2) {
+        g_s_location_cb2(lv_textarea_get_text(ui_ta_locationinput));
     }
 }
 
@@ -38,12 +44,18 @@ static void on_price_changed(lv_event_t* e) {
     if (g_s_price_cb) {
         g_s_price_cb((int)lv_dropdown_get_selected(ui_dd_price));
     }
+    if (g_s_price_cb2) {
+        g_s_price_cb2((int)lv_dropdown_get_selected(ui_dd_price));
+    }
 }
 
 static void on_timeout_changed(lv_event_t* e) {
     (void)e;
     if (g_s_timeout_cb) {
         g_s_timeout_cb((int)lv_dropdown_get_selected(ui_dd_timeout));
+    }
+    if (g_s_timeout_cb2) {
+        g_s_timeout_cb2((int)lv_dropdown_get_selected(ui_dd_timeout));
     }
 }
 
@@ -86,6 +98,10 @@ void ui_binder_set_timeout(int index) {
 void ui_binder_on_location_changed(ui_binder_location_cb_t cb) { g_s_location_cb = cb; }
 void ui_binder_on_price_changed(ui_binder_dropdown_cb_t cb) { g_s_price_cb = cb; }
 void ui_binder_on_timeout_changed(ui_binder_dropdown_cb_t cb) { g_s_timeout_cb = cb; }
+
+void ui_binder_on_location_changed2(ui_binder_location_cb_t cb) { g_s_location_cb2 = cb; }
+void ui_binder_on_price_changed2(ui_binder_dropdown_cb_t cb) { g_s_price_cb2 = cb; }
+void ui_binder_on_timeout_changed2(ui_binder_dropdown_cb_t cb) { g_s_timeout_cb2 = cb; }
 
 void ui_binder_update_bme280(const Bme280Reading* reading) {
     char buf[10];

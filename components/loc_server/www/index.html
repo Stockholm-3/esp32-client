@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ESP32 Settings</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Device Settings</h1>
+        <div class="status-bar">
+            <span class="dot disconnected" id="ws-dot"></span>
+            <span id="ws-label">Connecting...</span>
+        </div>
+
+        <div class="row">
+            <div class="row-info">
+                <div class="title">WiFi</div>
+                <div class="sub" id="wifi-state-lbl"></div>
+            </div>
+            <div class="inputs">
+                <input id="inp-ssid" type="text" placeholder="SSID">
+                <input id="inp-pass" type="password" placeholder="Password">
+                <button onclick="applyWifi()">Apply</button>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="row-info">
+                <div class="title">Location</div>
+                <div class="sub">City for weather data</div>
+            </div>
+            <input id="inp-location" type="text" placeholder="Enter city..."
+                   onchange="sendSettings()">
+        </div>
+
+        <div class="row">
+            <div class="row-info">
+                <div class="title">Price zone</div>
+                <div class="sub">Swedish electricity zone</div>
+            </div>
+            <select id="sel-price" onchange="sendSettings()">
+                <option>SE1</option><option>SE2</option>
+                <option>SE3</option><option>SE4</option>
+            </select>
+        </div>
+
+        <div class="row">
+            <div class="row-info">
+                <div class="title">Screen timeout</div>
+                <div class="sub">Auto dim after inactivity</div>
+            </div>
+            <select id="sel-timeout" onchange="sendSettings()">
+                <option>5 min</option><option>10 min</option>
+                <option>15 min</option><option>20 min</option>
+                <option>Never</option>
+            </select>
+        </div>
+    </div>
+    <script src="/app.js"></script>
+</body>
+</html>
