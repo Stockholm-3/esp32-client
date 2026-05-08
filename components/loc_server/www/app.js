@@ -27,8 +27,22 @@ function connect() {
         } else if (msg.type === 'wifi_status') {
             const labels = { connected: 'Connected', connecting: 'Connecting...', failed: 'Failed' };
             document.getElementById('wifi-state-lbl').textContent = labels[msg.state] || msg.state;
-        }
+        } else if (msg.type === 'wifi_scan_result') {
+        const sel = document.getElementById('sel-ssid');
+        sel.innerHTML = '<option value="">-- select network --</option>';
+        msg.aps.forEach(ap => {
+            const opt = document.createElement('option');
+            opt.value = ap.ssid;
+            opt.textContent = `${ap.ssid}  (${ap.rssi} dBm)${ap.open ? ' 🔓' : ''}`;
+            sel.appendChild(opt);
+        });
+    }
     };
+}
+
+function scanWifi() {
+    if (!g_ws || g_ws.readyState !== WebSocket.OPEN) return;
+    g_ws.send(JSON.stringify({ type: 'scan_wifi' }));
 }
 
 function sendSettings() {
@@ -43,9 +57,9 @@ function sendSettings() {
 
 function applyWifi() {
     if (!g_ws || g_ws.readyState !== WebSocket.OPEN) return;
-    const ssid = document.getElementById('inp-ssid').value.trim();
+    const ssid = document.getElementById('sel-ssid').value;
     const pass = document.getElementById('inp-pass').value;
-    if (!ssid || !pass) { alert('SSID and password are required'); return; }
+    if (!ssid || !pass) { alert('Select network and enter password'); return; }
     g_ws.send(JSON.stringify({ type: 'set_settings', ssid, password: pass }));
 }
 

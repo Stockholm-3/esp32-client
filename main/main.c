@@ -14,7 +14,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "loc_server.h"
-#include "mdns.h"
 #include "nvs_flash.h"
 #include "screen_timeout.h"
 #include "settings_manager.h"
@@ -25,6 +24,10 @@
 #include "wifi_manager.h"
 #include "wifi_popup.h"
 #include "ws7b_board.h"
+
+#ifndef CONFIG_IDF_TARGET_LINUX
+#    include "mdns.h"
+#endif
 
 /** @brief Maximum number of tasks in the SMW scheduler queue. */
 #define SMW_MAX_TASKS 100
@@ -125,9 +128,11 @@ void app_main(void) {
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+#ifndef CONFIG_IDF_TARGET_LINUX
     mdns_init();
     mdns_hostname_set("esp32-client");
     mdns_instance_name_set("ESP32 Settings");
+#endif
 
     lv_display_t* disp = NULL;
     lv_indev_t* touch  = NULL;
@@ -158,6 +163,7 @@ void app_main(void) {
     wifi_popup_on_connect(on_wifi_connect);
     wifi_manager_register_callback(on_wifi_state);
 
+#ifndef CONFIG_IDF_TARGET_LINUX
     esp_netif_t* netif          = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
     esp_netif_ip_info_t ip_info = {0};
     esp_netif_str_to_ip4(LOC_SERVER_STATIC_IP, &ip_info.ip);
@@ -165,6 +171,7 @@ void app_main(void) {
     esp_netif_str_to_ip4(LOC_SERVER_NETMASK, &ip_info.netmask);
     esp_netif_dhcpc_stop(netif);
     esp_netif_set_ip_info(netif, &ip_info);
+#endif
 
     const char* ssid = settings_manager_get_ssid();
     const char* pass = settings_manager_get_password();

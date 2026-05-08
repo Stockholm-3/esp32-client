@@ -20,7 +20,8 @@
                 <div class="sub" id="wifi-state-lbl"></div>
             </div>
             <div class="inputs">
-                <input id="inp-ssid" type="text" placeholder="SSID">
+                <button onclick="scanWifi()">Scan networks</button>
+                <select id="sel-ssid"><option value="">-- select network --</option></select>
                 <input id="inp-pass" type="password" placeholder="Password">
                 <button onclick="applyWifi()">Apply</button>
             </div>

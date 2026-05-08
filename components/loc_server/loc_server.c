@@ -75,6 +75,29 @@ void loc_server_push_settings(void) {
     }
 }
 
+static void on_wifi_scan_done(const WifiManagerApInfo* aps, uint16_t count) {
+    if (g_server == NULL || g_ws_fd < 0) {
+        return;
+    }
+
+    // building JSON: {"type":"wifi_scan_result","aps":[{"ssid":"...","rssi":-45,"open":false},...]}
+    char buf[1024];
+    int pos = snprintf(buf, sizeof(buf), "{\"type\":\"wifi_scan_result\",\"aps\":[");
+    for (int i = 0; i < count && pos < (int)sizeof(buf) - 64; i++) {
+        pos += snprintf(buf + pos, sizeof(buf) - pos, "%s{\"ssid\":\"%s\",\"rssi\":%d,\"open\":%s}",
+                        i > 0 ? "," : "", aps[i].ssid, aps[i].rssi,
+                        aps[i].authmode == 0 ? "true" : "false");
+    }
+    pos += snprintf(buf + pos, sizeof(buf) - pos, "]}");
+
+    httpd_ws_frame_t frame = {
+        .type    = HTTPD_WS_TYPE_TEXT,
+        .payload = (uint8_t*)buf,
+        .len     = (size_t)pos,
+    };
+    httpd_ws_send_frame_async(g_server, g_ws_fd, &frame);
+}
+
 static void handle_ws_message(const char* json_str) {
     cJSON* root = cJSON_Parse(json_str);
     if (!root) {
@@ -83,6 +106,11 @@ static void handle_ws_message(const char* json_str) {
 
     cJSON* type = cJSON_GetObjectItemCaseSensitive(root, "type");
     if (!cJSON_IsString(type) || strcmp(type->valuestring, "set_settings") != 0) {
+        cJSON_Delete(root);
+        return;
+    }
+    if (strcmp(type->valuestring, "scan_wifi") == 0) {
+        wifi_manager_scan(on_wifi_scan_done);
         cJSON_Delete(root);
         return;
     }
