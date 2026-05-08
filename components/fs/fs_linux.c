@@ -10,12 +10,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/statvfs.h>
 #include <unistd.h>
 
 static const char* g_tag = "fs_stub";
 
-// Helper for local logging
+/**
+ * @brief Helper to translate absolute VFS paths to relative local paths
+ * for the simulator to avoid permission errors at the system root.
+ */
+static const char* fix_path(const char* path) {
+    if (path != NULL && path[0] == '/') {
+        return &path[1];
+    }
+    return path;
+}
+
 static void log_msg(const char* level, const char* fmt, ...) {
     printf("[%s] %s: ", level, g_tag);
     va_list args;
@@ -30,8 +39,9 @@ static void log_msg(const char* level, const char* fmt, ...) {
 #define LOGE(...) log_msg("E", __VA_ARGS__)
 
 static esp_err_t ensure_dir(const char* path) {
-    if (mkdir(path, 0755) != 0 && errno != EEXIST) {
-        LOGE("mkdir('%s') failed: %s", path, strerror(errno));
+    const char* local_path = fix_path(path);
+    if (mkdir(local_path, 0755) != 0 && errno != EEXIST) {
+        LOGE("mkdir('%s') failed: %s", local_path, strerror(errno));
         return ESP_FAIL;
     }
     return ESP_OK;
@@ -58,12 +68,12 @@ esp_err_t fs_unmount(const char* mount_point) {
 
 bool fs_exists(const char* path) {
     struct stat st;
-    return stat(path, &st) == 0;
+    return stat(fix_path(path), &st) == 0;
 }
 
 long fs_get_size(const char* path) {
     struct stat st;
-    if (stat(path, &st) != 0) {
+    if (stat(fix_path(path), &st) != 0) {
         return -1;
     }
     return (long)st.st_size;
@@ -81,18 +91,20 @@ static int nftw_callback(const char* path, const struct stat* st, int type_flag,
 }
 
 esp_err_t fs_list(const char* dir_path) {
-    LOGI("Listing: %s", dir_path);
-    if (nftw(dir_path, nftw_callback, 8, FTW_PHYS) != 0) {
-        LOGE("nftw('%s') failed: %s", dir_path, strerror(errno));
+    const char* local_path = fix_path(dir_path);
+    LOGI("Listing: %s", local_path);
+    if (nftw(local_path, nftw_callback, 8, FTW_PHYS) != 0) {
+        LOGE("nftw('%s') failed: %s", local_path, strerror(errno));
         return ESP_FAIL;
     }
     return ESP_OK;
 }
 
 esp_err_t fs_write(const char* path, const void* data, size_t len) {
-    FILE* f = fopen(path, "wb");
+    const char* local_path = fix_path(path);
+    FILE* f                = fopen(local_path, "wb");
     if (!f) {
-        LOGE("fopen('%s') failed: %s", path, strerror(errno));
+        LOGE("fopen('%s') failed: %s", local_path, strerror(errno));
         return ESP_FAIL;
     }
 
@@ -107,7 +119,7 @@ esp_err_t fs_write(const char* path, const void* data, size_t len) {
 }
 
 esp_err_t fs_read(const char* path, void* buf, size_t buf_len, size_t* bytes_read) {
-    FILE* f = fopen(path, "rb");
+    FILE* f = fopen(fix_path(path), "rb");
     if (!f) {
         return ESP_ERR_NOT_FOUND;
     }
@@ -150,7 +162,7 @@ char* fs_read_str(const char* path) {
 }
 
 esp_err_t fs_remove(const char* path) {
-    if (remove(path) != 0) {
+    if (remove(fix_path(path)) != 0) {
         return (errno == ENOENT) ? ESP_ERR_NOT_FOUND : ESP_FAIL;
     }
     return ESP_OK;
