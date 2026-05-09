@@ -4,6 +4,10 @@ ESP-32 Client
 
 ![C](https://img.shields.io/badge/C-%2300599C.svg?style=flat&logo=c&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Build](https://github.com/Stockholm-3/esp32-client/actions/workflows/build.yml/badge.svg)](https://github.com/Stockholm-3/esp32-client/actions/workflows/build.yml)
+[![Simulator Build](https://github.com/Stockholm-3/esp32-client/actions/workflows/build_linux.yml/badge.svg)](https://github.com/Stockholm-3/esp32-client/actions/workflows/build_linux.yml)
+[![Format](https://github.com/Stockholm-3/esp32-client/actions/workflows/format.yml/badge.svg)](https://github.com/Stockholm-3/esp32-client/actions/workflows/format.yml)
+[![Lint](https://github.com/Stockholm-3/esp32-client/actions/workflows/lint.yml/badge.svg)](https://github.com/Stockholm-3/esp32-client/actions/workflows/lint.yml)
 ---
 
 ## Related repos
