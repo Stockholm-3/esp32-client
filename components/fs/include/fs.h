@@ -1,3 +1,12 @@
+/**
+ * @file fs.h
+ * @brief Generic File System Manager for ESP32 (LittleFS, FATFS/SD-Card)
+ *
+ * This module provides a unified wrapper around the ESP-IDF Virtual File System (VFS).
+ * By using absolute paths (e.g., "/storage/file.txt" vs "/sdcard/file.txt"), the
+ * same functions can operate on different physical storage media.
+ */
+
 #ifndef FS_H
 #define FS_H
 
@@ -10,79 +19,118 @@
 extern "C" {
 #endif
 
-#define FS_MOUNT_POINT "/storage"
-#define FS_PARTITION_LABEL "storage"
-#define FS_MAX_PATH_LEN 128
+/**
+ * @brief Initialize and mount a LittleFS partition.
+ *
+ * @param partition_label Label of the partition in the CSV table (e.g., "storage").
+ * @param mount_point VFS path where the partition will be accessed (e.g., "/storage").
+ * @param format_if_failed If true, formats the partition if it's corrupted or unformatted.
+ * @return ESP_OK on success, or an error code from the underlying VFS driver.
+ */
+esp_err_t fs_mount_littlefs(const char* partition_label, const char* mount_point,
+                            bool format_if_failed);
 
 /**
- * Mount the LittleFS partition. Call once at startup before any file
- * operations. Pass format_if_failed = true on first boot so the partition
- * is formatted automatically if blank.
+ * @brief Initialize and mount an SD Card using FATFS via SDMMC.
+ *
+ * @note This uses the default SDMMC host and slot configuration.
+ * @param mount_point VFS path where the SD card will be accessed (e.g., "/sdcard").
+ * @return ESP_OK on success, or an error code from the FATFS/SDMMC driver.
  */
-esp_err_t fs_init(bool format_if_failed);
+esp_err_t fs_mount_sdcard(const char* mount_point);
 
 /**
- * Unmount the filesystem. Call before deep sleep or shutdown to flush
- * any pending writes.
+ * @brief Unmount a file system.
+ *
+ * @param mount_point The VFS path to unmount.
+ * @return ESP_OK on success.
  */
-esp_err_t fs_deinit(void);
-
-bool fs_is_mounted(void);
+esp_err_t fs_unmount(const char* mount_point);
 
 /**
- * Fill out with total and used byte counts. Either pointer may be NULL.
+ * @brief Check if a file or directory exists.
+ *
+ * @param path Full absolute path to the object.
+ * @return true if it exists, false otherwise.
  */
-esp_err_t fs_info(size_t* total_bytes, size_t* used_bytes);
-
-/**
- * Log storage usage to ESP_LOGI.
- */
-void fs_log_info(void);
-
-/**
- * Log every file under dir_path to ESP_LOGI.
- */
-esp_err_t fs_list(const char* dir_path);
-
 bool fs_exists(const char* path);
 
 /**
- * Delete a file. Returns ESP_ERR_NOT_FOUND if the file does not exist.
+ * @brief Get the size of a file in bytes.
+ *
+ * @param path Full absolute path to the file.
+ * @return File size in bytes, or -1 if the file does not exist.
+ */
+long fs_get_size(const char* path);
+
+/**
+ * @brief Delete a file from the file system.
+ *
+ * @param path Full absolute path to the file.
+ * @return ESP_OK on success, ESP_ERR_NOT_FOUND if missing.
  */
 esp_err_t fs_remove(const char* path);
 
-long fs_size(const char* path);
+/**
+ * @brief Log a list of all files in a directory to ESP_LOGI.
+ *
+ * @param dir_path Full absolute path to the directory.
+ * @return ESP_OK on success.
+ */
+esp_err_t fs_list(const char* dir_path);
 
 /**
- * Write len bytes from data to path, replacing any existing content.
+ * @brief Write raw binary data to a file.
+ *
+ * Overwrites any existing content.
+ *
+ * @param path Full absolute path to the file.
+ * @param data Pointer to the data buffer.
+ * @param len Number of bytes to write.
+ * @return ESP_OK on success.
  */
 esp_err_t fs_write(const char* path, const void* data, size_t len);
 
 /**
- * Read up to buf_len bytes from path into buf.
- * If bytes_read is non-NULL it is set to the number of bytes actually read.
+ * @brief Read raw binary data from a file.
+ *
+ * @param path Full absolute path to the file.
+ * @param buf Pointer to the destination buffer.
+ * @param buf_len Size of the destination buffer.
+ * @param[out] bytes_read Optional pointer to store the actual number of bytes read.
+ * @return ESP_OK on success.
  */
 esp_err_t fs_read(const char* path, void* buf, size_t buf_len, size_t* bytes_read);
 
 /**
- * Write a null-terminated string to path.
+ * @brief Write a null-terminated string to a file.
+ *
+ * @param path Full absolute path to the file.
+ * @param str The string to write.
+ * @return ESP_OK on success.
  */
 esp_err_t fs_write_str(const char* path, const char* str);
 
 /**
- * Read a file into a heap-allocated, null-terminated string.
- * The caller must free() the returned pointer. Returns NULL on error.
+ * @brief Read a file into a newly allocated string.
+ *
+ * Memory is allocated on the heap. The string is automatically null-terminated.
+ *
+ * @warning The caller is responsible for calling free() on the returned pointer.
+ * @param path Full absolute path to the file.
+ * @return Pointer to the allocated string, or NULL on failure.
  */
 char* fs_read_str(const char* path);
 
 /**
- * Build an absolute path from a relative one.
+ * @brief Safe helper to construct an absolute path from a mount point and relative path.
  *
- *   char path[FS_MAX_PATH_LEN];
- *   fs_path(path, sizeof(path), "config/wifi.json");
- *   // path == "/storage/config/wifi.json"
+ * @param out Buffer to store the resulting string.
+ * @param out_len Size of the output buffer.
+ * @param mount_point The base mount point (e.g., "/storage").
+ * @param relative The relative path (e.g., "config.json").
  */
-void fs_path(char* out, size_t out_len, const char* relative);
+void fs_build_path(char* out, size_t out_len, const char* mount_point, const char* relative);
 
 #ifdef __cplusplus
 }
