@@ -28,7 +28,6 @@ This project is based on the **ESP-IDF** framework and includes a Makefile wrapp
 To use the `make lint` and `make format` commands, you need:
 *   **Clang Tools:** `clang-format` and `clang-tidy`.
 *   **run-clang-tidy:** Usually bundled with the `clang-tools` or `llvm` package.
-*   **Xtensa Clang Tidy:** (Optional) For better accuracy on ESP32 targets, the linter prefers `xtensa-esp32s3-elf-clang-tidy`.
 
 ### 3. Documentation & Simulator
 *   **Doxygen:** Required to generate API docs (`make docs`).
