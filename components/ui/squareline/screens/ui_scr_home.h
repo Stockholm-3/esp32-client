@@ -105,6 +105,7 @@ extern lv_obj_t * ui_chart_batt_trend;
 extern void ui_tab_battery_init(void);
 extern void ui_tab_weather_init(void);
 extern void ui_tab_elpris_init(void);
+extern void ui_tab_elpris_handle_server_response(const char* json, size_t len);
 extern void ui_tab_settings_init(void);
 
 // CUSTOM VARIABLES

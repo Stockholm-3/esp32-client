@@ -3,6 +3,7 @@
 #include "ui_binder.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 static ui_binder_location_cb_t s_location_cb = NULL;
 static ui_binder_dropdown_cb_t s_price_cb    = NULL;
@@ -34,10 +35,32 @@ static void on_timeout_changed(lv_event_t* e) {
         s_timeout_cb((int)lv_dropdown_get_selected(ui_dd_timeout));
 }
 
+static void load_mock_elpris(void) {
+    FILE* f = fopen("docs/response.json", "rb");
+    if (!f) {
+        LV_LOG_WARN("ui_binder: docs/response.json not found");
+        return;
+    }
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    rewind(f);
+    char* buf = malloc((size_t)size + 1);
+    if (!buf) {
+        fclose(f);
+        return;
+    }
+    fread(buf, 1, (size_t)size, f);
+    buf[size] = '\0';
+    fclose(f);
+    ui_tab_elpris_handle_server_response(buf, (size_t)size);
+    free(buf);
+}
+
 void ui_binder_init(void) {
     lv_obj_add_event_cb(ui_ta_locationinput, on_location_defocused, LV_EVENT_DEFOCUSED, NULL);
     lv_obj_add_event_cb(ui_dd_price, on_price_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_dd_timeout, on_timeout_changed, LV_EVENT_VALUE_CHANGED, NULL);
+    load_mock_elpris();
 }
 
 void ui_binder_update_localtime(const struct tm* t) {
