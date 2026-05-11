@@ -10,7 +10,7 @@ static const char* g_tag            = "time_manager";
 static TimeState g_current_state    = TIME_STATE_UNSYNCED;
 static TimeEventCb g_event_callback = NULL;
 static struct tm g_cached_time;
-static bool g_time_valid = false;
+static bool g_time_valid  = false;
 static bool g_initialized = false;
 
 static void sntp_sync_callback(struct timeval* tv) {
