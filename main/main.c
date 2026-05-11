@@ -79,6 +79,8 @@ static void on_wifi_connect(const char* ssid, const char* password) {
 /**
  * @brief Callback invoked on Wi-Fi manager state changes.
  *
+ * Safely initializes time manager on first connection and resyncs on reconnection.
+ *
  * @param state   New connection state.
  * @param reason  Failure reason (currently unused).
  */
@@ -88,6 +90,9 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     if (state == WIFI_MANAGER_STATE_CONNECTED) {
         ui_binder_update_wifi_name(g_current_ssid);
 
+        // Safely initialize time manager (guards against re-initialization)
+        // On first connection, this initializes SNTP.
+        // On reconnection, this is a no-op to avoid SNTP assertion failure.
         time_manager_init(NULL);
     }
 }
