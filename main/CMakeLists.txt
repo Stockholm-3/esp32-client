@@ -11,6 +11,7 @@ idf_component_register(
         time_manager
         settings_manager
         wifi_manager
+        trigger_manager
         lib
         loc_server
         mdns
