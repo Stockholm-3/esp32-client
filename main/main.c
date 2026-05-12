@@ -13,6 +13,7 @@
 #include "esp_netif.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "fs.h"
 #include "nvs_flash.h"
 #include "screen_timeout.h"
 #include "settings_manager.h"
@@ -137,6 +138,7 @@ void app_main(void) {
     ui_build(disp);
     screen_timeout_init(5U * 60U);
     display_set_activity_callback(screen_timeout_record_activity);
+    fs_init(true); // true = formating if empty(first time)
     ui_binder_init();
     display_lvgl_unlock();
 

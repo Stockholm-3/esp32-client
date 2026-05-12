@@ -1,0 +1,1264 @@
+{
+  "city": "Stockholm",
+  "price_zone": "SE3",
+  "latitude": 59.32938,
+  "longitude": 18.068709999999999,
+  "start_time": "2026-03-18T00:00:00+01:00",
+  "slots_total": 96,
+  "summary": {
+    "buy_electricity": 0.56016324540053819,
+    "direct_use": 0.054960839768365806,
+    "charge_battery": 0.046813653064430368,
+    "sell_excess": 0.33806226176666554
+  },
+  "decisions": [
+    {
+      "input_variables": {
+        "elpris": 0.43541000000000002,
+        "temperature": 6.0,
+        "sun_intensity": 0.23449999999999999
+      },
+      "output": {
+        "buy_electricity": 0.4058907296853867,
+        "direct_use": 0.0,
+        "charge_battery": 0.12433883228115371,
+        "sell_excess": 0.46977043803345964
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.29333999999999999,
+        "temperature": 6.2999999999999998,
+        "sun_intensity": 0.25190000000000001
+      },
+      "output": {
+        "buy_electricity": 0.74809999999999999,
+        "direct_use": 0.0,
+        "charge_battery": 0.25190000000000001,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.2366,
+        "temperature": 6.5999999999999996,
+        "sun_intensity": 0.2641
+      },
+      "output": {
+        "buy_electricity": 0.7359,
+        "direct_use": 0.0,
+        "charge_battery": 0.2641,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.22397,
+        "temperature": 6.9000000000000004,
+        "sun_intensity": 0.27110000000000001
+      },
+      "output": {
+        "buy_electricity": 0.72889999999999999,
+        "direct_use": 0.0,
+        "charge_battery": 0.27110000000000001,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.22461,
+        "temperature": 7.2000000000000002,
+        "sun_intensity": 0.27260000000000001
+      },
+      "output": {
+        "buy_electricity": 0.72740000000000005,
+        "direct_use": 0.0,
+        "charge_battery": 0.27260000000000001,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.21733,
+        "temperature": 7.5,
+        "sun_intensity": 0.27510000000000001
+      },
+      "output": {
+        "buy_electricity": 0.72489999999999999,
+        "direct_use": 0.0,
+        "charge_battery": 0.27510000000000001,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.21165999999999999,
+        "temperature": 7.7999999999999998,
+        "sun_intensity": 0.28220000000000001
+      },
+      "output": {
+        "buy_electricity": 0.71779999999999999,
+        "direct_use": 0.0,
+        "charge_battery": 0.28220000000000001,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.20748,
+        "temperature": 8.0999999999999996,
+        "sun_intensity": 0.29780000000000001
+      },
+      "output": {
+        "buy_electricity": 0.70219999999999994,
+        "direct_use": 0.0,
+        "charge_battery": 0.29780000000000001,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.20877000000000001,
+        "temperature": 8.4000000000000004,
+        "sun_intensity": 0.31160000000000004
+      },
+      "output": {
+        "buy_electricity": 0.6883999999999999,
+        "direct_use": 0.0,
+        "charge_battery": 0.31160000000000004,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.20458999999999999,
+        "temperature": 8.6999999999999993,
+        "sun_intensity": 0.315
+      },
+      "output": {
+        "buy_electricity": 0.68500000000000005,
+        "direct_use": 0.0,
+        "charge_battery": 0.315,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.20222999999999999,
+        "temperature": 8.9000000000000004,
+        "sun_intensity": 0.30099999999999999
+      },
+      "output": {
+        "buy_electricity": 0.69900000000000007,
+        "direct_use": 0.0,
+        "charge_battery": 0.30099999999999999,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.20233999999999999,
+        "temperature": 9.0999999999999996,
+        "sun_intensity": 0.27060000000000001
+      },
+      "output": {
+        "buy_electricity": 0.72940000000000005,
+        "direct_use": 0.0,
+        "charge_battery": 0.27060000000000001,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.20619999999999999,
+        "temperature": 9.1999999999999993,
+        "sun_intensity": 0.23100000000000001
+      },
+      "output": {
+        "buy_electricity": 0.76900000000000002,
+        "direct_use": 0.0,
+        "charge_battery": 0.23100000000000001,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.20662,
+        "temperature": 9.4000000000000004,
+        "sun_intensity": 0.19319999999999998
+      },
+      "output": {
+        "buy_electricity": 0.80679999999999996,
+        "direct_use": 0.0,
+        "charge_battery": 0.19319999999999998,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.21004999999999999,
+        "temperature": 9.4000000000000004,
+        "sun_intensity": 0.1646
+      },
+      "output": {
+        "buy_electricity": 0.83540000000000003,
+        "direct_use": 0.0,
+        "charge_battery": 0.1646,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.21229999999999999,
+        "temperature": 9.5,
+        "sun_intensity": 0.1424
+      },
+      "output": {
+        "buy_electricity": 0.85760000000000003,
+        "direct_use": 0.0,
+        "charge_battery": 0.1424,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.21743999999999999,
+        "temperature": 9.5,
+        "sun_intensity": 0.1227
+      },
+      "output": {
+        "buy_electricity": 0.87729999999999997,
+        "direct_use": 0.0,
+        "charge_battery": 0.1227,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.22001000000000001,
+        "temperature": 9.4000000000000004,
+        "sun_intensity": 0.10540000000000001
+      },
+      "output": {
+        "buy_electricity": 0.89459999999999995,
+        "direct_use": 0.0,
+        "charge_battery": 0.10540000000000001,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.22128999999999999,
+        "temperature": 9.3000000000000007,
+        "sun_intensity": 0.091200000000000003
+      },
+      "output": {
+        "buy_electricity": 0.90880000000000005,
+        "direct_use": 0.0,
+        "charge_battery": 0.091200000000000003,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.22364999999999999,
+        "temperature": 9.1999999999999993,
+        "sun_intensity": 0.079799999999999996
+      },
+      "output": {
+        "buy_electricity": 0.92020000000000002,
+        "direct_use": 0.0,
+        "charge_battery": 0.079799999999999996,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.22439999999999999,
+        "temperature": 9.0999999999999996,
+        "sun_intensity": 0.069000000000000006
+      },
+      "output": {
+        "buy_electricity": 0.93100000000000005,
+        "direct_use": 0.0,
+        "charge_battery": 0.069000000000000006,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.33123999999999998,
+        "temperature": 8.9000000000000004,
+        "sun_intensity": 0.059700000000000003
+      },
+      "output": {
+        "buy_electricity": 0.82921852431382104,
+        "direct_use": 0.0,
+        "charge_battery": 0.052647395407354164,
+        "sell_excess": 0.11813408027882477
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.62714999999999999,
+        "temperature": 8.8000000000000007,
+        "sun_intensity": 0.051700000000000003
+      },
+      "output": {
+        "buy_electricity": 0.88299182330979054,
+        "direct_use": 0.025741798871846092,
+        "charge_battery": 0.0,
+        "sell_excess": 0.091266377818363401
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.74941000000000002,
+        "temperature": 8.6999999999999993,
+        "sun_intensity": 0.044999999999999998
+      },
+      "output": {
+        "buy_electricity": 0.4702908431899705,
+        "direct_use": 0.1152117416061814,
+        "charge_battery": 0.0,
+        "sell_excess": 0.41449741520384809
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.65037999999999996,
+        "temperature": 8.5999999999999996,
+        "sun_intensity": 0.038600000000000002
+      },
+      "output": {
+        "buy_electricity": 0.8045766117264157,
+        "direct_use": 0.042016028478820626,
+        "charge_battery": 0.0,
+        "sell_excess": 0.15340735979476369
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.76985999999999999,
+        "temperature": 8.4000000000000004,
+        "sun_intensity": 0.031899999999999998
+      },
+      "output": {
+        "buy_electricity": 0.40125980242888515,
+        "direct_use": 0.12573544148993412,
+        "charge_battery": 0.0,
+        "sell_excess": 0.47300475608118075
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.80925999999999998,
+        "temperature": 8.3000000000000007,
+        "sun_intensity": 0.023600000000000003
+      },
+      "output": {
+        "buy_electricity": 0.26826112242953215,
+        "direct_use": 0.1518358170958721,
+        "charge_battery": 0.0,
+        "sell_excess": 0.57990306047459572
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.79844999999999999,
+        "temperature": 8.0999999999999996,
+        "sun_intensity": 0.016
+      },
+      "output": {
+        "buy_electricity": 0.30475136940397385,
+        "direct_use": 0.14078784769569527,
+        "charge_battery": 0.0,
+        "sell_excess": 0.55446078290033085
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.19831,
+        "temperature": 7.9000000000000004,
+        "sun_intensity": 0.0099000000000000008
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.19750000000000001,
+        "charge_battery": 0.0,
+        "sell_excess": 0.80249999999999999
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.39777,
+        "temperature": 7.5999999999999996,
+        "sun_intensity": 0.0051999999999999998
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.19,
+        "charge_battery": 0.0,
+        "sell_excess": 0.81000000000000005
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.24638,
+        "temperature": 7.2999999999999998,
+        "sun_intensity": 0.0019
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.1825,
+        "charge_battery": 0.0,
+        "sell_excess": 0.8175
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.95999999999999996,
+        "temperature": 7.0999999999999996,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.17749999999999999,
+        "charge_battery": 0.0,
+        "sell_excess": 0.82250000000000001
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.0169600000000001,
+        "temperature": 6.9000000000000004,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.17250000000000001,
+        "charge_battery": 0.0,
+        "sell_excess": 0.82750000000000001
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.99436999999999998,
+        "temperature": 6.7999999999999998,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.16999999999999998,
+        "charge_battery": 0.0,
+        "sell_excess": 0.83000000000000007
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.80315999999999999,
+        "temperature": 6.7999999999999998,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.28885228862232537,
+        "direct_use": 0.12089511093420467,
+        "charge_battery": 0.0,
+        "sell_excess": 0.59025260044346994
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.67051000000000005,
+        "temperature": 6.7999999999999998,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.73662576329019769,
+        "direct_use": 0.04477362024066639,
+        "charge_battery": 0.0,
+        "sell_excess": 0.21860061646913595
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.69084999999999996,
+        "temperature": 6.7999999999999998,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.66796603864078574,
+        "direct_use": 0.056445773431066409,
+        "charge_battery": 0.0,
+        "sell_excess": 0.27558818792814782
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.64224999999999999,
+        "temperature": 7.0,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.83202024798008922,
+        "direct_use": 0.029396456603484389,
+        "charge_battery": 0.0,
+        "sell_excess": 0.13858329541642642
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.52769999999999995,
+        "temperature": 7.0999999999999996,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.21869534427262463,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.7813046557273754
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.14035,
+        "temperature": 7.2000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.35200999999999999,
+        "temperature": 7.4000000000000004,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.81175468663522177,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.18824531336477823
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.052139999999999999,
+        "temperature": 7.5,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.037470000000000003,
+        "temperature": 7.5999999999999996,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.038109999999999998,
+        "temperature": 7.7000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.031579999999999997,
+        "temperature": 7.7000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.030190000000000002,
+        "temperature": 7.7000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.02912,
+        "temperature": 7.7000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.028369999999999999,
+        "temperature": 7.5999999999999996,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.024299999999999999,
+        "temperature": 7.5999999999999996,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.023869999999999999,
+        "temperature": 7.5999999999999996,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.023769999999999999,
+        "temperature": 7.5999999999999996,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.024199999999999999,
+        "temperature": 7.5999999999999996,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.030300000000000001,
+        "temperature": 7.5999999999999996,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.029870000000000001,
+        "temperature": 7.5,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.030079999999999999,
+        "temperature": 7.5,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.031260000000000003,
+        "temperature": 7.4000000000000004,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.026870000000000002,
+        "temperature": 7.2999999999999998,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.02912,
+        "temperature": 7.2000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.029229999999999999,
+        "temperature": 7.0999999999999996,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.058130000000000001,
+        "temperature": 7.0,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.049250000000000002,
+        "temperature": 6.9000000000000004,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.11027000000000001,
+        "temperature": 6.9000000000000004,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 1.0,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.41946,
+        "temperature": 6.7999999999999998,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.58407039815917194,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.41592960184082806
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.58357999999999999,
+        "temperature": 6.7000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.030066759542577596,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.96993324045742235
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.38895000000000002,
+        "temperature": 6.7000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.68705998513329025,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.31294001486670975
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.55649000000000004,
+        "temperature": 6.5999999999999996,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.12151179104467066,
+        "direct_use": 0.0,
+        "charge_battery": 0.0,
+        "sell_excess": 0.87848820895532931
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.72907,
+        "temperature": 6.5,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.53895056783938289,
+        "direct_use": 0.074920532726100289,
+        "charge_battery": 0.0,
+        "sell_excess": 0.38612889943451689
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.80347999999999997,
+        "temperature": 6.4000000000000004,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.28777209629745759,
+        "direct_use": 0.11395646459240678,
+        "charge_battery": 0.0,
+        "sell_excess": 0.59827143911013558
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.91610999999999998,
+        "temperature": 6.4000000000000004,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.16,
+        "charge_battery": 0.0,
+        "sell_excess": 0.83999999999999997
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.25441,
+        "temperature": 6.2999999999999998,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.1575,
+        "charge_battery": 0.0,
+        "sell_excess": 0.84250000000000003
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.4921899999999999,
+        "temperature": 6.2000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.155,
+        "charge_battery": 0.0,
+        "sell_excess": 0.84499999999999997
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.70299,
+        "temperature": 6.0999999999999996,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.1525,
+        "charge_battery": 0.0,
+        "sell_excess": 0.84750000000000003
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.556,
+        "temperature": 6.0,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14999999999999999,
+        "charge_battery": 0.0,
+        "sell_excess": 0.84999999999999998
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.65856,
+        "temperature": 6.0,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14999999999999999,
+        "charge_battery": 0.0,
+        "sell_excess": 0.84999999999999998
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.74464,
+        "temperature": 5.9000000000000004,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14750000000000002,
+        "charge_battery": 0.0,
+        "sell_excess": 0.85250000000000004
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.74946,
+        "temperature": 5.7999999999999998,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14499999999999999,
+        "charge_battery": 0.0,
+        "sell_excess": 0.85499999999999998
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.7855300000000001,
+        "temperature": 5.7999999999999998,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14499999999999999,
+        "charge_battery": 0.0,
+        "sell_excess": 0.85499999999999998
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.68608,
+        "temperature": 5.7999999999999998,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14499999999999999,
+        "charge_battery": 0.0,
+        "sell_excess": 0.85499999999999998
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.5319100000000001,
+        "temperature": 5.7999999999999998,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14499999999999999,
+        "charge_battery": 0.0,
+        "sell_excess": 0.85499999999999998
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.29606,
+        "temperature": 5.7999999999999998,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14499999999999999,
+        "charge_battery": 0.0,
+        "sell_excess": 0.85499999999999998
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.53512,
+        "temperature": 5.7999999999999998,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14499999999999999,
+        "charge_battery": 0.0,
+        "sell_excess": 0.85499999999999998
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.4056900000000001,
+        "temperature": 5.7000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14250000000000002,
+        "charge_battery": 0.0,
+        "sell_excess": 0.85749999999999993
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.30227,
+        "temperature": 5.7000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14250000000000002,
+        "charge_battery": 0.0,
+        "sell_excess": 0.85749999999999993
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.24082,
+        "temperature": 5.7000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14250000000000002,
+        "charge_battery": 0.0,
+        "sell_excess": 0.85749999999999993
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.33813,
+        "temperature": 5.7000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14250000000000002,
+        "charge_battery": 0.0,
+        "sell_excess": 0.85749999999999993
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.0958600000000001,
+        "temperature": 5.7000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14250000000000002,
+        "charge_battery": 0.0,
+        "sell_excess": 0.85749999999999993
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.0588200000000001,
+        "temperature": 5.7000000000000002,
+        "sun_intensity": 0.0
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14250000000000002,
+        "charge_battery": 0.0,
+        "sell_excess": 0.85749999999999993
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.75197999999999998,
+        "temperature": 5.7000000000000002,
+        "sun_intensity": 0.0001
+      },
+      "output": {
+        "buy_electricity": 0.46161554858087583,
+        "direct_use": 0.076719784327225204,
+        "charge_battery": 0.0,
+        "sell_excess": 0.46166466709189896
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 1.0048600000000001,
+        "temperature": 5.7000000000000002,
+        "sun_intensity": 0.00029999999999999997
+      },
+      "output": {
+        "buy_electricity": 0.0,
+        "direct_use": 0.14250000000000002,
+        "charge_battery": 0.0,
+        "sell_excess": 0.85749999999999993
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.81889999999999996,
+        "temperature": 5.7000000000000002,
+        "sun_intensity": 0.00040000000000000002
+      },
+      "output": {
+        "buy_electricity": 0.23572032864288839,
+        "direct_use": 0.10890985316838842,
+        "charge_battery": 0.0,
+        "sell_excess": 0.6553698181887232
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.61890999999999996,
+        "temperature": 5.7999999999999998,
+        "sun_intensity": 0.00059999999999999995
+      },
+      "output": {
+        "buy_electricity": 0.91080677567513746,
+        "direct_use": 0.012933017527105059,
+        "charge_battery": 0.0,
+        "sell_excess": 0.076260206797757427
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.35297000000000001,
+        "temperature": 5.7999999999999998,
+        "sun_intensity": 0.001
+      },
+      "output": {
+        "buy_electricity": 0.80770559555095756,
+        "direct_use": 0.0,
+        "charge_battery": 0.00080851410966061824,
+        "sell_excess": 0.19148589033938179
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.60446,
+        "temperature": 5.9000000000000004,
+        "sun_intensity": 0.0012999999999999999
+      },
+      "output": {
+        "buy_electricity": 0.95958421034495089,
+        "direct_use": 0.0059613289741197459,
+        "charge_battery": 0.0,
+        "sell_excess": 0.034454460680929375
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.43134,
+        "temperature": 5.9000000000000004,
+        "sun_intensity": 0.0015
+      },
+      "output": {
+        "buy_electricity": 0.54315230571130579,
+        "direct_use": 0.0,
+        "charge_battery": 0.00081595238714768012,
+        "sell_excess": 0.45603174190154661
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.25866,
+        "temperature": 6.0,
+        "sun_intensity": 0.0016000000000000001
+      },
+      "output": {
+        "buy_electricity": 0.99839999999999995,
+        "direct_use": 0.0,
+        "charge_battery": 0.0016000000000000001,
+        "sell_excess": 0.0
+      }
+    },
+    {
+      "input_variables": {
+        "elpris": 0.25084000000000001,
+        "temperature": 6.0999999999999996,
+        "sun_intensity": 0.0016000000000000001
+      },
+      "output": {
+        "buy_electricity": 0.99839999999999995,
+        "direct_use": 0.0,
+        "charge_battery": 0.0016000000000000001,
+        "sell_excess": 0.0
+      }
+    }
+  ]
+}

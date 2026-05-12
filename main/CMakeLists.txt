@@ -11,6 +11,7 @@ idf_component_register(
         settings_manager
         wifi_manager
         lib
+        fs
 )
 
 target_include_directories(__idf_main PRIVATE ${CMAKE_SOURCE_DIR})

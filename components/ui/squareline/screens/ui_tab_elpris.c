@@ -12,7 +12,9 @@ lv_obj_t* ui_lbl_price_now       = NULL;
 lv_obj_t* ui_lbl_price_val       = NULL;
 lv_obj_t* ui_lbl_price_unit      = NULL;
 lv_obj_t* ui_lbl_price_hi        = NULL;
+lv_obj_t* ui_lbl_price_hi_time   = NULL;
 lv_obj_t* ui_lbl_price_lo        = NULL;
+lv_obj_t* ui_lbl_price_lo_time   = NULL;
 lv_obj_t* ui_lbl_price_avg       = NULL;
 lv_obj_t* ui_panel_chart         = NULL;
 lv_obj_t* ui_chart_elpris        = NULL;
@@ -28,6 +30,7 @@ static lv_chart_series_t* elpris_series = NULL;
 static int                g_now_index   = -1;
 static int                g_min_index   = -1;
 static int                g_max_index   = -1;
+static int                g_avg_index   = -1;
 
 static lv_coord_t ui_tab_elpris_price_to_chart_units(float price_kr) {
     return (lv_coord_t)roundf(price_kr * 100.0f);
@@ -51,12 +54,13 @@ static void ui_tab_elpris_update_chart_values(const lv_coord_t* values, size_t c
 }
 
 static void ui_tab_elpris_update_summary(float now, float min_val, float max_val, float avg,
-                                         int now_idx, int min_idx, int max_idx) {
+                                         int now_idx, int min_idx, int max_idx, int avg_idx) {
     g_now_index = now_idx;
     g_min_index = min_idx;
     g_max_index = max_idx;
+    g_avg_index = avg_idx;
 
-    char buf[16];
+    char buf[20];
     if (ui_lbl_price_val) {
         snprintf(buf, sizeof(buf), "%.2f", (double)now);
         lv_label_set_text(ui_lbl_price_val, buf);
@@ -65,9 +69,17 @@ static void ui_tab_elpris_update_summary(float now, float min_val, float max_val
         snprintf(buf, sizeof(buf), "%.2f kr", (double)max_val);
         lv_label_set_text(ui_lbl_price_hi, buf);
     }
+    if (ui_lbl_price_hi_time) {
+        snprintf(buf, sizeof(buf), "at %02u:%02u", (unsigned)(max_idx / 4), (unsigned)((max_idx % 4) * 15));
+        lv_label_set_text(ui_lbl_price_hi_time, buf);
+    }
     if (ui_lbl_price_lo) {
         snprintf(buf, sizeof(buf), "%.2f kr", (double)min_val);
         lv_label_set_text(ui_lbl_price_lo, buf);
+    }
+    if (ui_lbl_price_lo_time) {
+        snprintf(buf, sizeof(buf), "at %02u:%02u", (unsigned)(min_idx / 4), (unsigned)((min_idx % 4) * 15));
+        lv_label_set_text(ui_lbl_price_lo_time, buf);
     }
     if (ui_lbl_price_avg) {
         snprintf(buf, sizeof(buf), "%.2f kr", (double)avg);
@@ -117,12 +129,22 @@ static bool ui_tab_elpris_parse_response(const char* json, size_t len) {
     }
     float avg = sum / 96.0f;
 
+    // find bar closest to avg (skip now/min/max slots)
+    int   avg_idx  = 0;
+    float avg_diff = 1e9f;
+    for (int i = 0; i < 96; i++) {
+        if (i == now_idx || i == min_idx || i == max_idx) continue;
+        float d = raw[i] - avg;
+        if (d < 0) d = -d;
+        if (d < avg_diff) { avg_diff = d; avg_idx = i; }
+    }
+
     // convert to chart units
     lv_coord_t chart_vals[96];
     for (int i = 0; i < 96; i++) chart_vals[i] = ui_tab_elpris_price_to_chart_units(raw[i]);
 
     ui_tab_elpris_update_summary(raw[now_idx], min_val, max_val, avg,
-                                 now_idx, min_idx, max_idx);
+                                 now_idx, min_idx, max_idx, avg_idx);
     ui_tab_elpris_update_chart_values(chart_vals, 96);
     return true;
 }
@@ -155,17 +177,19 @@ static void elpris_chart_draw_cb(lv_event_t* e) {
 
     lv_color_t color;
     if ((int)id == g_now_index)
-        color = lv_color_hex(0xFFFFFF);
+        color = lv_color_hex(0xFFFFFF);       // now  — white
     else if ((int)id == g_max_index)
-        color = UI_COLOR_BAD;
+        color = lv_color_hex(0xFF9040);       // max  — yellow
     else if ((int)id == g_min_index)
-        color = UI_COLOR_GOOD;
+        color = lv_color_hex(0x5BC8F5);       // min  — blue
+    else if ((int)id == g_avg_index)
+        color = lv_color_hex(0xA07BE0);       // avg  — violet
     else if (val < UI_ELPRIS_CHEAP_MAX)
-        color = UI_COLOR_GOOD;
+        color = UI_COLOR_GOOD;                // cheap
     else if (val < UI_ELPRIS_WARN_MAX)
-        color = UI_COLOR_WARN;
+        color = UI_COLOR_WARN;                // warn
     else
-        color = UI_COLOR_BAD;
+        color = UI_COLOR_BAD;                 // expensive
 
     lv_draw_fill_dsc_t* fill_dsc = lv_draw_task_get_fill_dsc(draw_task);
     if (fill_dsc) fill_dsc->color = color;
@@ -235,14 +259,14 @@ void ui_tab_elpris_init(void) {
     // Max card
     lv_obj_t* card_max = make_summary_card(ui_panel_price_header, 1);
     card_label(card_max, "MAX", UI_COLOR_INK3, &lv_font_montserrat_12);
-    ui_lbl_price_hi = card_label(card_max, "1.05 kr", UI_COLOR_BAD, &lv_font_montserrat_18);
-    card_label(card_max, "at 20:00", UI_COLOR_INK3, &lv_font_montserrat_12);
+    ui_lbl_price_hi      = card_label(card_max, "1.05 kr", UI_COLOR_BAD, &lv_font_montserrat_18);
+    ui_lbl_price_hi_time = card_label(card_max, "--:--", UI_COLOR_INK3, &lv_font_montserrat_12);
 
     // Min card
     lv_obj_t* card_min = make_summary_card(ui_panel_price_header, 1);
     card_label(card_min, "MIN", UI_COLOR_INK3, &lv_font_montserrat_12);
-    ui_lbl_price_lo = card_label(card_min, "0.05 kr", UI_COLOR_GOOD, &lv_font_montserrat_18);
-    card_label(card_min, "at 16:00", UI_COLOR_INK3, &lv_font_montserrat_12);
+    ui_lbl_price_lo      = card_label(card_min, "0.05 kr", UI_COLOR_GOOD, &lv_font_montserrat_18);
+    ui_lbl_price_lo_time = card_label(card_min, "--:--", UI_COLOR_INK3, &lv_font_montserrat_12);
 
     // Avg card
     lv_obj_t* card_avg = make_summary_card(ui_panel_price_header, 1);
@@ -305,6 +329,7 @@ void ui_tab_elpris_init(void) {
     lv_obj_set_flex_grow(ui_chart_elpris, 1);
     lv_obj_remove_flag(ui_chart_elpris, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(ui_chart_elpris, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    lv_obj_add_flag(ui_chart_elpris, LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
     lv_chart_set_type(ui_chart_elpris, LV_CHART_TYPE_BAR);
     lv_chart_set_point_count(ui_chart_elpris, 96);
     lv_chart_set_range(ui_chart_elpris, LV_CHART_AXIS_PRIMARY_Y, 0, 200);

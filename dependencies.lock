@@ -1,4 +1,14 @@
 dependencies:
+  espressif/cjson:
+    component_hash: e788323270d90738662d66fffa910bfe1fba019bba087f01557e70c40485b469
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.7.19~2
   espressif/esp_lcd_touch:
     component_hash: 3f85a7d95af876f1a6ecca8eb90a81614890d0f03a038390804e5a77e2caf862
     dependencies:
@@ -45,10 +55,11 @@ dependencies:
       type: service
     version: 9.5.0
 direct_dependencies:
+- espressif/cjson
 - espressif/esp_lcd_touch_gt911
 - idf
 - joltwallet/littlefs
 - lvgl/lvgl
-manifest_hash: c01fe3d53b676d3cdf0c5fb2d17812153ae6b431ce7ee6cfb155b4f3b3c3c2ab
+manifest_hash: 98100ceb3ad105edbfbd5cd1f291cb38048d1e8027ad6ea79a7969a345b0285a
 target: esp32s3
 version: 3.0.0

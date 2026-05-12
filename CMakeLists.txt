@@ -9,3 +9,5 @@ project(app-template)
 # LVGL's stress demo has a %d/%lu format mismatch in its own source.
 # It's in managed_components so we can't edit it — suppress for that target only.
 target_compile_options(__idf_lvgl__lvgl PRIVATE -Wno-format)
+
+littlefs_create_partition_image(storage spiffs_image FLASH_IN_PROJECT)

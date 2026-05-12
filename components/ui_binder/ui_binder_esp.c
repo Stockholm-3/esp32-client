@@ -1,13 +1,26 @@
 #include "display.h"
+#include "esp_log.h"
+#include "fs.h"
 #include "lvgl.h"
 #include "squareline/screens/ui_scr_home.h"
 #include "ui_binder.h"
 
 #include <stdio.h>
+#include <string.h>
 
 static ui_binder_location_cb_t g_s_location_cb = NULL;
 static ui_binder_dropdown_cb_t g_s_price_cb    = NULL;
 static ui_binder_dropdown_cb_t g_s_timeout_cb  = NULL;
+
+static void load_mock_elpris(void) {
+    char* buf = fs_read_str("/storage/response.json");
+    if (!buf) {
+        ESP_LOGW("ui_binder", "response.json not found on storage");
+        return;
+    }
+    ui_tab_elpris_handle_server_response(buf, strlen(buf));
+    free(buf);
+}
 
 static void on_location_defocused(lv_event_t* e) {
     (void)e;
@@ -48,6 +61,7 @@ static void on_timeout_changed(lv_event_t* e) {
 }
 
 void ui_binder_init(void) {
+    load_mock_elpris();
     lv_obj_add_event_cb(ui_ta_locationinput, on_location_defocused, LV_EVENT_DEFOCUSED, NULL);
     lv_obj_add_event_cb(ui_dd_price, on_price_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_dd_timeout, on_timeout_changed, LV_EVENT_VALUE_CHANGED, NULL);
