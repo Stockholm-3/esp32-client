@@ -337,11 +337,10 @@ void ui_tab_elpris_init(void) {
     lv_obj_set_style_bg_color(ui_chart_elpris, UI_COLOR_BG2, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_chart_elpris, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ui_chart_elpris, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(ui_chart_elpris, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_column(ui_chart_elpris, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_line_color(ui_chart_elpris, UI_COLOR_LINE_SOFT,
                                 LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_outline_pad(ui_chart_elpris, LV_MAX3(10, 10, 25),
-                                 LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_outline_width(ui_chart_elpris, -1, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     elpris_series = lv_chart_add_series(ui_chart_elpris, UI_COLOR_GOOD,
                                         LV_CHART_AXIS_PRIMARY_Y);
@@ -368,9 +367,11 @@ void ui_tab_elpris_init(void) {
                                 LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_line_color(ui_chart_elpris_Xaxis, UI_COLOR_LINE,
                                 LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_left(ui_chart_elpris_Xaxis, 0, 0);
+    lv_obj_set_style_pad_right(ui_chart_elpris_Xaxis, 0, 0);
     lv_scale_set_range(ui_chart_elpris_Xaxis, 0, 96);
-    lv_scale_set_total_tick_count(ui_chart_elpris_Xaxis, 193);
-    lv_scale_set_major_tick_every(ui_chart_elpris_Xaxis, 8);
+    lv_scale_set_total_tick_count(ui_chart_elpris_Xaxis, 97);
+    lv_scale_set_major_tick_every(ui_chart_elpris_Xaxis, 4);
     static const char* x_ticks[] = {
         "00", "01", "02", "03", "04", "05", "06", "07",
         "08", "09", "10", "11", "12", "13", "14", "15",
@@ -401,4 +402,15 @@ void ui_tab_elpris_init(void) {
     lv_scale_set_total_tick_count(ui_chart_elpris_Yaxis1, 13);
     lv_scale_set_major_tick_every(ui_chart_elpris_Yaxis1, 2);
 
+}
+
+void ui_tab_elpris_update_now(void) {
+    struct tm t;
+    time_t ts = time(NULL);
+    localtime_r(&ts, &t);
+    int new_idx = t.tm_hour * 4 + t.tm_min / 15;
+    if (new_idx != g_now_index) {
+        g_now_index = new_idx;
+        lv_obj_invalidate(ui_chart_elpris);
+    }
 }

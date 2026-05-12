@@ -19,6 +19,6 @@ direct_dependencies:
 - espressif/esp_lcd_touch
 - idf
 - lvgl/lvgl
-manifest_hash: 0ab6d04528d73276e8cfbebd175ec2f39316afba44c6582a48b1757fb2b55b51
+manifest_hash: 460a6b8872df91412f2a871c694655368287817c786f01e7059484394b0d2d72
 target: linux
 version: 3.0.0

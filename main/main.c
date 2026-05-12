@@ -18,6 +18,7 @@
 #include "screen_timeout.h"
 #include "settings_manager.h"
 #include "smw.h"
+#include "squareline/screens/ui_scr_home.h"
 #include "time_manager.h"
 #include "ui.h"
 #include "ui_binder.h"
@@ -138,6 +139,8 @@ void app_main(void) {
     ui_build(disp);
     screen_timeout_init(5U * 60U);
     display_set_activity_callback(screen_timeout_record_activity);
+    setenv("TZ", "CET-1CEST-2,M3.5.0/2,M10.5.0/3", 1);
+    tzset();
     fs_init(true); // true = formating if empty(first time)
     ui_binder_init();
     display_lvgl_unlock();
@@ -163,6 +166,7 @@ void app_main(void) {
         struct tm timeinfo;
         if (time_manager_get_time(&timeinfo)) {
             ui_binder_update_localtime(&timeinfo);
+            ui_tab_elpris_update_now();
         }
         if (g_bme_updated) {
             g_bme_updated = false;
