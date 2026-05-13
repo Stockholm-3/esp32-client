@@ -22,8 +22,8 @@ esp_err_t fs_mount_littlefs(const char* partition_label, const char* mount_point
 
     esp_vfs_littlefs_conf_t conf = {.base_path              = mount_point,
                                     .partition_label        = partition_label,
-                                    .format_if_mount_failed = format_if_failed,
-                                    .dont_mount             = false};
+                                    .format_if_mount_failed = (uint8_t)format_if_failed,
+                                    .dont_mount             = 0U};
 
     esp_err_t err = esp_vfs_littlefs_register(&conf);
     if (err != ESP_OK) {
@@ -175,9 +175,11 @@ void fs_build_path(char* out, size_t out_len, const char* mount_point, const cha
 
     // Ensure no double slashes between mount_point and relative path
     size_t m_len    = strlen(mount_point);
-    const char* sep = (m_len > 0 && mount_point[m_len - 1] == '/') ? ""
-                      : (relative[0] == '/')                       ? ""
-                                                                   : "/";
+    const char* sep = "/";
+
+    if ((m_len > 0 && mount_point[m_len - 1] == '/') || relative[0] == '/') {
+        sep = "";
+    }
 
     snprintf(out, out_len, "%s%s%s", mount_point, sep, relative);
 }

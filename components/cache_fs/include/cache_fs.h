@@ -31,7 +31,7 @@ extern "C" {
  * This is a statically allocated constant — safe to take its address and
  * embed in a cache_config_t.
  */
-extern const cache_io_t CACHE_IO_ESP32;
+extern const CacheIo CACHE_IO_ESP32;
 
 /**
  * @brief Build a ready-to-use cache_config_t backed by the ESP32 fs layer.
@@ -45,7 +45,7 @@ extern const cache_io_t CACHE_IO_ESP32;
  * @return A fully populated cache_config_t ready to pass to cache_init()
  *         or cache_create().
  */
-cache_config_t cache_fs_config(const char* root_path, uint32_t default_ttl_sec);
+CacheConfig cache_fs_config(const char* root_path, uint32_t default_ttl_sec);
 
 #ifdef __cplusplus
 }
