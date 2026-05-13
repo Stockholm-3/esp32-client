@@ -1,4 +1,10 @@
 dependencies:
+  espressif/cjson:
+    dependencies: []
+    source:
+      path: ../managed_components/espressif__cjson
+      type: local
+    version: 1.7.19~2
   espressif/esp_lcd_touch:
     dependencies: []
     source:
@@ -16,9 +22,10 @@ dependencies:
       type: local
     version: 9.5.0
 direct_dependencies:
+- espressif/cjson
 - espressif/esp_lcd_touch
 - idf
 - lvgl/lvgl
-manifest_hash: 460a6b8872df91412f2a871c694655368287817c786f01e7059484394b0d2d72
+manifest_hash: 7d211127944b30fe6ce6a3cab420cf480fa1e07b8a26e723addff24da387cac3
 target: linux
 version: 3.0.0

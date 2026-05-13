@@ -4,3 +4,4 @@ dependencies:
     version: '>=5.1.0'
   lvgl/lvgl:
     version: ">=9.2.0"
+  espressif/cjson: ">=1.7.14"
