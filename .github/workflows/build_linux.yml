@@ -73,6 +73,8 @@ jobs:
       - name: Build Simulator
         run: |
           source ${{ env.IDF_PATH }}/export.sh
+          mkdir -p managed_components             # Create dummy root dir
+          mkdir -p simulator/managed_components   # Create dummy sim dir
           make linux-reconfigure
           make linux-build
 
