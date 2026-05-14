@@ -81,11 +81,6 @@ jobs:
           source ${{ env.IDF_PATH }}/export.sh
           idf.py set-target ${{ env.IDF_TARGET }}
 
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libcurl4-openssl-dev libbsd-dev
-
       - name: Build firmware
         run: |
           source ${{ env.IDF_PATH }}/export.sh
