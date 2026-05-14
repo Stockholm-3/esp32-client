@@ -16,10 +16,12 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "fs.h"
+#include "http_client.h"
 #include "nvs_flash.h"
 #include "screen_timeout.h"
 #include "settings_manager.h"
 #include "smw.h"
+#include "smw_http.h"
 #include "time_manager.h"
 #include "ui.h"
 #include "ui_binder.h"
@@ -79,6 +81,18 @@ static void on_wifi_connect(const char* ssid, const char* password) {
     settings_manager_save_wifi(ssid, password);
 }
 
+static void on_test_http_done(HttpClientResponse* resp, int err, void* user_ctx) {
+    if (err != 0) {
+        ESP_LOGE(g_tag, "HTTP request failed");
+    } else {
+        ESP_LOGI(g_tag, "HTTP %d — %.*s", resp->status, (int)resp->length, (char*)resp->buffer);
+    }
+    free(resp->buffer);
+    free(resp);
+}
+
+static bool g_http_test_fired = false;
+
 /**
  * @brief Callback invoked on Wi-Fi manager state changes.
  *
@@ -97,6 +111,16 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
         // On first connection, this initializes SNTP.
         // On reconnection, this is a no-op to avoid SNTP assertion failure.
         time_manager_init(NULL);
+        vTaskDelay(3000 / portTICK_PERIOD_MS);
+        if (!g_http_test_fired) {
+            g_http_test_fired = true;
+
+            HttpClientRequest req = {0};
+            req.url    = "https://just-dev.freeduck.dev/v1/get_plan?city=stockholm&price=SE3";
+            req.method = HTTP_CLIENT_METHOD_GET;
+
+            smw_register_http_request(&g_smw_worker, &req, on_test_http_done, NULL, NULL);
+        }
     }
 }
 
@@ -126,6 +150,9 @@ void app_main(void) {
 
     CacheConfig cfg = cache_fs_config("/storage/cache", 3600);
     cache_init(&cfg);
+    // since esp can loose power its a huge hassle to try to wait for wifi reconnect and clean
+    // cache only then. so we just purge all
+    cache_purge_all();
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -157,6 +184,9 @@ void app_main(void) {
 
     wifi_popup_on_connect(on_wifi_connect);
     wifi_manager_register_callback(on_wifi_state);
+
+    HttpClientConfig http_cfg = {0};
+    http_client_init(&http_cfg);
 
     const char* ssid = settings_manager_get_ssid();
     const char* pass = settings_manager_get_password();
