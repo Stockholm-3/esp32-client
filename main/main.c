@@ -7,6 +7,8 @@
  */
 
 #include "bme280_sensor.h"
+#include "cache.h"
+#include "cache_fs.h"
 #include "display.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -121,6 +123,9 @@ void app_main(void) {
     ESP_ERROR_CHECK(ret);
 
     ESP_ERROR_CHECK(fs_mount_littlefs("storage", "/storage", true));
+
+    CacheConfig cfg = cache_fs_config("/storage/cache", 3600);
+    cache_init(&cfg);
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
