@@ -27,3 +27,12 @@ void ui_binder_on_timeout_changed2(ui_binder_dropdown_cb_t cb);
 void ui_binder_update_wifi_status(WifiManagerState state);
 void ui_binder_update_wifi_name(const char *ssid);
 void ui_binder_update_bme280(const Bme280Reading *reading);
+
+typedef void (*ui_binder_bool_cb_t)(bool enabled);
+
+void ui_binder_set_ap_enabled(bool enabled);
+void ui_binder_set_local_web_client_enabled(bool enabled);
+
+void ui_binder_on_ap_enabled_changed(ui_binder_bool_cb_t cb);
+void ui_binder_on_ap_enabled_changed2(ui_binder_bool_cb_t cb);
+void ui_binder_on_local_web_client_changed(ui_binder_bool_cb_t cb);
