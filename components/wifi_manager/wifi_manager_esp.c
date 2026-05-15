@@ -18,11 +18,16 @@ static int g_retry_count               = 0;
 static TimerHandle_t g_retry_timer     = NULL;
 static WifiManagerScanDoneCb g_scan_cb = NULL;
 static WifiManagerEventCb g_user_cb    = NULL;
+static esp_netif_t* g_ap_netif         = NULL;
 
 static WifiManagerConfig g_cfg = {
-    .max_retries   = 10,
-    .base_retry_ms = 500,
-    .max_retry_ms  = 10000,
+    .max_retries           = 10,
+    .base_retry_ms         = 500,
+    .max_retry_ms          = 10000,
+    .sta_static_ip_enabled = false,
+    .sta_ip                = "",
+    .sta_gateway           = "",
+    .sta_netmask           = "255.255.255.0",
 };
 
 static void set_state(WifiManagerState state, WifiManagerFailReason reason) {
@@ -178,7 +183,19 @@ int wifi_manager_start(const char* ssid, const char* password, const WifiManager
     }
 
     if (config) {
-        g_cfg = *config;
+        if (config->max_retries > 0) {
+            g_cfg.max_retries = config->max_retries;
+        }
+        if (config->base_retry_ms > 0) {
+            g_cfg.base_retry_ms = config->base_retry_ms;
+        }
+        if (config->max_retry_ms > 0) {
+            g_cfg.max_retry_ms = config->max_retry_ms;
+        }
+        g_cfg.sta_static_ip_enabled = config->sta_static_ip_enabled;
+        memcpy(g_cfg.sta_ip, config->sta_ip, sizeof(g_cfg.sta_ip));
+        memcpy(g_cfg.sta_gateway, config->sta_gateway, sizeof(g_cfg.sta_gateway));
+        memcpy(g_cfg.sta_netmask, config->sta_netmask, sizeof(g_cfg.sta_netmask));
     }
 
     g_retry_timer = xTimerCreate("wifi_retry", pdMS_TO_TICKS(g_cfg.base_retry_ms), pdFALSE, NULL,
@@ -188,7 +205,20 @@ int wifi_manager_start(const char* ssid, const char* password, const WifiManager
         return -1;
     }
 
-    esp_netif_create_default_wifi_sta();
+    esp_netif_t* sta_netif = esp_netif_create_default_wifi_sta();
+
+    if ((int)g_cfg.sta_static_ip_enabled && g_cfg.sta_ip[0] != '\0') {
+        esp_netif_ip_info_t ip_info = {0};
+        if (esp_netif_str_to_ip4(g_cfg.sta_ip, &ip_info.ip) == ESP_OK &&
+            esp_netif_str_to_ip4(g_cfg.sta_gateway, &ip_info.gw) == ESP_OK &&
+            esp_netif_str_to_ip4(g_cfg.sta_netmask, &ip_info.netmask) == ESP_OK) {
+            esp_netif_dhcpc_stop(sta_netif);
+            esp_netif_set_ip_info(sta_netif, &ip_info);
+            ESP_LOGI(g_tag, "Static IP: %s gw: %s", g_cfg.sta_ip, g_cfg.sta_gateway);
+        } else {
+            ESP_LOGW(g_tag, "Invalid static IP config, falling back to DHCP");
+        }
+    }
 
     wifi_init_config_t init_cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&init_cfg));
@@ -202,7 +232,11 @@ int wifi_manager_start(const char* ssid, const char* password, const WifiManager
     strncpy((char*)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
     strncpy((char*)wifi_config.sta.password, password, sizeof(wifi_config.sta.password) - 1);
 
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    wifi_mode_t mode = WIFI_MODE_STA;
+    if (g_ap_netif != NULL) {
+        mode = WIFI_MODE_APSTA;
+    }
+    ESP_ERROR_CHECK(esp_wifi_set_mode(mode));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
@@ -293,3 +327,40 @@ int wifi_manager_scan(WifiManagerScanDoneCb cb) {
 WifiManagerState wifi_manager_get_state(void) { return g_current_state; }
 
 void wifi_manager_register_callback(WifiManagerEventCb cb) { g_user_cb = cb; }
+
+void wifi_manager_set_ap_enabled(bool enabled) {
+    if (enabled) {
+        if (g_ap_netif != NULL) {
+            return;
+        }
+        g_ap_netif = esp_netif_create_default_wifi_ap();
+
+        wifi_config_t ap_config = {
+            .ap =
+                {
+                    .ssid           = "ESP32-Settings",
+                    .ssid_len       = 0,
+                    .password       = "",
+                    .max_connection = 4,
+                    .authmode       = WIFI_AUTH_OPEN,
+                    .channel        = 1,
+                },
+        };
+
+        if (g_initialized) {
+            ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+            ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
+        }
+        ESP_LOGI(g_tag, "AP enabled: ESP32-Settings");
+    } else {
+        if (g_ap_netif == NULL) {
+            return;
+        }
+        if (g_initialized) {
+            ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+        }
+        esp_netif_destroy(g_ap_netif);
+        g_ap_netif = NULL;
+        ESP_LOGI(g_tag, "AP disabled");
+    }
+}
