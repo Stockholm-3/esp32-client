@@ -58,7 +58,46 @@
                 <option>Never</option>
             </select>
         </div>
+
+        <div class="row">
+            <div class="row-info">
+                <div class="title">Local web client</div>
+                <div class="sub">Fixed IP for home network access</div>
+            </div>
+            <label class="toggle">
+                <input type="checkbox" id="chk-lwc" onchange="sendNetworkConfig()">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div id="ip-config-block" class="ip-block" style="display:none">
+            <div class="ip-row">
+                <label>Static IP</label>
+                <input id="inp-ip" type="text" placeholder="192.168.1.200" maxlength="15">
+            </div>
+            <div class="ip-row">
+                <label>Gateway</label>
+                <input id="inp-gw" type="text" placeholder="192.168.1.1" maxlength="15">
+            </div>
+            <div class="ip-row">
+                <label>Netmask</label>
+                <input id="inp-nm" type="text" placeholder="255.255.255.0" maxlength="15">
+            </div>
+            <div class="ip-row">
+                <label>mDNS hostname</label>
+                <input id="inp-host" type="text" placeholder="esp32-client" maxlength="32">
+            </div>
+            <button onclick="saveNetworkConfig()">Save &amp; Reboot</button>
+        </div>
     </div>
+
+    <div id="reboot-overlay" style="display:none">
+        <div class="reboot-box">
+            <div>Applying settings...</div>
+            <div class="sub">Device is restarting. Reconnect in ~5 seconds.</div>
+        </div>
+    </div>
+
     <script src="/app.js"></script>
 </body>
 </html>

@@ -32,11 +32,6 @@
 /** @brief Maximum number of tasks in the SMW scheduler queue. */
 #define SMW_MAX_TASKS 100
 
-/** @brief Local web-client ip-settings*/
-#define LOC_SERVER_STATIC_IP "192.168.33.33"
-#define LOC_SERVER_GATEWAY "192.168.33.1"
-#define LOC_SERVER_NETMASK "255.255.255.0"
-
 /** @brief Log tag for this module. */
 static const char* g_tag = "main";
 
@@ -103,6 +98,13 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     loc_server_notify_wifi_state(state);
 }
 
+static void on_ap_toggled(bool enabled) {
+    wifi_manager_set_ap_enabled(enabled);
+    if (enabled) {
+        loc_server_start();
+    }
+}
+
 /**
  * @brief Application main function (FreeRTOS entry point).
  *
@@ -130,7 +132,6 @@ void app_main(void) {
 
 #ifndef CONFIG_IDF_TARGET_LINUX
     mdns_init();
-    mdns_hostname_set("esp32-client");
     mdns_instance_name_set("ESP32 Settings");
 #endif
 
@@ -162,21 +163,37 @@ void app_main(void) {
 
     wifi_popup_on_connect(on_wifi_connect);
     wifi_manager_register_callback(on_wifi_state);
+    ui_binder_on_ap_enabled_changed2(on_ap_toggled);
 
 #ifndef CONFIG_IDF_TARGET_LINUX
-    esp_netif_t* netif          = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
-    esp_netif_ip_info_t ip_info = {0};
-    esp_netif_str_to_ip4(LOC_SERVER_STATIC_IP, &ip_info.ip);
-    esp_netif_str_to_ip4(LOC_SERVER_GATEWAY, &ip_info.gw);
-    esp_netif_str_to_ip4(LOC_SERVER_NETMASK, &ip_info.netmask);
-    esp_netif_dhcpc_stop(netif);
-    esp_netif_set_ip_info(netif, &ip_info);
+    const char* mdns_host = settings_manager_get_mdns_hostname();
+    if (mdns_host[0] != '\0') {
+        mdns_hostname_set(mdns_host);
+    } else {
+        mdns_hostname_set("esp32-client");
+    }
+
+    if (settings_manager_get_ap_enabled()) {
+        wifi_manager_set_ap_enabled(true);
+        loc_server_start();
+    }
 #endif
 
     const char* ssid = settings_manager_get_ssid();
     const char* pass = settings_manager_get_password();
     if (ssid[0] != '\0') {
-        wifi_manager_start(ssid, pass, NULL);
+        bool lwc_enabled           = settings_manager_get_local_web_client_enabled();
+        WifiManagerConfig wifi_cfg = {0};
+        if (lwc_enabled) {
+            wifi_cfg.sta_static_ip_enabled = true;
+            strncpy(wifi_cfg.sta_ip, settings_manager_get_sta_static_ip(),
+                    sizeof(wifi_cfg.sta_ip) - 1);
+            strncpy(wifi_cfg.sta_gateway, settings_manager_get_sta_gateway(),
+                    sizeof(wifi_cfg.sta_gateway) - 1);
+            strncpy(wifi_cfg.sta_netmask, settings_manager_get_sta_netmask(),
+                    sizeof(wifi_cfg.sta_netmask) - 1);
+        }
+        wifi_manager_start(ssid, pass, (int)lwc_enabled ? &wifi_cfg : NULL);
     }
 
     smw_init(&g_smw_worker, g_smw_tasks, SMW_MAX_TASKS);

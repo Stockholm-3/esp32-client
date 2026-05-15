@@ -5,6 +5,9 @@
 #include "esp_check.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "esp_system.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/timers.h"
 #include "settings_manager.h"
 #include "ui_binder.h"
 #include "wifi_manager.h"
@@ -36,9 +39,10 @@ static const StaticFile G_FILES[] = {
 };
 
 static esp_err_t handle_static(httpd_req_t* req) {
+    ESP_LOGW(g_tag, "HTTP %s", req->uri);
     for (int i = 0; i < (int)(sizeof(G_FILES) / sizeof(G_FILES[0])); i++) {
         if (strcmp(req->uri, G_FILES[i].uri) == 0) {
-            size_t len = (size_t)(G_FILES[i].end - G_FILES[i].start);
+            size_t len = (size_t)(G_FILES[i].end - G_FILES[i].start - 1);
             httpd_resp_set_type(req, G_FILES[i].content_type);
             httpd_resp_set_hdr(req, "Cache-Control", "no-store");
             return httpd_resp_send(req, (const char*)G_FILES[i].start, (ssize_t)len);
@@ -52,15 +56,23 @@ void loc_server_push_settings(void) {
         return;
     }
 
-    char buf[256];
+    char buf[512];
     snprintf(buf, sizeof(buf),
              "{\"type\":\"settings\","
              "\"ssid\":\"%s\","
              "\"location\":\"%s\","
              "\"price_zone\":%d,"
-             "\"timeout\":%d}",
+             "\"timeout\":%d,"
+             "\"local_web_client_enabled\":%s,"
+             "\"sta_static_ip\":\"%s\","
+             "\"sta_gateway\":\"%s\","
+             "\"sta_netmask\":\"%s\","
+             "\"mdns_hostname\":\"%s\"}",
              settings_manager_get_ssid(), settings_manager_get_location(),
-             settings_manager_get_price_zone(), settings_manager_get_timeout());
+             settings_manager_get_price_zone(), settings_manager_get_timeout(),
+             (int)settings_manager_get_local_web_client_enabled() ? "true" : "false",
+             settings_manager_get_sta_static_ip(), settings_manager_get_sta_gateway(),
+             settings_manager_get_sta_netmask(), settings_manager_get_mdns_hostname());
 
     httpd_ws_frame_t frame = {
         .type    = HTTPD_WS_TYPE_TEXT,
@@ -98,6 +110,20 @@ static void on_wifi_scan_done(const WifiManagerApInfo* aps, uint16_t count) {
     httpd_ws_send_frame_async(g_server, g_ws_fd, &frame);
 }
 
+static void reboot_timer_cb(TimerHandle_t timer) {
+    (void)timer;
+    esp_restart();
+}
+
+static void send_text(const char* text) {
+    httpd_ws_frame_t frame = {
+        .type    = HTTPD_WS_TYPE_TEXT,
+        .payload = (uint8_t*)text,
+        .len     = strlen(text),
+    };
+    httpd_ws_send_frame_async(g_server, g_ws_fd, &frame);
+}
+
 static void handle_ws_message(const char* json_str) {
     cJSON* root = cJSON_Parse(json_str);
     if (!root) {
@@ -105,12 +131,18 @@ static void handle_ws_message(const char* json_str) {
     }
 
     cJSON* type = cJSON_GetObjectItemCaseSensitive(root, "type");
-    if (!cJSON_IsString(type) || strcmp(type->valuestring, "set_settings") != 0) {
+    if (!cJSON_IsString(type)) {
         cJSON_Delete(root);
         return;
     }
+
     if (strcmp(type->valuestring, "scan_wifi") == 0) {
         wifi_manager_scan(on_wifi_scan_done);
+        cJSON_Delete(root);
+        return;
+    }
+
+    if (strcmp(type->valuestring, "set_settings") != 0) {
         cJSON_Delete(root);
         return;
     }
@@ -152,14 +184,70 @@ static void handle_ws_message(const char* json_str) {
         wifi_manager_change_network(ssid->valuestring, pass->valuestring);
     }
 
+    bool ip_changed = false;
+
+    cJSON* lwc = cJSON_GetObjectItemCaseSensitive(root, "local_web_client_enabled");
+    if (cJSON_IsBool(lwc)) {
+        bool enabled = cJSON_IsTrue(lwc) != 0;
+        settings_manager_save_local_web_client_enabled(enabled);
+        if (display_lvgl_lock(100)) {
+            ui_binder_set_local_web_client_enabled(enabled);
+            display_lvgl_unlock();
+        }
+        ip_changed = true;
+    }
+
+    cJSON* ip = cJSON_GetObjectItemCaseSensitive(root, "sta_static_ip");
+    if (cJSON_IsString(ip) && ip->valuestring[0]) {
+        settings_manager_save_sta_static_ip(ip->valuestring);
+        ip_changed = true;
+    }
+
+    cJSON* gw = cJSON_GetObjectItemCaseSensitive(root, "sta_gateway");
+    if (cJSON_IsString(gw) && gw->valuestring[0]) {
+        settings_manager_save_sta_gateway(gw->valuestring);
+        ip_changed = true;
+    }
+
+    cJSON* nm = cJSON_GetObjectItemCaseSensitive(root, "sta_netmask");
+    if (cJSON_IsString(nm) && nm->valuestring[0]) {
+        settings_manager_save_sta_netmask(nm->valuestring);
+        ip_changed = true;
+    }
+
+    cJSON* hostname = cJSON_GetObjectItemCaseSensitive(root, "mdns_hostname");
+    if (cJSON_IsString(hostname) && hostname->valuestring[0]) {
+        settings_manager_save_mdns_hostname(hostname->valuestring);
+        ip_changed = true;
+    }
+
     cJSON_Delete(root);
+
+    if ((int)ip_changed && g_server != NULL && g_ws_fd >= 0) {
+        send_text("{\"type\":\"restarting\"}");
+        TimerHandle_t t =
+            xTimerCreate("reboot", pdMS_TO_TICKS(1500), pdFALSE, NULL, reboot_timer_cb);
+        if (t) {
+            xTimerStart(t, 0);
+        }
+    }
+}
+
+static void ws_push_timer_cb(TimerHandle_t timer) {
+    xTimerDelete(timer, 0);
+    loc_server_push_settings();
 }
 
 static esp_err_t handle_ws(httpd_req_t* req) {
+    ESP_LOGW(g_tag, "WS handler, method=%d fd=%d", (int)req->method, httpd_req_to_sockfd(req));
     if (req->method == HTTP_GET) {
         g_ws_fd = httpd_req_to_sockfd(req);
         ESP_LOGI(g_tag, "Browser connected, fd=%d", g_ws_fd);
-        loc_server_push_settings();
+        TimerHandle_t t =
+            xTimerCreate("ws_push", pdMS_TO_TICKS(100), pdFALSE, NULL, ws_push_timer_cb);
+        if (t) {
+            xTimerStart(t, 0);
+        }
         return ESP_OK;
     }
 
@@ -207,10 +295,16 @@ esp_err_t loc_server_start(void) {
         return ESP_OK;
     }
 
+    esp_log_level_set("httpd_ws", ESP_LOG_WARN);
+    esp_log_level_set("httpd_parse", ESP_LOG_WARN);
+    esp_log_level_set("httpd_uri", ESP_LOG_WARN);
+
     httpd_config_t config   = HTTPD_DEFAULT_CONFIG();
     config.server_port      = 80;
-    config.max_open_sockets = 4;
+    config.max_open_sockets = 7;
     config.stack_size       = 8192;
+    config.lru_purge_enable = true;
+    config.max_req_hdr_len  = 2048;
 
     ESP_RETURN_ON_ERROR(httpd_start(&g_server, &config), g_tag, "httpd_start failed");
 
@@ -238,7 +332,9 @@ esp_err_t loc_server_start(void) {
     httpd_register_uri_handler(g_server, &URI_ROOT);
     httpd_register_uri_handler(g_server, &URI_CSS);
     httpd_register_uri_handler(g_server, &URI_JS);
-    httpd_register_uri_handler(g_server, &URI_WS);
+    esp_err_t ws_reg = httpd_register_uri_handler(g_server, &URI_WS);
+    ESP_LOGI(g_tag, "Handlers registered, WS=%s",
+             ws_reg == ESP_OK ? "OK" : esp_err_to_name(ws_reg));
 
     ESP_LOGI(g_tag, "Server started on port 80");
     return ESP_OK;
