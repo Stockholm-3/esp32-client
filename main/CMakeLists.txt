@@ -6,6 +6,7 @@ idf_component_register(
         screen_timeout
         ui
         bme280_sensor
+        clock
         ui_binder
         time_manager
         settings_manager
