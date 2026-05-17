@@ -4,6 +4,8 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>      
+
 
 // TabView y=24, tab bar height=78 → tab content starts at screen y=102
 #define TAB_Y 102

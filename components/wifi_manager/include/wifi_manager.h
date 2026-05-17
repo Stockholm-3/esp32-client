@@ -17,6 +17,8 @@ typedef enum {
     WIFI_MANAGER_FAIL_REASON_UNKNOWN = 0,
     WIFI_MANAGER_FAIL_REASON_AUTH,  /* wrong password or auth rejected */
     WIFI_MANAGER_FAIL_REASON_NO_AP, /* SSID not found */
+     WIFI_MANAGER_FAIL_REASON_TIMEOUT,      // Add this
+    WIFI_MANAGER_FAIL_REASON_DHCP_FAIL, 
 } WifiManagerFailReason;
 
 typedef struct {
