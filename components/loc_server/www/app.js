@@ -26,10 +26,11 @@ function connect() {
             const lwc = msg.local_web_client_enabled ?? false;
             document.getElementById('chk-lwc').checked = lwc;
             document.getElementById('ip-config-block').style.display = lwc ? 'block' : 'none';
-            document.getElementById('inp-ip').value   = msg.sta_static_ip  || '';
-            document.getElementById('inp-gw').value   = msg.sta_gateway    || '';
-            document.getElementById('inp-nm').value   = msg.sta_netmask    || '';
+            document.getElementById('inp-ip').value   = msg.sta_static_ip  || msg.current_ip || '';
+            document.getElementById('inp-gw').value   = msg.sta_gateway    || msg.current_gw || '';
+            document.getElementById('inp-nm').value   = msg.sta_netmask    || msg.current_nm || '';
             document.getElementById('inp-host').value = msg.mdns_hostname  || '';
+            updateMdnsHint();
             g_suppress = false;
         } else if (msg.type === 'wifi_status') {
             const labels = { connected: 'Connected', connecting: 'Connecting...', failed: 'Failed' };
@@ -70,6 +71,11 @@ function applyWifi() {
     const pass = document.getElementById('inp-pass').value;
     if (!ssid || !pass) { alert('Select network and enter password'); return; }
     g_ws.send(JSON.stringify({ type: 'set_settings', ssid, password: pass }));
+}
+
+function updateMdnsHint() {
+    const host = document.getElementById('inp-host').value.trim() || 'esp32-client';
+    document.getElementById('mdns-hint').textContent = '→ http://' + host + '.local';
 }
 
 function sendNetworkConfig() {

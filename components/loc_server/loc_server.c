@@ -5,6 +5,7 @@
 #include "esp_check.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "esp_netif.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
@@ -39,7 +40,6 @@ static const StaticFile G_FILES[] = {
 };
 
 static esp_err_t handle_static(httpd_req_t* req) {
-    ESP_LOGW(g_tag, "HTTP %s", req->uri);
     for (int i = 0; i < (int)(sizeof(G_FILES) / sizeof(G_FILES[0])); i++) {
         if (strcmp(req->uri, G_FILES[i].uri) == 0) {
             size_t len = (size_t)(G_FILES[i].end - G_FILES[i].start - 1);
@@ -56,7 +56,20 @@ void loc_server_push_settings(void) {
         return;
     }
 
-    char buf[512];
+    char current_ip[16] = "";
+    char current_gw[16] = "";
+    char current_nm[16] = "";
+    esp_netif_t* sta    = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (sta) {
+        esp_netif_ip_info_t ip_info;
+        if (esp_netif_get_ip_info(sta, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
+            snprintf(current_ip, sizeof(current_ip), IPSTR, IP2STR(&ip_info.ip));
+            snprintf(current_gw, sizeof(current_gw), IPSTR, IP2STR(&ip_info.gw));
+            snprintf(current_nm, sizeof(current_nm), IPSTR, IP2STR(&ip_info.netmask));
+        }
+    }
+
+    char buf[640];
     snprintf(buf, sizeof(buf),
              "{\"type\":\"settings\","
              "\"ssid\":\"%s\","
@@ -67,12 +80,16 @@ void loc_server_push_settings(void) {
              "\"sta_static_ip\":\"%s\","
              "\"sta_gateway\":\"%s\","
              "\"sta_netmask\":\"%s\","
-             "\"mdns_hostname\":\"%s\"}",
+             "\"mdns_hostname\":\"%s\","
+             "\"current_ip\":\"%s\","
+             "\"current_gw\":\"%s\","
+             "\"current_nm\":\"%s\"}",
              settings_manager_get_ssid(), settings_manager_get_location(),
              settings_manager_get_price_zone(), settings_manager_get_timeout(),
              (int)settings_manager_get_local_web_client_enabled() ? "true" : "false",
              settings_manager_get_sta_static_ip(), settings_manager_get_sta_gateway(),
-             settings_manager_get_sta_netmask(), settings_manager_get_mdns_hostname());
+             settings_manager_get_sta_netmask(), settings_manager_get_mdns_hostname(), current_ip,
+             current_gw, current_nm);
 
     httpd_ws_frame_t frame = {
         .type    = HTTPD_WS_TYPE_TEXT,
@@ -239,7 +256,6 @@ static void ws_push_timer_cb(TimerHandle_t timer) {
 }
 
 static esp_err_t handle_ws(httpd_req_t* req) {
-    ESP_LOGW(g_tag, "WS handler, method=%d fd=%d", (int)req->method, httpd_req_to_sockfd(req));
     if (req->method == HTTP_GET) {
         g_ws_fd = httpd_req_to_sockfd(req);
         ESP_LOGI(g_tag, "Browser connected, fd=%d", g_ws_fd);
@@ -294,10 +310,6 @@ esp_err_t loc_server_start(void) {
     if (g_server) {
         return ESP_OK;
     }
-
-    esp_log_level_set("httpd_ws", ESP_LOG_WARN);
-    esp_log_level_set("httpd_parse", ESP_LOG_WARN);
-    esp_log_level_set("httpd_uri", ESP_LOG_WARN);
 
     httpd_config_t config   = HTTPD_DEFAULT_CONFIG();
     config.server_port      = 80;

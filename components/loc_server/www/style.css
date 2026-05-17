@@ -112,6 +112,8 @@ button:hover { background: var(--accent); border-color: var(--accent); }
     margin-bottom: 8px;
 }
 .ip-row label { font-size: 0.9rem; color: var(--ink3); }
+.ip-row { flex-wrap: wrap; }
+.mdns-hint { width: 100%; font-size: 0.75rem; color: var(--ink3); margin-top: 3px; }
 .ip-block button { margin-top: 8px; width: 100%; }
 
 #reboot-overlay {

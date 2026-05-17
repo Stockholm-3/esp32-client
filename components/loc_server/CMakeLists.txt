@@ -3,7 +3,7 @@ if(IDF_TARGET STREQUAL "linux")
     set(LOC_REQS log wifi_manager)
 else()
     set(LOC_SRC "loc_server.c")
-    set(LOC_REQS esp_http_server settings_manager ui_binder wifi_manager display log freertos espressif__cjson)
+    set(LOC_REQS esp_http_server esp_netif settings_manager ui_binder wifi_manager display log freertos espressif__cjson)
 endif()
 
 idf_component_register(
