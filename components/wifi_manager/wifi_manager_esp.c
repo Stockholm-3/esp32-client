@@ -214,6 +214,11 @@ int wifi_manager_start(const char* ssid, const char* password, const WifiManager
             esp_netif_str_to_ip4(g_cfg.sta_netmask, &ip_info.netmask) == ESP_OK) {
             esp_netif_dhcpc_stop(sta_netif);
             esp_netif_set_ip_info(sta_netif, &ip_info);
+            // Without DHCP there is no DNS; use the gateway as the primary resolver.
+            esp_netif_dns_info_t dns = {};
+            dns.ip.u_addr.ip4        = ip_info.gw;
+            dns.ip.type              = ESP_IPADDR_TYPE_V4;
+            esp_netif_set_dns_info(sta_netif, ESP_NETIF_DNS_MAIN, &dns);
             ESP_LOGI(g_tag, "Static IP: %s gw: %s", g_cfg.sta_ip, g_cfg.sta_gateway);
         } else {
             ESP_LOGW(g_tag, "Invalid static IP config, falling back to DHCP");
