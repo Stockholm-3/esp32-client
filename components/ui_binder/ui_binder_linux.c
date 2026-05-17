@@ -69,6 +69,7 @@ void ui_binder_set_local_web_client_enabled(bool enabled) { (void)enabled; }
 void ui_binder_on_ap_enabled_changed(ui_binder_bool_cb_t cb) { s_ap_cb = cb; }
 void ui_binder_on_ap_enabled_changed2(ui_binder_bool_cb_t cb) { s_ap_cb2 = cb; }
 void ui_binder_on_local_web_client_changed(ui_binder_bool_cb_t cb) { s_lwc_cb = cb; }
+void ui_binder_update_local_ip(const char* ip) { (void)ip; }
 
 void ui_binder_update_bme280(const Bme280Reading* reading) {
     char buf[10];

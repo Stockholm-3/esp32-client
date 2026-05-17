@@ -66,6 +66,7 @@ extern lv_obj_t * ui_lbl_localtime;
 extern lv_obj_t * ui_lbl_wifi_status;
 extern lv_obj_t * ui_sw_ap_enabled;
 extern lv_obj_t * ui_sw_local_web_client;
+extern lv_obj_t * ui_lbl_settings_ip;
 
 // Traffic light dots (home screen electricity recommendation)
 extern lv_obj_t * ui_panel_traffic_light;

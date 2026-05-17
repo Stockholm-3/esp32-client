@@ -94,6 +94,18 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
         ui_binder_update_wifi_name(g_current_ssid);
         time_manager_init(NULL);
         loc_server_start();
+
+        char ip_str[16] = "---";
+#ifndef CONFIG_IDF_TARGET_LINUX
+        esp_netif_t* sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (sta) {
+            esp_netif_ip_info_t ip_info;
+            if (esp_netif_get_ip_info(sta, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
+                snprintf(ip_str, sizeof(ip_str), IPSTR, IP2STR(&ip_info.ip));
+            }
+        }
+#endif
+        ui_binder_update_local_ip(ip_str);
     }
     loc_server_notify_wifi_state(state);
 }

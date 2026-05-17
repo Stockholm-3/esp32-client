@@ -153,6 +153,15 @@ void ui_binder_set_local_web_client_enabled(bool enabled) {
     }
 }
 
+void ui_binder_update_local_ip(const char* ip) {
+    char buf[20];
+    snprintf(buf, sizeof(buf), "IP: %s", ip);
+    if (display_lvgl_lock(100)) {
+        lv_label_set_text(ui_lbl_settings_ip, buf);
+        display_lvgl_unlock();
+    }
+}
+
 void ui_binder_update_bme280(const Bme280Reading* reading) {
     char buf[10];
     if (!display_lvgl_lock(100)) {

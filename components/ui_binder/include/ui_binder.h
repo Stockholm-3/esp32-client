@@ -36,3 +36,4 @@ void ui_binder_set_local_web_client_enabled(bool enabled);
 void ui_binder_on_ap_enabled_changed(ui_binder_bool_cb_t cb);
 void ui_binder_on_ap_enabled_changed2(ui_binder_bool_cb_t cb);
 void ui_binder_on_local_web_client_changed(ui_binder_bool_cb_t cb);
+void ui_binder_update_local_ip(const char* ip);
