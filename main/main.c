@@ -73,6 +73,10 @@ static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
 static void on_wifi_connect(const char* ssid, const char* password) {
     strncpy(g_current_ssid, ssid, 32);
     g_current_ssid[32] = '\0';
+    
+    // Optional: Show connecting message
+    wifi_popup_show_error_msg("Connecting", "Connecting to network...");
+    
     wifi_manager_change_network(ssid, password);
     settings_manager_save_wifi(ssid, password);
 }
@@ -86,15 +90,49 @@ static void on_wifi_connect(const char* ssid, const char* password) {
  * @param reason  Failure reason (currently unused).
  */
 static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) {
-    (void)reason;
     ui_binder_update_wifi_status(state);
-    if (state == WIFI_MANAGER_STATE_CONNECTED) {
-        ui_binder_update_wifi_name(g_current_ssid);
-
-        // Safely initialize time manager (guards against re-initialization)
-        // On first connection, this initializes SNTP.
-        // On reconnection, this is a no-op to avoid SNTP assertion failure.
-        time_manager_init(NULL);
+    
+    switch (state) {
+        case WIFI_MANAGER_STATE_CONNECTED:
+            ui_binder_update_wifi_name(g_current_ssid);
+            time_manager_init(NULL);
+            break;
+            
+        case WIFI_MANAGER_STATE_FAILED:
+            // Show error popup with the SSID that failed
+            if (g_current_ssid[0] != '\0') {
+                wifi_popup_show_error(g_current_ssid, reason);
+            } else {
+                const char* msg = (reason == WIFI_MANAGER_FAIL_REASON_NO_AP) ? 
+                    "Network not found" : "Connection failed";
+                wifi_popup_show_error_msg("WiFi Error", msg);
+            }
+            
+            // Log for debugging
+            switch(reason) {
+                case WIFI_MANAGER_FAIL_REASON_NO_AP:
+                    ESP_LOGE(g_tag, "WiFi failed: SSID '%s' not found", g_current_ssid);
+                    break;
+                case WIFI_MANAGER_FAIL_REASON_AUTH:
+                    ESP_LOGE(g_tag, "WiFi failed: Wrong password for '%s'", g_current_ssid);
+                    break;
+                case WIFI_MANAGER_FAIL_REASON_TIMEOUT:
+                    ESP_LOGE(g_tag, "WiFi failed: Connection timeout");
+                    break;
+                default:
+                    ESP_LOGE(g_tag, "WiFi failed: Unknown reason (%d)", reason);
+                    break;
+            }
+            break;
+            
+        case WIFI_MANAGER_STATE_DISCONNECTED:
+            // Optional: brief notification
+            wifi_popup_show_error_msg("WiFi Disconnected", 
+                "Connection to network was lost.\nAttempting to reconnect...");
+            break;
+            
+        default:
+            break;
     }
 }
 

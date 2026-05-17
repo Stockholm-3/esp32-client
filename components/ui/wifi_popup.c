@@ -22,6 +22,8 @@ static lv_obj_t* g_pw_keyboard          = NULL;
 static lv_obj_t* g_lbl_pw_net_name      = NULL;
 static lv_obj_t* g_ta_password          = NULL;
 static lv_obj_t* g_net_container        = NULL;
+static lv_obj_t* g_error_popup          = NULL;
+static lv_timer_t* g_error_auto_close_timer = NULL;
 static char g_selected_ssid[33]         = "";
 static WifiPopupConnectCbT g_connect_cb = NULL;
 
@@ -131,6 +133,28 @@ static void close_password_popup_cb(lv_event_t* e) {
     lv_obj_add_flag(g_pw_backdrop, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(g_wifi_backdrop, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(g_panel_wifi_popup, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void close_error_popup_cb(lv_event_t* e) {
+    (void)e;
+    if (g_error_popup) {
+        lv_obj_del(g_error_popup);
+        g_error_popup = NULL;
+    }
+    if (g_error_auto_close_timer) {
+        lv_timer_del(g_error_auto_close_timer);
+        g_error_auto_close_timer = NULL;
+    }
+}
+
+// Auto-close timer callback
+static void error_auto_close_cb(lv_timer_t* timer) {
+    (void)timer;
+    if (g_error_popup) {
+        lv_obj_del(g_error_popup);
+        g_error_popup = NULL;
+    }
+    g_error_auto_close_timer = NULL;
 }
 
 // ── Network panels ────────────────────────────────────────────────────────────
@@ -332,6 +356,174 @@ void wifi_popup_init(lv_obj_t* parent) {
     build_wifi_popup();
     build_password_popup();
     lv_obj_add_event_cb(ui_btn_wifi_change, show_wifi_popup_cb, LV_EVENT_CLICKED, NULL);
+}
+
+void wifi_popup_show_error(const char* ssid, WifiManagerFailReason reason) {
+    // Close any existing error popup
+    if (g_error_popup) {
+        close_error_popup_cb(NULL);
+    }
+    
+    // Determine error message based on reason
+    const char* error_title = "Connection Failed";
+    const char* error_message = "";
+    
+    switch(reason) {
+        case WIFI_MANAGER_FAIL_REASON_NO_AP:
+            error_title = "Network Not Found";
+            error_message = "The network \"%s\" could not be found.\nCheck the name and try again.";
+            break;
+        case WIFI_MANAGER_FAIL_REASON_AUTH:
+            error_title = "Wrong Password";
+            error_message = "The password for \"%s\" is incorrect.\nPlease try again.";
+            break;
+        case WIFI_MANAGER_FAIL_REASON_TIMEOUT:
+            error_title = "Connection Timeout";
+            error_message = "Connection to \"%s\" timed out.\nCheck signal strength and try again.";
+            break;
+        case WIFI_MANAGER_FAIL_REASON_DHCP_FAIL:
+            error_title = "No IP Address";
+            error_message = "Could not get an IP address from \"%s\".\nCheck your router settings.";
+            break;
+        default:
+            error_title = "Connection Failed";
+            error_message = "Could not connect to \"%s\".\nPlease check your network and try again.";
+            break;
+    }
+    
+    // Format the message with ssid
+    char formatted_msg[256];
+    snprintf(formatted_msg, sizeof(formatted_msg), error_message, ssid);
+    
+    // Create error popup (positioned similarly to WiFi popup)
+    g_error_popup = lv_obj_create(lv_scr_act());
+    lv_obj_set_pos(g_error_popup, 192, 200);  // Centered position
+    lv_obj_set_size(g_error_popup, 640, 180);
+    lv_obj_set_style_bg_color(g_error_popup, lv_color_hex(0x2A2A3E), 0);
+    lv_obj_set_style_bg_opa(g_error_popup, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(g_error_popup, lv_color_hex(0xFF6B6B), 0);  // Red border
+    lv_obj_set_style_border_width(g_error_popup, 2, 0);
+    lv_obj_set_style_radius(g_error_popup, 12, 0);
+    
+    // Header with red background
+    lv_obj_t* hdr = lv_obj_create(g_error_popup);
+    lv_obj_set_pos(hdr, 0, 0);
+    lv_obj_set_size(hdr, 640, 44);
+    lv_obj_set_style_bg_color(hdr, lv_color_hex(0x4A2020), 0);  // Dark red
+    lv_obj_set_style_bg_opa(hdr, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(hdr, 0, 0);
+    lv_obj_set_style_border_width(hdr, 0, 0);
+    
+    // Error icon (X) or title
+    lv_obj_t* title = lv_label_create(hdr);
+    lv_label_set_text(title, error_title);
+    lv_obj_set_style_text_color(title, lv_color_hex(0xFF8888), 0);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_16, 0);
+    lv_obj_align(title, LV_ALIGN_LEFT_MID, 16, 0);
+    
+    // Close button
+    lv_obj_t* btn_close = lv_button_create(hdr);
+    lv_obj_set_pos(btn_close, 598, 8);
+    lv_obj_set_size(btn_close, 28, 28);
+    lv_obj_set_style_bg_color(btn_close, lv_color_hex(0x4A2020), 0);
+    lv_obj_set_style_shadow_width(btn_close, 0, 0);
+    lv_obj_t* lbl_x = lv_label_create(btn_close);
+    lv_label_set_text(lbl_x, "X");
+    lv_obj_set_style_text_color(lbl_x, lv_color_hex(0xFF8888), 0);
+    lv_obj_center(lbl_x);
+    lv_obj_add_event_cb(btn_close, close_error_popup_cb, LV_EVENT_CLICKED, NULL);
+    
+    // Error message body
+    lv_obj_t* body = lv_obj_create(g_error_popup);
+    lv_obj_set_pos(body, 0, 44);
+    lv_obj_set_size(body, 640, 136);
+    lv_obj_set_style_bg_opa(body, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(body, 0, 0);
+    
+    lv_obj_t* msg_label = lv_label_create(body);
+    lv_label_set_text(msg_label, formatted_msg);
+    lv_obj_set_style_text_align(msg_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_center(msg_label);
+    lv_obj_set_style_text_color(msg_label, lv_color_hex(0xE0E0F0), 0);
+    
+    // OK button
+    lv_obj_t* btn_ok = lv_btn_create(body);
+    lv_obj_set_size(btn_ok, 100, 36);
+    lv_obj_align(btn_ok, LV_ALIGN_BOTTOM_MID, 0, -10);
+    lv_obj_set_style_bg_color(btn_ok, lv_color_hex(0x4A6FA5), 0);
+    lv_obj_t* btn_ok_label = lv_label_create(btn_ok);
+    lv_label_set_text(btn_ok_label, "OK");
+    lv_obj_center(btn_ok_label);
+    lv_obj_add_event_cb(btn_ok, close_error_popup_cb, LV_EVENT_CLICKED, NULL);
+    
+    // Auto-close after 5 seconds
+    g_error_auto_close_timer = lv_timer_create(error_auto_close_cb, 5000, NULL);
+}
+
+// Simple error message without SSID (for general errors)
+void wifi_popup_show_error_msg(const char* title, const char* message) {
+    if (g_error_popup) {
+        close_error_popup_cb(NULL);
+    }
+    
+    g_error_popup = lv_obj_create(lv_scr_act());
+    lv_obj_set_pos(g_error_popup, 192, 200);
+    lv_obj_set_size(g_error_popup, 640, 160);
+    lv_obj_set_style_bg_color(g_error_popup, lv_color_hex(0x2A2A3E), 0);
+    lv_obj_set_style_border_color(g_error_popup, lv_color_hex(0xFF6B6B), 0);
+    lv_obj_set_style_border_width(g_error_popup, 2, 0);
+    lv_obj_set_style_radius(g_error_popup, 12, 0);
+    
+    // Header
+    lv_obj_t* hdr = lv_obj_create(g_error_popup);
+    lv_obj_set_pos(hdr, 0, 0);
+    lv_obj_set_size(hdr, 640, 44);
+    lv_obj_set_style_bg_color(hdr, lv_color_hex(0x4A2020), 0);
+    lv_obj_set_style_radius(hdr, 0, 0);
+    lv_obj_set_style_border_width(hdr, 0, 0);
+    
+    lv_obj_t* title_label = lv_label_create(hdr);
+    lv_label_set_text(title_label, title);
+    lv_obj_set_style_text_color(title_label, lv_color_hex(0xFF8888), 0);
+    lv_obj_align(title_label, LV_ALIGN_LEFT_MID, 16, 0);
+    
+    // Close button
+    lv_obj_t* btn_close = lv_button_create(hdr);
+    lv_obj_set_pos(btn_close, 598, 8);
+    lv_obj_set_size(btn_close, 28, 28);
+    lv_obj_set_style_bg_color(btn_close, lv_color_hex(0x4A2020), 0);
+    lv_obj_t* lbl_x = lv_label_create(btn_close);
+    lv_label_set_text(lbl_x, "X");
+    lv_obj_set_style_text_color(lbl_x, lv_color_hex(0xFF8888), 0);
+    lv_obj_center(lbl_x);
+    lv_obj_add_event_cb(btn_close, close_error_popup_cb, LV_EVENT_CLICKED, NULL);
+    
+    // Message
+    lv_obj_t* body = lv_obj_create(g_error_popup);
+    lv_obj_set_pos(body, 0, 44);
+    lv_obj_set_size(body, 640, 116);
+    lv_obj_set_style_bg_opa(body, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(body, 0, 0);
+    
+    lv_obj_t* msg_label = lv_label_create(body);
+    lv_label_set_text(msg_label, message);
+    lv_label_set_long_mode(msg_label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(msg_label, 600);
+    lv_obj_set_style_text_align(msg_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_center(msg_label);
+    lv_obj_set_style_text_color(msg_label, lv_color_hex(0xE0E0F0), 0);
+    
+    // OK button
+    lv_obj_t* btn_ok = lv_btn_create(body);
+    lv_obj_set_size(btn_ok, 100, 36);
+    lv_obj_align(btn_ok, LV_ALIGN_BOTTOM_MID, 0, -10);
+    lv_obj_set_style_bg_color(btn_ok, lv_color_hex(0x4A6FA5), 0);
+    lv_obj_t* btn_ok_label = lv_label_create(btn_ok);
+    lv_label_set_text(btn_ok_label, "OK");
+    lv_obj_center(btn_ok_label);
+    lv_obj_add_event_cb(btn_ok, close_error_popup_cb, LV_EVENT_CLICKED, NULL);
+    
+    g_error_auto_close_timer = lv_timer_create(error_auto_close_cb, 5000, NULL);
 }
 
 void wifi_popup_update_networks(const WifiManagerApInfo* aps, uint16_t count) {
