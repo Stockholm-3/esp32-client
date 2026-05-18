@@ -36,20 +36,21 @@ static void sntp_sync_callback(struct timeval* tv) {
 void time_manager_init(TimeEventCb cb) {
     g_event_callback = cb;
 
-    // Set timezone (customize as needed)
     setenv("TZ", "CET-1CEST-2,M3.5.0/2,M10.5.0/3", 1);
     tzset();
 
-    // Initialize SNTP using esp_sntp API (for ESP-IDF v4.4+)
+    if (esp_sntp_enabled()) {
+        ESP_LOGI(g_tag, "SNTP already running, restarting for new connection");
+        esp_sntp_stop();
+    }
+
     esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
     esp_sntp_setservername(0, "pool.ntp.org");
-    // esp_sntp_setservername(1, "time.google.com");
     esp_sntp_set_time_sync_notification_cb(sntp_sync_callback);
     esp_sntp_init();
 
     g_current_state = TIME_STATE_SYNCING;
     ESP_LOGI(g_tag, "Time manager initialized (ESP32/NTP mode)");
-
     if (g_event_callback) {
         g_event_callback(g_current_state, NULL);
     }
