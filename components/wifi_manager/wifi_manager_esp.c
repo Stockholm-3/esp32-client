@@ -3,6 +3,8 @@
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
+#include "lwip/ip_addr.h"
+#include "ping/ping_sock.h"
 #include "wifi_manager.h"
 
 #include <stdlib.h>
@@ -19,6 +21,10 @@ static TimerHandle_t g_retry_timer     = NULL;
 static WifiManagerScanDoneCb g_scan_cb = NULL;
 static WifiManagerEventCb g_user_cb    = NULL;
 static esp_netif_t* g_ap_netif         = NULL;
+static esp_netif_t* g_sta_netif        = NULL;
+static bool g_static_ip_active         = false;
+static TimerHandle_t g_gw_check_timer  = NULL;
+static esp_ping_handle_t g_ping_hdl    = NULL;
 
 static WifiManagerConfig g_cfg = {
     .max_retries           = 10,
@@ -126,6 +132,43 @@ static bool is_auth_failure(uint8_t reason) {
     }
 }
 
+static void on_ping_end(esp_ping_handle_t hdl, void* args) {
+    uint32_t received = 0;
+    esp_ping_get_profile(hdl, ESP_PING_PROF_REPLY, &received, sizeof(received));
+    esp_ping_delete_session(hdl);
+    g_ping_hdl = NULL;
+
+    if (received == 0) {
+        ESP_LOGW(g_tag, "Static IP: gateway unreachable, falling back to DHCP");
+        g_static_ip_active = false;
+        esp_netif_dhcpc_start(g_sta_netif);
+    } else {
+        ESP_LOGI(g_tag, "Static IP: gateway reachable (%lu replies)", (unsigned long)received);
+    }
+}
+
+static void gw_check_timer_cb(TimerHandle_t timer) {
+    ip_addr_t target = {0};
+    if (!ipaddr_aton(g_cfg.sta_gateway, &target)) {
+        return;
+    }
+
+    esp_ping_config_t cfg = ESP_PING_DEFAULT_CONFIG();
+    cfg.target_addr       = target;
+    cfg.count             = 3;
+    cfg.timeout_ms        = 1000;
+    cfg.interval_ms       = 500;
+
+    esp_ping_callbacks_t cbs = {.on_ping_end = on_ping_end};
+    if (esp_ping_new_session(&cfg, &cbs, &g_ping_hdl) != ESP_OK) {
+        ESP_LOGW(g_tag, "Failed to create ping session, falling back to DHCP");
+        g_static_ip_active = false;
+        esp_netif_dhcpc_start(g_sta_netif);
+        return;
+    }
+    esp_ping_start(g_ping_hdl);
+}
+
 static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id,
                                void* event_data) {
     if (event_base == WIFI_EVENT) {
@@ -133,6 +176,13 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
         case WIFI_EVENT_STA_START:
             set_state(WIFI_MANAGER_STATE_CONNECTING, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
             esp_wifi_connect();
+            break;
+
+        case WIFI_EVENT_STA_CONNECTED:
+            if (g_static_ip_active && g_gw_check_timer) {
+                xTimerChangePeriod(g_gw_check_timer, pdMS_TO_TICKS(3000), 0);
+                xTimerStart(g_gw_check_timer, 0);
+            }
             break;
 
         case WIFI_EVENT_STA_DISCONNECTED: {
@@ -205,21 +255,29 @@ int wifi_manager_start(const char* ssid, const char* password, const WifiManager
         return -1;
     }
 
-    esp_netif_t* sta_netif = esp_netif_create_default_wifi_sta();
+    g_gw_check_timer =
+        xTimerCreate("gw_check", pdMS_TO_TICKS(3000), pdFALSE, NULL, gw_check_timer_cb);
+    if (!g_gw_check_timer) {
+        ESP_LOGE(g_tag, "Failed to create gateway check timer");
+        return -1;
+    }
+
+    g_sta_netif = esp_netif_create_default_wifi_sta();
 
     if ((int)g_cfg.sta_static_ip_enabled && g_cfg.sta_ip[0] != '\0') {
         esp_netif_ip_info_t ip_info = {0};
         if (esp_netif_str_to_ip4(g_cfg.sta_ip, &ip_info.ip) == ESP_OK &&
             esp_netif_str_to_ip4(g_cfg.sta_gateway, &ip_info.gw) == ESP_OK &&
             esp_netif_str_to_ip4(g_cfg.sta_netmask, &ip_info.netmask) == ESP_OK) {
-            esp_netif_dhcpc_stop(sta_netif);
-            esp_netif_set_ip_info(sta_netif, &ip_info);
+            esp_netif_dhcpc_stop(g_sta_netif);
+            esp_netif_set_ip_info(g_sta_netif, &ip_info);
             // Without DHCP there is no DNS; use the gateway as the primary resolver.
             esp_netif_dns_info_t dns = {};
             dns.ip.u_addr.ip4        = ip_info.gw;
             dns.ip.type              = ESP_IPADDR_TYPE_V4;
-            esp_netif_set_dns_info(sta_netif, ESP_NETIF_DNS_MAIN, &dns);
+            esp_netif_set_dns_info(g_sta_netif, ESP_NETIF_DNS_MAIN, &dns);
             ESP_LOGI(g_tag, "Static IP: %s gw: %s", g_cfg.sta_ip, g_cfg.sta_gateway);
+            g_static_ip_active = true;
         } else {
             ESP_LOGW(g_tag, "Invalid static IP config, falling back to DHCP");
         }
@@ -254,11 +312,25 @@ void wifi_manager_stop(void) {
     xTimerDelete(g_retry_timer, 0);
     g_retry_timer = NULL;
 
+    if (g_gw_check_timer) {
+        xTimerStop(g_gw_check_timer, 0);
+        xTimerDelete(g_gw_check_timer, 0);
+        g_gw_check_timer = NULL;
+    }
+
+    if (g_ping_hdl) {
+        esp_ping_stop(g_ping_hdl);
+        esp_ping_delete_session(g_ping_hdl);
+        g_ping_hdl = NULL;
+    }
+
     esp_wifi_stop();
-    g_retry_count = 0;
-    g_scan_active = false;
-    g_scan_cb     = NULL;
-    g_initialized = false;
+    g_retry_count      = 0;
+    g_scan_active      = false;
+    g_scan_cb          = NULL;
+    g_initialized      = false;
+    g_static_ip_active = false;
+    g_sta_netif        = NULL;
     set_state(WIFI_MANAGER_STATE_IDLE, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
 }
 

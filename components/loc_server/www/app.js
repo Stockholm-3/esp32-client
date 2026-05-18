@@ -26,9 +26,9 @@ function connect() {
             const lwc = msg.local_web_client_enabled ?? false;
             document.getElementById('chk-lwc').checked = lwc;
             document.getElementById('ip-config-block').style.display = lwc ? 'block' : 'none';
-            document.getElementById('inp-ip').value   = msg.sta_static_ip  || msg.current_ip || '';
-            document.getElementById('inp-gw').value   = msg.sta_gateway    || msg.current_gw || '';
-            document.getElementById('inp-nm').value   = msg.sta_netmask    || msg.current_nm || '';
+            document.getElementById('inp-ip').value   = msg.current_ip || msg.sta_static_ip  || '';
+            document.getElementById('inp-gw').value   = msg.current_gw || msg.sta_gateway    || '';
+            document.getElementById('inp-nm').value   = msg.current_nm || msg.sta_netmask    || '';
             document.getElementById('inp-host').value = msg.mdns_hostname  || '';
             updateMdnsHint();
             g_suppress = false;
