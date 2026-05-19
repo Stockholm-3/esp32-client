@@ -7,6 +7,7 @@
  */
 
 #include "bme280_sensor.h"
+#include "clock.h"
 #include "display.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -146,6 +147,7 @@ void app_main(void) {
     screen_timeout_init(5U * 60U);
     display_set_activity_callback(screen_timeout_record_activity);
     ui_binder_init();
+    clock_init();
     display_lvgl_unlock();
 
     settings_manager_init();
@@ -166,10 +168,6 @@ void app_main(void) {
 
         smw_process(&g_smw_worker, get_system_ms());
 
-        struct tm timeinfo;
-        if (time_manager_get_time(&timeinfo)) {
-            ui_binder_update_localtime(&timeinfo);
-        }
         if (g_bme_updated) {
             g_bme_updated = false;
             ui_binder_update_bme280(&g_bme_reading);
