@@ -191,7 +191,6 @@ lint-ci: lint-scrub
 	  run-clang-tidy \
 	    -clang-tidy-binary "$(CLANG_TIDY_EXE)" \
 	    -p "$(LINT_DB_DIR)" \
-	    -checks='' \
 	    -header-filter "$(HEADER_FILTER)" \
 	    $(TIDY_EXTRA_ARGS) \
 	    -quiet \
