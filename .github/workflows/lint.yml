@@ -62,10 +62,11 @@ jobs:
         if: steps.cache-tools.outputs.cache-hit != 'true'
         run: ${{ env.IDF_PATH }}/install.sh ${{ env.IDF_TARGET }}
 
-      - name: Install Native clang-tidy Framework
+      - name: Install Lint Orchestration Tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends clang-tidy clang-tools
+          # We only need the parallel orchestrator execution tool 'run-clang-tidy' from apt
+          sudo apt-get install -y --no-install-recommends clang-tools
 
       - name: Prepare Compile Database
         run: |
@@ -74,12 +75,15 @@ jobs:
 
       - name: Run Linter
         run: |
+          # 1. Activate the ESP-IDF environment tools path
           source ${{ env.IDF_PATH }}/export.sh
           
-          # Force the native linter to accept the database by stripping out the target platform limit
-          export CLANG_TIDY_ARGS="-extra-arg=--target=x86_64-pc-linux-gnu"
+          # 2. Extract the actual path of Espressif's custom built target-aware clang-tidy binary
+          ESPRESSIF_CLANG_TIDY=$(which clang-tidy)
+          echo "Using Espressif target linter engine path: $ESPRESSIF_CLANG_TIDY"
           
-          make lint-ci
+          # 3. Explicitly pass this binary path to override your Makefile's detection fallback variable
+          make lint-ci CLANG_TIDY_EXE="$ESPRESSIF_CLANG_TIDY"
 
       - name: Upload lint DB on failure
         if: failure()
