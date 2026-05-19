@@ -56,16 +56,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.IDF_TOOLS_PATH }}
-          key: espressif-tools-${{ env.IDF_VERSION }}-${{ env.IDF_TARGET }}
+          key: espressif-tools-${{ env.IDF_VERSION }}-${{ env.IDF_TARGET }}-with-tidy
 
       - name: Install ESP-IDF tools
         if: steps.cache-tools.outputs.cache-hit != 'true'
-        run: ${{ env.IDF_PATH }}/install.sh ${{ env.IDF_TARGET }}
+        # Crucial addition: explicitly download the target-aware target linter framework
+        run: ${{ env.IDF_PATH }}/install.sh ${{ env.IDF_TARGET }} --enable-clang-tidy
 
       - name: Install Lint Orchestration Tools
         run: |
           sudo apt-get update -qq
-          # Your Makefile requires 'run-clang-tidy' which lives inside clang-tools
           sudo apt-get install -y --no-install-recommends clang-tools
 
       - name: Prepare Compile Database
@@ -75,12 +75,11 @@ jobs:
 
       - name: Run Linter
         run: |
-          # Source the target environment so Espressif's custom LLVM tools map directly to PATH
           source ${{ env.IDF_PATH }}/export.sh
-
-          # Assert that the correct Xtensa toolchain variant is matched before executing Make
-          which xtensa-esp32s3-elf-clang-tidy
-
+          
+          # Added logical OR alternative to prevent bash -e from halting if absent
+          which xtensa-esp32s3-elf-clang-tidy || (echo "CRITICAL: Xtensa clang-tidy toolchain component missing!" && exit 1)
+          
           make lint-ci
 
       - name: Upload lint DB on failure
