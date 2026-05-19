@@ -44,7 +44,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /home/runner/.espressif
-          # Pin toolcache index to your flake's lock file to update if pins change
+          # Re-evaluate the toolcache anytime your flake pin definitions change
           key: espressif-tools-${{ hashFiles('flake.lock') }}
 
       - name: Prepare Compile Database
@@ -53,12 +53,8 @@ jobs:
 
       - name: Run Linter
         run: |
-          # Pull standard host tools from your Nix flake shell environment map
-          ESPRESSIF_CLANG_TIDY=$(nix develop . --command which clang-tidy)
-          echo "Discovered target linter path inside Flake shell: $ESPRESSIF_CLANG_TIDY"
-          
-          # Force the Makefile runner to use the flake context binary
-          nix develop . --command make lint-ci CLANG_TIDY_EXE="$ESPRESSIF_CLANG_TIDY"
+          # Your Makefile now natively binds to the Flake environment's 'clang-tidy' executable path
+          nix develop . --command make lint-ci
 
       - name: Upload lint DB on failure
         if: failure()
