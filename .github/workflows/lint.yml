@@ -62,10 +62,11 @@ jobs:
         if: steps.cache-tools.outputs.cache-hit != 'true'
         run: ${{ env.IDF_PATH }}/install.sh ${{ env.IDF_TARGET }}
 
-      - name: Install Native clang-tidy & run-clang-tidy
+      - name: Install Lint Orchestration Tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends clang-tidy parallel
+          # Your Makefile requires 'run-clang-tidy' which lives inside clang-tools
+          sudo apt-get install -y --no-install-recommends clang-tools
 
       - name: Prepare Compile Database
         run: |
@@ -74,9 +75,12 @@ jobs:
 
       - name: Run Linter
         run: |
+          # Source the target environment so Espressif's custom LLVM tools map directly to PATH
           source ${{ env.IDF_PATH }}/export.sh
-          # Verify binary path before running
-          which xtensa-esp32s3-elf-clang-tidy || echo "Binary not found!"
+
+          # Assert that the correct Xtensa toolchain variant is matched before executing Make
+          which xtensa-esp32s3-elf-clang-tidy
+
           make lint-ci
 
       - name: Upload lint DB on failure
