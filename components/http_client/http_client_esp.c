@@ -1,3 +1,4 @@
+#include "esp_crt_bundle.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "http_client.h"
@@ -168,24 +169,72 @@ static esp_err_t async_event_handler(esp_http_client_event_t* evt) {
     return ESP_OK;
 }
 
+/* Concatenated root CAs — GTS R1, ISRG Root X1 (Let's Encrypt),
+ * Amazon Root CA1, DigiCert Global Root CA.
+ * mbedTLS tries each in order; add more roots to certs/roots.pem as needed.
+ * Sources: pki.goog, letsencrypt.org, amazontrust.com, digicert.com */
+extern const uint8_t G_ROOTS_START[] asm("_binary_roots_pem_start");
+extern const uint8_t G_ROOTS_END[] asm("_binary_roots_pem_end");
+
+/**
+ * @brief Allocate and configure an esp_http_client for one request.
+ *
+ * TLS trust hierarchy (evaluated in order, first match wins):
+ *   1. skip_verify == true  → no verification (development/testing only)
+ *   2. tls->ca_cert != NULL → caller-supplied PEM; used as sole trust anchor
+ *   3. default              → pinned GTS Root R1 (covers *.freeduck.dev and
+ *                             all Google Trust Services signed certs)
+ *
+ * Note: esp_crt_bundle_attach and cert_pem do not fall back to each other
+ * in mbedTLS — only one trust path is active at a time. The Nix IDF bundle
+ * is omitted here because its 1970 snapshot predates GTS Root R1.
+ * Add additional root PEMs via EMBED_TXTFILES if other CAs are needed.
+ *
+ * Mutual TLS is orthogonal to the above: populate client_cert + client_key.
+ *
+ * @param req           Fully populated request descriptor.
+ * @param tls           Resolved TLS config (global merged with per-request).
+ * @param is_async      Pass true for non-blocking / polled operation.
+ * @param event_handler ESP HTTP client event callback.
+ * @param user_data     Passed through to event_handler unchanged.
+ * @return              Initialised client handle, or NULL on failure.
+ */
 static esp_http_client_handle_t build_client(const HttpClientRequest* req,
                                              const HttpClientTlsConfig* tls, bool is_async,
                                              http_event_handle_cb event_handler, void* user_data) {
     esp_http_client_config_t cfg = {
-        .url                         = req->url,
-        .method                      = K_METHOD_MAP[req->method],
-        .timeout_ms                  = req->timeout_ms > 0 ? req->timeout_ms : g_default_timeout,
-        .cert_pem                    = tls->ca_cert,
-        .client_cert_pem             = tls->client_cert,
-        .client_key_pem              = tls->client_key,
-        .skip_cert_common_name_check = tls->skip_verify,
-        .event_handler               = event_handler,
-        .user_data                   = user_data,
-        .is_async                    = is_async,
+        .url             = req->url,
+        .method          = K_METHOD_MAP[req->method],
+        .timeout_ms      = req->timeout_ms > 0 ? req->timeout_ms : g_default_timeout,
+        .client_cert_pem = tls->client_cert,
+        .client_key_pem  = tls->client_key,
+        .event_handler   = event_handler,
+        .user_data       = user_data,
+        .is_async        = is_async,
     };
+
+    if (tls->skip_verify) {
+        /* Development override — disables all certificate verification.
+         * skip_cert_common_name_check suppresses the hostname check;
+         * without a trust anchor the full chain is also skipped. */
+        ESP_LOGW(g_tag, "TLS verification DISABLED for %s — not for production", req->url);
+        cfg.skip_cert_common_name_check = true;
+
+    } else if (tls->ca_cert) {
+        /* Caller-supplied trust anchor — used verbatim.
+         * Intended for private CAs, self-signed certs, or explicit pinning. */
+        cfg.cert_pem = tls->ca_cert;
+
+    } else {
+        /* Default: pinned GTS Root R1.
+         * Extend by embedding additional roots and chaining them in a
+         * single PEM buffer if broader CA coverage is required. */
+        cfg.cert_pem = (const char*)G_ROOTS_START;
+    }
 
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
     if (!client) {
+        ESP_LOGE(g_tag, "esp_http_client_init failed for %s", req->url);
         return NULL;
     }
 
@@ -194,8 +243,8 @@ static esp_http_client_handle_t build_client(const HttpClientRequest* req,
     }
 
     if (req->body) {
-        size_t len = req->body_len > 0 ? req->body_len : strlen(req->body);
-        esp_http_client_set_post_field(client, req->body, (int)len);
+        size_t body_len = req->body_len > 0 ? req->body_len : strlen(req->body);
+        esp_http_client_set_post_field(client, req->body, (int)body_len);
     }
 
     return client;

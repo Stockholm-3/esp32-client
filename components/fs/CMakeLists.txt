@@ -3,7 +3,7 @@ if(IDF_TARGET STREQUAL "linux")
     set(REQS log)
 else()
     set(SRC "fs_esp.c")
-    set(REQS log littlefs)
+    set(REQS log littlefs fatfs sdmmc)
 endif()
 
 idf_component_register(

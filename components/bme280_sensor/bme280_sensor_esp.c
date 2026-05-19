@@ -401,7 +401,7 @@ esp_err_t bme280_sensor_stop_task(void) {
     g_ctx.task_stop_req = true;
 
     const TickType_t TIMEOUT =
-        xTaskGetTickCount() + pdMS_TO_TICKS(g_ctx.task_cfg.poll_interval_ms * 3U + 500U);
+        xTaskGetTickCount() + pdMS_TO_TICKS((g_ctx.task_cfg.poll_interval_ms * 3U) + 500U);
     while (g_ctx.task_handle != NULL) {
         if (xTaskGetTickCount() > TIMEOUT) {
             ESP_LOGW(g_tag, "Timeout waiting for polling task — force-deleting");

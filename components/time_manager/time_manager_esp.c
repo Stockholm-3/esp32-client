@@ -10,7 +10,8 @@ static const char* g_tag            = "time_manager";
 static TimeState g_current_state    = TIME_STATE_UNSYNCED;
 static TimeEventCb g_event_callback = NULL;
 static struct tm g_cached_time;
-static bool g_time_valid = false;
+static bool g_time_valid  = false;
+static bool g_initialized = false;
 
 static void sntp_sync_callback(struct timeval* tv) {
     ESP_LOGI(g_tag, "SNTP time sync completed");
@@ -34,7 +35,18 @@ static void sntp_sync_callback(struct timeval* tv) {
 }
 
 void time_manager_init(TimeEventCb cb) {
-    g_event_callback = cb;
+    // Guard against re-initialization while SNTP is running
+    if (g_initialized) {
+        ESP_LOGD(g_tag, "Already initialized, skipping init");
+        if (cb) {
+            g_event_callback = cb;
+        }
+        return;
+    }
+
+    if (cb) {
+        g_event_callback = cb;
+    }
 
     setenv("TZ", "CET-1CEST-2,M3.5.0/2,M10.5.0/3", 1);
     tzset();
@@ -49,6 +61,7 @@ void time_manager_init(TimeEventCb cb) {
     esp_sntp_set_time_sync_notification_cb(sntp_sync_callback);
     esp_sntp_init();
 
+    g_initialized   = true;
     g_current_state = TIME_STATE_SYNCING;
     ESP_LOGI(g_tag, "Time manager initialized (ESP32/NTP mode)");
     if (g_event_callback) {
@@ -69,8 +82,13 @@ bool time_manager_get_time(struct tm* timeinfo) {
 TimeState time_manager_get_state(void) { return g_current_state; }
 
 void time_manager_resync(void) {
-    if (g_current_state == TIME_STATE_SYNCED) {
-        ESP_LOGI(g_tag, "Manual resync requested");
+    if (!g_initialized) {
+        ESP_LOGW(g_tag, "Not initialized");
+        return;
+    }
+
+    if (g_current_state == TIME_STATE_SYNCED || g_current_state == TIME_STATE_SYNCING) {
+        ESP_LOGI(g_tag, "Resyncing time...");
         esp_sntp_stop();
         esp_sntp_init();
         g_current_state = TIME_STATE_SYNCING;
