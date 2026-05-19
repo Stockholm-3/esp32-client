@@ -12,6 +12,8 @@ idf_component_register(
         settings_manager
         wifi_manager
         lib
+        loc_server
+        mdns
         fs
         cache_fs
         smw_http

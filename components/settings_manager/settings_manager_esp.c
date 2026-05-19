@@ -13,7 +13,14 @@ static char g_s_location[128] = "";
 static int g_s_price_zone     = 0;
 static int g_s_timeout        = 0;
 
-static void on_location_changed(const char* city) {
+static bool g_s_local_web_client_enabled = false;
+static char g_s_sta_static_ip[16]        = "";
+static char g_s_sta_gateway[16]          = "";
+static char g_s_sta_netmask[16]          = "255.255.255.0";
+static char g_s_mdns_hostname[33]        = "esp32-client";
+static bool g_s_ap_enabled               = false;
+
+void settings_manager_save_location(const char* city) {
     strncpy(g_s_location, city, sizeof(g_s_location) - 1);
     nvs_handle_t h;
     if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
@@ -22,8 +29,7 @@ static void on_location_changed(const char* city) {
         nvs_close(h);
     }
 }
-
-static void on_price_changed(int index) {
+void settings_manager_save_price_zone(int index) {
     g_s_price_zone = index;
     nvs_handle_t h;
     if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
@@ -33,7 +39,7 @@ static void on_price_changed(int index) {
     }
 }
 
-static void on_timeout_changed(int index) {
+void settings_manager_save_timeout(int index) {
     g_s_timeout = index;
     nvs_handle_t h;
     if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
@@ -67,16 +73,38 @@ void(settings_manager_init(void)) {
         if (nvs_get_u8(h, "timeout", &val) == ESP_OK) {
             g_s_timeout = val;
         }
+        if (nvs_get_u8(h, "lwc_enabled", &val) == ESP_OK) {
+            g_s_local_web_client_enabled = (bool)val;
+        }
+        if (nvs_get_u8(h, "ap_enabled", &val) == ESP_OK) {
+            g_s_ap_enabled = (bool)val;
+        }
+        len = sizeof(g_s_sta_static_ip);
+        nvs_get_str(h, "sta_static_ip", g_s_sta_static_ip, &len);
+        len = sizeof(g_s_sta_gateway);
+        nvs_get_str(h, "sta_gateway", g_s_sta_gateway, &len);
+        len = sizeof(g_s_sta_netmask);
+        if (nvs_get_str(h, "sta_netmask", g_s_sta_netmask, &len) != ESP_OK) {
+            strncpy(g_s_sta_netmask, "255.255.255.0", sizeof(g_s_sta_netmask) - 1);
+        }
+        len = sizeof(g_s_mdns_hostname);
+        if (nvs_get_str(h, "mdns_hostname", g_s_mdns_hostname, &len) != ESP_OK) {
+            strncpy(g_s_mdns_hostname, "esp32-client", sizeof(g_s_mdns_hostname) - 1);
+        }
         nvs_close(h);
     }
 
     ui_binder_set_location(g_s_location);
     ui_binder_set_price_zone(g_s_price_zone);
     ui_binder_set_timeout(g_s_timeout);
+    ui_binder_set_ap_enabled(g_s_ap_enabled);
+    ui_binder_set_local_web_client_enabled(g_s_local_web_client_enabled);
 
-    ui_binder_on_location_changed(on_location_changed);
-    ui_binder_on_price_changed(on_price_changed);
-    ui_binder_on_timeout_changed(on_timeout_changed);
+    ui_binder_on_location_changed(settings_manager_save_location);
+    ui_binder_on_price_changed(settings_manager_save_price_zone);
+    ui_binder_on_timeout_changed(settings_manager_save_timeout);
+    ui_binder_on_ap_enabled_changed(settings_manager_save_ap_enabled);
+    ui_binder_on_local_web_client_changed(settings_manager_save_local_web_client_enabled);
 }
 const char* settings_manager_get_location(void) { return g_s_location; }
 int settings_manager_get_price_zone(void) { return g_s_price_zone; }
@@ -93,6 +121,77 @@ void settings_manager_save_wifi(const char* ssid, const char* password) {
     if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
         nvs_set_str(h, "ssid", g_s_ssid);
         nvs_set_str(h, "password", g_s_password);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+bool settings_manager_get_local_web_client_enabled(void) { return g_s_local_web_client_enabled; }
+const char* settings_manager_get_sta_static_ip(void) { return g_s_sta_static_ip; }
+const char* settings_manager_get_sta_gateway(void) { return g_s_sta_gateway; }
+const char* settings_manager_get_sta_netmask(void) { return g_s_sta_netmask; }
+const char* settings_manager_get_mdns_hostname(void) { return g_s_mdns_hostname; }
+bool settings_manager_get_ap_enabled(void) { return g_s_ap_enabled; }
+
+void settings_manager_save_local_web_client_enabled(bool enabled) {
+    g_s_local_web_client_enabled = enabled;
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u8(h, "lwc_enabled", (uint8_t)enabled);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+void settings_manager_save_sta_static_ip(const char* ip) {
+    strncpy(g_s_sta_static_ip, ip, sizeof(g_s_sta_static_ip) - 1);
+    g_s_sta_static_ip[sizeof(g_s_sta_static_ip) - 1] = '\0';
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_str(h, "sta_static_ip", g_s_sta_static_ip);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+void settings_manager_save_sta_gateway(const char* gateway) {
+    strncpy(g_s_sta_gateway, gateway, sizeof(g_s_sta_gateway) - 1);
+    g_s_sta_gateway[sizeof(g_s_sta_gateway) - 1] = '\0';
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_str(h, "sta_gateway", g_s_sta_gateway);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+void settings_manager_save_sta_netmask(const char* netmask) {
+    strncpy(g_s_sta_netmask, netmask, sizeof(g_s_sta_netmask) - 1);
+    g_s_sta_netmask[sizeof(g_s_sta_netmask) - 1] = '\0';
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_str(h, "sta_netmask", g_s_sta_netmask);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+void settings_manager_save_mdns_hostname(const char* hostname) {
+    strncpy(g_s_mdns_hostname, hostname, sizeof(g_s_mdns_hostname) - 1);
+    g_s_mdns_hostname[sizeof(g_s_mdns_hostname) - 1] = '\0';
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_str(h, "mdns_hostname", g_s_mdns_hostname);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+void settings_manager_save_ap_enabled(bool enabled) {
+    g_s_ap_enabled = enabled;
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u8(h, "ap_enabled", (uint8_t)enabled);
         nvs_commit(h);
         nvs_close(h);
     }

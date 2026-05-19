@@ -54,6 +54,23 @@ void ui_binder_on_location_changed(ui_binder_location_cb_t cb) { s_location_cb =
 void ui_binder_on_price_changed(ui_binder_dropdown_cb_t cb) { s_price_cb = cb; }
 void ui_binder_on_timeout_changed(ui_binder_dropdown_cb_t cb) { s_timeout_cb = cb; }
 
+static ui_binder_location_cb_t s_location_cb2 = NULL;
+static ui_binder_dropdown_cb_t s_price_cb2    = NULL;
+static ui_binder_dropdown_cb_t s_timeout_cb2  = NULL;
+static ui_binder_bool_cb_t s_ap_cb            = NULL;
+static ui_binder_bool_cb_t s_ap_cb2           = NULL;
+static ui_binder_bool_cb_t s_lwc_cb           = NULL;
+
+void ui_binder_on_location_changed2(ui_binder_location_cb_t cb) { s_location_cb2 = cb; }
+void ui_binder_on_price_changed2(ui_binder_dropdown_cb_t cb) { s_price_cb2 = cb; }
+void ui_binder_on_timeout_changed2(ui_binder_dropdown_cb_t cb) { s_timeout_cb2 = cb; }
+void ui_binder_set_ap_enabled(bool enabled) { (void)enabled; }
+void ui_binder_set_local_web_client_enabled(bool enabled) { (void)enabled; }
+void ui_binder_on_ap_enabled_changed(ui_binder_bool_cb_t cb) { s_ap_cb = cb; }
+void ui_binder_on_ap_enabled_changed2(ui_binder_bool_cb_t cb) { s_ap_cb2 = cb; }
+void ui_binder_on_local_web_client_changed(ui_binder_bool_cb_t cb) { s_lwc_cb = cb; }
+void ui_binder_update_local_ip(const char* ip) { (void)ip; }
+
 void ui_binder_update_bme280(const Bme280Reading* reading) {
     char buf[10];
     snprintf(buf, sizeof(buf), "%.1f", (double)reading->temperature_c);

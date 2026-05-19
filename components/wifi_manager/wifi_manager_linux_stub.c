@@ -222,3 +222,5 @@ int wifi_manager_scan(WifiManagerScanDoneCb cb) {
 WifiManagerState wifi_manager_get_state(void) { return g_current_state; }
 
 void wifi_manager_register_callback(WifiManagerEventCb cb) { g_user_cb = cb; }
+
+void wifi_manager_set_ap_enabled(bool enabled) { (void)enabled; }
