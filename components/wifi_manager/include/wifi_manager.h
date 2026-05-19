@@ -25,6 +25,12 @@ typedef struct {
     uint8_t authmode; /* maps to wifi_auth_mode_t on ESP, 0 = open on stub */
 } WifiManagerApInfo;
 
+/**
+ * @brief Helper to verify if the default network interface has assigned DNS servers.
+ * @return true if DNS is configured, false otherwise.
+ */
+static bool is_dns_ready(void);
+
 /*
  * Invoked on every state transition. When state is WIFI_MANAGER_STATE_FAILED,
  * reason indicates why — otherwise reason is WIFI_MANAGER_FAIL_REASON_UNKNOWN.

@@ -36,6 +36,23 @@ static WifiManagerConfig g_cfg = {
     .sta_netmask           = "255.255.255.0",
 };
 
+static bool is_dns_ready(void) {
+    esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (!netif) {
+        return false;
+    }
+
+    esp_netif_dns_info_t dns;
+    // Check the primary DNS server slot
+    if (esp_netif_get_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns) == ESP_OK) {
+        // Ensure the DNS address is populated and not an empty 0.0.0.0 loop
+        if (dns.ip.u_addr.ip4.addr != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void set_state(WifiManagerState state, WifiManagerFailReason reason) {
     if (g_current_state != state) {
         g_current_state = state;
