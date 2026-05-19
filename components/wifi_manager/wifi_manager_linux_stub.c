@@ -42,7 +42,7 @@ static WifiManagerConfig g_cfg = {
     .max_retry_ms  = 2000,
 };
 
-static bool is_dns_ready(void) { return true; }
+bool is_dns_ready(void) { return true; }
 
 static void set_state(WifiManagerState state, WifiManagerFailReason reason) {
     if (g_current_state != state) {
