@@ -117,8 +117,7 @@ FILTER_SCRIPT  := scripts/filter_lint.py
 PROJECT_ROOT   := $(shell pwd)
 
 # Prefer the Xtensa-specific clang-tidy if available, fall back to host clang-tidy.
-CLANG_TIDY_EXE := $(shell which xtensa-esp32s3-elf-clang-tidy 2>/dev/null || which clang-tidy)
-
+CLANG_TIDY_EXE ?= clang-tidy
 # Only report diagnostics in our own source tree; skip managed_components.
 HEADER_FILTER  := ^$(PROJECT_ROOT)/(main|components)/(?!managed_components)
 
