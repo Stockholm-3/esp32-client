@@ -9,6 +9,7 @@
 #include "bme280_sensor.h"
 #include "cache.h"
 #include "cache_fs.h"
+#include "clock.h"
 #include "display.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -41,6 +42,8 @@ static char g_current_ssid[33] = "";
 static Bme280Reading g_bme_reading = {0};
 /** @brief Set to true when a new BME280 sample has arrived and not yet consumed. */
 static volatile bool g_bme_updated = false;
+/** @brief Tracks whether BME280 was present in the last check. */
+static bool g_bme_was_present = false;
 
 /** @brief SMW scheduler instance. */
 static SmwWorker g_smw_worker;
@@ -52,6 +55,23 @@ static SmwTask g_smw_tasks[SMW_MAX_TASKS];
  * @return Elapsed milliseconds since system start (uint32_t).
  */
 uint32_t get_system_ms(void) { return (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS); }
+
+/**
+ * @brief Probes the I2C bus for BME280 sensor presence.
+ *
+ * @return true if BME280 is detected at either 0x76 or 0x77, false otherwise.
+ */
+static bool bme280_probe_i2c(void) {
+    i2c_master_bus_handle_t bus = ws7b_board_get_i2c_bus();
+    const uint8_t ADDRS[]       = {BME280_I2C_ADDR_PRIMARY, BME280_I2C_ADDR_SECONDARY};
+
+    for (size_t i = 0; i < sizeof(ADDRS) / sizeof(ADDRS[0]); i++) {
+        if (i2c_master_probe(bus, ADDRS[i], 100) == ESP_OK) {
+            return true;
+        }
+    }
+    return false;
+}
 
 /**
  * @brief Callback invoked when a new BME280 sample is ready.
@@ -175,9 +195,15 @@ void app_main(void) {
         return;
     }
     ui_build(disp);
-    screen_timeout_init(5U * 60U);
+    ScreenTimeoutConfig timeout_cfg = {
+        .dim_timeout_seconds           = 1 * 60,
+        .screensaver_timeout_seconds   = 2 * 60,
+        .backlight_off_timeout_seconds = 5 * 60,
+    };
+    screen_timeout_init(&timeout_cfg);
     display_set_activity_callback(screen_timeout_record_activity);
     ui_binder_init();
+    clock_init();
     display_lvgl_unlock();
 
     settings_manager_init();
@@ -205,6 +231,27 @@ void app_main(void) {
         if (time_manager_get_time(&timeinfo)) {
             ui_binder_update_localtime(&timeinfo);
         }
+
+        // Handle BME280 hot-plug: check if sensor presence changed
+        bool bme_present = bme280_probe_i2c();
+        if ((int)bme_present && !g_bme_was_present) {
+            // Sensor just connected
+            ESP_LOGI(g_tag, "BME280 detected, reinitializing...");
+            bme280_sensor_deinit();
+            esp_err_t err =
+                bme280_sensor_init_with_task(ws7b_board_get_i2c_bus(), on_bme280_sample, NULL);
+            if (err != ESP_OK) {
+                ESP_LOGW(g_tag, "BME280 reinit failed: %s", esp_err_to_name(err));
+            } else {
+                g_bme_was_present = true;
+            }
+        } else if (!bme_present && (int)g_bme_was_present) {
+            // Sensor just disconnected
+            ESP_LOGI(g_tag, "BME280 disconnected");
+            bme280_sensor_deinit();
+            g_bme_was_present = false;
+        }
+
         if (g_bme_updated) {
             g_bme_updated = false;
             ui_binder_update_bme280(&g_bme_reading);

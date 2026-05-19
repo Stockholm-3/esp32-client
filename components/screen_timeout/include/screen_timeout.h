@@ -1,34 +1,75 @@
 #pragma once
-#include <stdint.h>
+
 #include "lvgl.h"
+
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @brief Initialise the screen timeout module.
+ * @brief Timeout configuration structure.
  *
- * Must be called after display_init() and lv_init(), while holding the LVGL
- * mutex. Creates the inactivity timer and the dim overlay object.
+ * All timeouts in seconds. Use 0 to disable a stage.
+ * Stages must be in increasing order; validation happens at init.
  *
- * @param default_timeout_seconds Initial timeout (default 5 * 60).
+ * Example: dim at 5 min, screensaver at 10 min, backlight off at 30 min:
+ *   screen_timeout_config_t cfg = {
+ *       .dim_timeout_seconds = 5 * 60,
+ *       .screensaver_timeout_seconds = 10 * 60,
+ *       .backlight_off_timeout_seconds = 30 * 60,
+ *   };
  */
-void screen_timeout_init(uint32_t default_timeout_seconds);
+typedef struct {
+    uint32_t dim_timeout_seconds;           // Stage 1: dim overlay appears
+    uint32_t screensaver_timeout_seconds;   // Stage 2: bouncing screensaver
+    uint32_t backlight_off_timeout_seconds; // Stage 3: backlight turns off
+} ScreenTimeoutConfig;
 
 /**
- * @brief Record user activity (touch). Hides the dim overlay and restores
- *        backlight if the screensaver was active. Resets the inactivity timer.
+ * @brief Initialize the screen timeout module with configurable stages.
+ *
+ * Must be called after display_init() and lv_init(), while holding the LVGL
+ * mutex.
+ *
+ * Validation:
+ * - Negative values are treated as 0 (disabled).
+ * - Stages with 0 are skipped.
+ * - If a later stage has a lower timeout than an earlier stage,
+ *   they are auto-corrected to maintain logical order.
+ * - Example: dim=300, screensaver=250 → screensaver becomes 300 (same as dim).
+ *
+ * @param config Configuration with three optional timeout stages.
+ */
+void screen_timeout_init(const ScreenTimeoutConfig* config);
+
+/**
+ * @brief Record user activity (e.g., touch event).
+ *
+ * Immediately:
+ * - Hides all overlays (dim and screensaver)
+ * - Restores backlight to full brightness
+ * - Resets the inactivity timer
  */
 void screen_timeout_record_activity(void);
 
 /**
- * @brief Set the screensaver timeout.
+ * @brief Reconfigure timeout values at runtime.
  *
- * @param timeout_seconds Seconds of inactivity before screen turns off.
- *                        Pass 0 to disable.
+ * Same validation rules as screen_timeout_init().
+ * If currently in a timeout state, this may trigger state changes.
+ *
+ * @param config New configuration.
  */
-void screen_timeout_set_seconds(uint32_t timeout_seconds);
+void screen_timeout_set_config(const ScreenTimeoutConfig* config);
+
+/**
+ * @brief Get the current timeout configuration.
+ *
+ * @param config Pointer to structure to fill.
+ */
+void screen_timeout_get_config(ScreenTimeoutConfig* config);
 
 #ifdef __cplusplus
 }
