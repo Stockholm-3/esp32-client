@@ -28,7 +28,7 @@ endef
 # ----------------------------------------
 # Phony targets
 # ----------------------------------------
-.PHONY: build flash monitor flash-monitor fm
+.PHONY: build reconfigure flash monitor flash-monitor fm
 .PHONY: linux-build linux-run linux-clean linux-hardclean
 .PHONY: hardclean format-check format-fix format-ci
 .PHONY: lint lint-fix lint-ci lint-scrub lint-check-deps linux-reconfigure
@@ -38,6 +38,9 @@ endef
 # ----------------------------------------
 build:
 	idf.py build
+
+reconfigure:
+	idf.py reconfigure
 
 flash:
 	idf.py flash

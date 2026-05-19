@@ -7,6 +7,7 @@
  */
 
 #include "bme280_sensor.h"
+#include "clock.h"
 #include "display.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -162,9 +163,15 @@ void app_main(void) {
         return;
     }
     ui_build(disp);
-    screen_timeout_init(5U * 60U);
+    ScreenTimeoutConfig timeout_cfg = {
+        .dim_timeout_seconds           = 1 * 60,
+        .screensaver_timeout_seconds   = 2 * 60,
+        .backlight_off_timeout_seconds = 5 * 60,
+    };
+    screen_timeout_init(&timeout_cfg);
     display_set_activity_callback(screen_timeout_record_activity);
     ui_binder_init();
+    clock_init();
     display_lvgl_unlock();
 
     settings_manager_init();
