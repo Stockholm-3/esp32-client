@@ -25,65 +25,40 @@ jobs:
     name: clang-tidy
     runs-on: ubuntu-24.04
 
-    env:
-      IDF_VERSION: v6.0
-      IDF_TARGET: esp32s3
-      IDF_PATH: /home/runner/esp/esp-idf
-      IDF_TOOLS_PATH: /home/runner/.espressif
-
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Cache ESP-IDF repo
-        id: cache-idf
+      - name: Install Nix
+        uses: cachix/install-nix-action@v25
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
+
+      - name: Cache Espressif Toolchains
+        id: cache-espressif-tools
         uses: actions/cache@v4
         with:
-          path: ${{ env.IDF_PATH }}
-          key: esp-idf-${{ env.IDF_VERSION }}
-
-      - name: Clone ESP-IDF
-        if: steps.cache-idf.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p /home/runner/esp
-          git clone --depth 1 --branch ${{ env.IDF_VERSION }} --recursive \
-            https://github.com/espressif/esp-idf.git ${{ env.IDF_PATH }}
-
-      - name: Cache ESP-IDF tools
-        id: cache-tools
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.IDF_TOOLS_PATH }}
-          key: espressif-tools-${{ env.IDF_VERSION }}-${{ env.IDF_TARGET }}
-
-      - name: Install ESP-IDF tools
-        if: steps.cache-tools.outputs.cache-hit != 'true'
-        run: ${{ env.IDF_PATH }}/install.sh ${{ env.IDF_TARGET }}
-
-      - name: Install Lint Orchestration Tools
-        run: |
-          sudo apt-get update -qq
-          # We only need the parallel orchestrator execution tool 'run-clang-tidy' from apt
-          sudo apt-get install -y --no-install-recommends clang-tools
+          path: /home/runner/.espressif
+          # Pin toolcache index to your flake's lock file to update if pins change
+          key: espressif-tools-${{ hashFiles('flake.lock') }}
 
       - name: Prepare Compile Database
         run: |
-          source ${{ env.IDF_PATH }}/export.sh
-          idf.py reconfigure
+          nix develop . --command idf.py reconfigure
 
       - name: Run Linter
         run: |
-          # 1. Activate the ESP-IDF environment tools path
-          source ${{ env.IDF_PATH }}/export.sh
+          # Pull standard host tools from your Nix flake shell environment map
+          ESPRESSIF_CLANG_TIDY=$(nix develop . --command which clang-tidy)
+          echo "Discovered target linter path inside Flake shell: $ESPRESSIF_CLANG_TIDY"
           
-          # 2. Extract the actual path of Espressif's custom built target-aware clang-tidy binary
-          ESPRESSIF_CLANG_TIDY=$(which clang-tidy)
-          echo "Using Espressif target linter engine path: $ESPRESSIF_CLANG_TIDY"
-          
-          # 3. Explicitly pass this binary path to override your Makefile's detection fallback variable
-          make lint-ci CLANG_TIDY_EXE="$ESPRESSIF_CLANG_TIDY"
+          # Force the Makefile runner to use the flake context binary
+          nix develop . --command make lint-ci CLANG_TIDY_EXE="$ESPRESSIF_CLANG_TIDY"
 
       - name: Upload lint DB on failure
         if: failure()
