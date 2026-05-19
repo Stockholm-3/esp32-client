@@ -13,6 +13,7 @@ find $(ROOTS) -name '*.c' \
   -not -path "*/build/*" \
   -not -path "*/squareline/*" \
   -not -path "*/lib/*" \
+  -not -path "*/bingus-lib/*" \
   2>/dev/null
 endef
 
