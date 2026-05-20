@@ -36,7 +36,7 @@ static WifiManagerConfig g_cfg = {
     .sta_netmask           = "255.255.255.0",
 };
 
-static bool is_dns_ready(void) {
+bool is_dns_ready(void) {
     esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
     if (!netif) {
         return false;
