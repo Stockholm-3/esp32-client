@@ -4,17 +4,17 @@ on:
   push:
     branches: ["**"]
     paths-ignore:
-          - "**.md"
-          - ".gitignore"
-          - "LICENSE"
-          - "docs/**"
+      - "**.md"
+      - ".gitignore"
+      - "LICENSE"
+      - "docs/**"
   pull_request:
     branches: ["**"]
     paths-ignore:
-          - "**.md"
-          - ".gitignore"
-          - "LICENSE"
-          - "docs/**"
+      - "**.md"
+      - ".gitignore"
+      - "LICENSE"
+      - "docs/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,76 +22,49 @@ concurrency:
 
 jobs:
   build:
-    name: Firmware (esp32s3, IDF v6.0)
+    name: Firmware (esp32s3)
     runs-on: ubuntu-24.04
 
-    env:
-      IDF_VERSION: v6.0
-      IDF_TARGET: esp32s3
-      IDF_PATH: /home/runner/esp/esp-idf
-      IDF_TOOLS_PATH: /home/runner/.espressif
-
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Cache ESP-IDF repo
-        id: cache-idf
-        uses: actions/cache@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
         with:
-          path: /home/runner/esp/esp-idf
-          key: esp-idf-v6.0
+          nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: Clone ESP-IDF
-        if: steps.cache-idf.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p /home/runner/esp
-          git clone --depth 1 --branch ${{ env.IDF_VERSION }} --recursive \
-            https://github.com/espressif/esp-idf.git ${{ env.IDF_PATH }}
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v13
 
-      - name: Cache ESP-IDF tools
-        id: cache-tools
+      - name: Cache Espressif Toolchains
+        id: cache-espressif-tools
         uses: actions/cache@v4
         with:
           path: /home/runner/.espressif
-          key: espressif-tools-v6.0-esp32s3
+          key: espressif-tools-${{ hashFiles('flake.lock') }}
 
-      - name: Install ESP-IDF tools
-        if: steps.cache-tools.outputs.cache-hit != 'true'
-        run: ${{ env.IDF_PATH }}/install.sh ${{ env.IDF_TARGET }}
-
-      - name: Cache managed components
+      - name: Cache Managed Components
         uses: actions/cache@v4
         with:
           path: managed_components
           key: managed-components-${{ hashFiles('**/idf_component.yml') }}
           restore-keys: managed-components-
 
-      - name: Cache build output
+      - name: Cache Build Objects
         uses: actions/cache@v4
         with:
           path: build
-          key: build-v6.0-esp32s3-${{ hashFiles('main/**', 'components/**', '**/CMakeLists.txt', 'sdkconfig.defaults') }}
-          restore-keys: build-v6.0-esp32s3-
+          key: build-esp32s3-${{ hashFiles('main/**', 'components/**', '**/CMakeLists.txt', 'sdkconfig.defaults') }}
+          restore-keys: build-esp32s3-
 
-      - name: Set target
+      - name: Build Firmware
         run: |
-          source ${{ env.IDF_PATH }}/export.sh
-          idf.py set-target ${{ env.IDF_TARGET }}
+          nix develop . --command bash -c "idf.py set-target esp32s3 && idf.py build && idf.py size-components"
 
-      - name: Build firmware
-        run: |
-          source ${{ env.IDF_PATH }}/export.sh
-          idf.py build
-
-      - name: Print binary sizes
-        run: |
-          source ${{ env.IDF_PATH }}/export.sh
-          idf.py size-components
-
-      - name: Upload firmware
+      - name: Upload Firmware Artifacts
         if: success()
         uses: actions/upload-artifact@v4
         with:
@@ -103,7 +76,7 @@ jobs:
             build/flasher_args.json
           retention-days: 30
 
-      - name: Upload build logs on failure
+      - name: Upload Build Logs on Failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
