@@ -28,8 +28,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Install Nix
         uses: cachix/install-nix-action@v25
@@ -44,17 +42,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /home/runner/.espressif
-          # Re-evaluate the toolcache anytime your flake pin definitions change
           key: espressif-tools-${{ hashFiles('flake.lock') }}
 
-      - name: Prepare Compile Database
+      - name: Prepare and Run Linter
         run: |
-          nix develop . --command idf.py reconfigure
-
-      - name: Run Linter
-        run: |
-          # Your Makefile now natively binds to the Flake environment's 'clang-tidy' executable path
-          nix develop . --command make lint-ci
+          nix develop . --command bash -c "idf.py reconfigure && make lint-ci"
 
       - name: Upload lint DB on failure
         if: failure()
