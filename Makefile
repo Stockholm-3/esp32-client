@@ -67,6 +67,7 @@ linux-build:
 	cd simulator && IDF_TARGET=linux idf.py build
 
 linux-reconfigure:
+	mkdir -p managed_components simulator/managed_components
 	cd simulator && IDF_TARGET=linux idf.py reconfigure
 
 linux-run: linux-build
