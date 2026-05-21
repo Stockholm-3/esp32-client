@@ -670,15 +670,15 @@ void ui_scr_home_screen_init(void) {
     ui_lbl_localtime = lv_label_create(ui_panel_statusbar);
     lv_obj_set_width(ui_lbl_localtime, LV_SIZE_CONTENT);  /// 50
     lv_obj_set_height(ui_lbl_localtime, LV_SIZE_CONTENT); /// 20
-    lv_obj_set_x(ui_lbl_localtime, 900);
-    lv_obj_set_y(ui_lbl_localtime, 5);
+    lv_obj_align(ui_lbl_localtime, LV_ALIGN_RIGHT_MID, -8, 0);
     lv_label_set_text(ui_lbl_localtime, "12:00");
 
     ui_lbl_wifi_status = lv_label_create(ui_panel_statusbar);
     lv_obj_set_width(ui_lbl_wifi_status, LV_SIZE_CONTENT);  /// 50
     lv_obj_set_height(ui_lbl_wifi_status, LV_SIZE_CONTENT); /// 20
-    lv_obj_set_x(ui_lbl_wifi_status, 958);
+    lv_obj_set_x(ui_lbl_wifi_status, 12);
     lv_obj_set_y(ui_lbl_wifi_status, 5);
+    lv_label_set_long_mode(ui_lbl_wifi_status, LV_LABEL_LONG_CLIP);
     lv_label_set_text(ui_lbl_wifi_status, "WIFI");
 
     uic_scr_home               = ui_scr_home;
