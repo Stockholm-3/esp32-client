@@ -49,7 +49,7 @@ static void load_mock_elpris(void) {
         fclose(f);
         return;
     }
-    fread(buf, 1, (size_t)size, f);
+    (void)fread(buf, 1, (size_t)size, f);
     buf[size] = '\0';
     fclose(f);
     ui_tab_elpris_handle_server_response(buf, (size_t)size);
