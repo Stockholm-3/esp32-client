@@ -7,6 +7,9 @@
  */
 
 #include "bme280_sensor.h"
+#include "cache.h"
+#include "cache_fs.h"
+#include "clock.h"
 #include "display.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -14,10 +17,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "fs.h"
+#include "http_client.h"
+#include "loc_server.h"
 #include "nvs_flash.h"
 #include "screen_timeout.h"
 #include "settings_manager.h"
 #include "smw.h"
+#include "smw_http.h"
 #include "squareline/screens/ui_scr_home.h"
 #include "time_manager.h"
 #include "ui.h"
@@ -25,6 +31,10 @@
 #include "wifi_manager.h"
 #include "wifi_popup.h"
 #include "ws7b_board.h"
+
+#ifndef CONFIG_IDF_TARGET_LINUX
+#    include "mdns.h"
+#endif
 
 /** @brief Maximum number of tasks in the SMW scheduler queue. */
 #define SMW_MAX_TASKS 100
@@ -38,6 +48,8 @@ static char g_current_ssid[33] = "";
 static Bme280Reading g_bme_reading = {0};
 /** @brief Set to true when a new BME280 sample has arrived and not yet consumed. */
 static volatile bool g_bme_updated = false;
+/** @brief Tracks whether BME280 was present in the last check. */
+static bool g_bme_was_present = false;
 
 /** @brief SMW scheduler instance. */
 static SmwWorker g_smw_worker;
@@ -49,6 +61,23 @@ static SmwTask g_smw_tasks[SMW_MAX_TASKS];
  * @return Elapsed milliseconds since system start (uint32_t).
  */
 uint32_t get_system_ms(void) { return (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS); }
+
+/**
+ * @brief Probes the I2C bus for BME280 sensor presence.
+ *
+ * @return true if BME280 is detected at either 0x76 or 0x77, false otherwise.
+ */
+static bool bme280_probe_i2c(void) {
+    i2c_master_bus_handle_t bus = ws7b_board_get_i2c_bus();
+    const uint8_t ADDRS[]       = {BME280_I2C_ADDR_PRIMARY, BME280_I2C_ADDR_SECONDARY};
+
+    for (size_t i = 0; i < sizeof(ADDRS) / sizeof(ADDRS[0]); i++) {
+        if (i2c_master_probe(bus, ADDRS[i], 100) == ESP_OK) {
+            return true;
+        }
+    }
+    return false;
+}
 
 /**
  * @brief Callback invoked when a new BME280 sample is ready.
@@ -78,8 +107,22 @@ static void on_wifi_connect(const char* ssid, const char* password) {
     settings_manager_save_wifi(ssid, password);
 }
 
+static void on_test_http_done(HttpClientResponse* resp, int err, void* user_ctx) {
+    if (err != 0) {
+        ESP_LOGE(g_tag, "HTTP request failed");
+    } else {
+        ESP_LOGI(g_tag, "HTTP %d — %.*s", resp->status, (int)resp->length, (char*)resp->buffer);
+    }
+    free(resp->buffer);
+    free(resp);
+}
+
+static bool g_http_test_fired = false;
+
 /**
  * @brief Callback invoked on Wi-Fi manager state changes.
+ *
+ * Safely initializes time manager on first connection and resyncs on reconnection.
  *
  * @param state   New connection state.
  * @param reason  Failure reason (currently unused).
@@ -90,7 +133,42 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     if (state == WIFI_MANAGER_STATE_CONNECTED) {
         ui_binder_update_wifi_name(g_current_ssid);
 
+        // Safely initialize time manager (guards against re-initialization)
+        // On first connection, this initializes SNTP.
+        // On reconnection, this is a no-op to avoid SNTP assertion failure.
         time_manager_init(NULL);
+
+        loc_server_start();
+
+        char ip_str[16] = "---";
+#ifndef CONFIG_IDF_TARGET_LINUX
+        esp_netif_t* sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (sta) {
+            esp_netif_ip_info_t ip_info;
+            if (esp_netif_get_ip_info(sta, &ip_info) == ESP_OK && ip_info.ip.addr != 0) {
+                snprintf(ip_str, sizeof(ip_str), IPSTR, IP2STR(&ip_info.ip));
+            }
+        }
+#endif
+        ui_binder_update_local_ip(ip_str);
+        vTaskDelay(3000 / portTICK_PERIOD_MS);
+        if (!g_http_test_fired) {
+            g_http_test_fired = true;
+
+            HttpClientRequest req = {0};
+            req.url    = "https://just-dev.freeduck.dev/v1/get_plan?city=stockholm&price=SE3";
+            req.method = HTTP_CLIENT_METHOD_GET;
+
+            smw_register_http_request(&g_smw_worker, &req, on_test_http_done, NULL, NULL);
+        }
+    }
+    loc_server_notify_wifi_state(state);
+}
+
+static void on_ap_toggled(bool enabled) {
+    wifi_manager_set_ap_enabled(enabled);
+    if (enabled) {
+        loc_server_start();
     }
 }
 
@@ -116,8 +194,21 @@ void app_main(void) {
     }
     ESP_ERROR_CHECK(ret);
 
+    ESP_ERROR_CHECK(fs_mount_littlefs("storage", "/storage", true));
+
+    CacheConfig cfg = cache_fs_config("/storage/cache", 3600);
+    cache_init(&cfg);
+    // since esp can loose power its a huge hassle to try to wait for wifi reconnect and clean
+    // cache only then. so we just purge all
+    cache_purge_all();
+
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+#ifndef CONFIG_IDF_TARGET_LINUX
+    mdns_init();
+    mdns_instance_name_set("ESP32 Settings");
+#endif
 
     lv_display_t* disp = NULL;
     lv_indev_t* touch  = NULL;
@@ -137,23 +228,58 @@ void app_main(void) {
         return;
     }
     ui_build(disp);
-    screen_timeout_init(5U * 60U);
+    ScreenTimeoutConfig timeout_cfg = {
+        .dim_timeout_seconds           = 1 * 60,
+        .screensaver_timeout_seconds   = 2 * 60,
+        .backlight_off_timeout_seconds = 5 * 60,
+    };
+    screen_timeout_init(&timeout_cfg);
     display_set_activity_callback(screen_timeout_record_activity);
     setenv("TZ", "CET-1CEST-2,M3.5.0/2,M10.5.0/3", 1);
     tzset();
-    fs_init(true); // true = formating if empty(first time)
     ui_binder_init();
+    clock_init();
     display_lvgl_unlock();
 
     settings_manager_init();
+    loc_server_init();
 
     wifi_popup_on_connect(on_wifi_connect);
     wifi_manager_register_callback(on_wifi_state);
+    ui_binder_on_ap_enabled_changed2(on_ap_toggled);
+
+#ifndef CONFIG_IDF_TARGET_LINUX
+    const char* mdns_host = settings_manager_get_mdns_hostname();
+    if (mdns_host[0] != '\0') {
+        mdns_hostname_set(mdns_host);
+    } else {
+        mdns_hostname_set("esp32-client");
+    }
+
+    if (settings_manager_get_ap_enabled()) {
+        wifi_manager_set_ap_enabled(true);
+        loc_server_start();
+    }
+#endif
+
+    HttpClientConfig http_cfg = {0};
+    http_client_init(&http_cfg);
 
     const char* ssid = settings_manager_get_ssid();
     const char* pass = settings_manager_get_password();
     if (ssid[0] != '\0') {
-        wifi_manager_start(ssid, pass, NULL);
+        bool lwc_enabled           = settings_manager_get_local_web_client_enabled();
+        WifiManagerConfig wifi_cfg = {0};
+        if (lwc_enabled) {
+            wifi_cfg.sta_static_ip_enabled = true;
+            strncpy(wifi_cfg.sta_ip, settings_manager_get_sta_static_ip(),
+                    sizeof(wifi_cfg.sta_ip) - 1);
+            strncpy(wifi_cfg.sta_gateway, settings_manager_get_sta_gateway(),
+                    sizeof(wifi_cfg.sta_gateway) - 1);
+            strncpy(wifi_cfg.sta_netmask, settings_manager_get_sta_netmask(),
+                    sizeof(wifi_cfg.sta_netmask) - 1);
+        }
+        wifi_manager_start(ssid, pass, (int)lwc_enabled ? &wifi_cfg : NULL);
     }
 
     smw_init(&g_smw_worker, g_smw_tasks, SMW_MAX_TASKS);
@@ -168,6 +294,27 @@ void app_main(void) {
             ui_binder_update_localtime(&timeinfo);
             ui_tab_elpris_update_now();
         }
+
+        // Handle BME280 hot-plug: check if sensor presence changed
+        bool bme_present = bme280_probe_i2c();
+        if ((int)bme_present && !g_bme_was_present) {
+            // Sensor just connected
+            ESP_LOGI(g_tag, "BME280 detected, reinitializing...");
+            bme280_sensor_deinit();
+            esp_err_t err =
+                bme280_sensor_init_with_task(ws7b_board_get_i2c_bus(), on_bme280_sample, NULL);
+            if (err != ESP_OK) {
+                ESP_LOGW(g_tag, "BME280 reinit failed: %s", esp_err_to_name(err));
+            } else {
+                g_bme_was_present = true;
+            }
+        } else if (!bme_present && (int)g_bme_was_present) {
+            // Sensor just disconnected
+            ESP_LOGI(g_tag, "BME280 disconnected");
+            bme280_sensor_deinit();
+            g_bme_was_present = false;
+        }
+
         if (g_bme_updated) {
             g_bme_updated = false;
             ui_binder_update_bme280(&g_bme_reading);

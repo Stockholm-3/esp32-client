@@ -42,6 +42,8 @@ static WifiManagerConfig g_cfg = {
     .max_retry_ms  = 2000,
 };
 
+bool is_dns_ready(void) { return true; }
+
 static void set_state(WifiManagerState state, WifiManagerFailReason reason) {
     if (g_current_state != state) {
         g_current_state = state;
@@ -222,3 +224,5 @@ int wifi_manager_scan(WifiManagerScanDoneCb cb) {
 WifiManagerState wifi_manager_get_state(void) { return g_current_state; }
 
 void wifi_manager_register_callback(WifiManagerEventCb cb) { g_user_cb = cb; }
+
+void wifi_manager_set_ap_enabled(bool enabled) { (void)enabled; }

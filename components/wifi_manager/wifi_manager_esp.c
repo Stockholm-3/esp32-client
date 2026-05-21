@@ -3,6 +3,8 @@
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
+#include "lwip/ip_addr.h"
+#include "ping/ping_sock.h"
 #include "wifi_manager.h"
 
 #include <stdlib.h>
@@ -18,12 +20,38 @@ static int g_retry_count               = 0;
 static TimerHandle_t g_retry_timer     = NULL;
 static WifiManagerScanDoneCb g_scan_cb = NULL;
 static WifiManagerEventCb g_user_cb    = NULL;
+static esp_netif_t* g_ap_netif         = NULL;
+static esp_netif_t* g_sta_netif        = NULL;
+static bool g_static_ip_active         = false;
+static TimerHandle_t g_gw_check_timer  = NULL;
+static esp_ping_handle_t g_ping_hdl    = NULL;
 
 static WifiManagerConfig g_cfg = {
-    .max_retries   = 10,
-    .base_retry_ms = 500,
-    .max_retry_ms  = 10000,
+    .max_retries           = 10,
+    .base_retry_ms         = 500,
+    .max_retry_ms          = 10000,
+    .sta_static_ip_enabled = false,
+    .sta_ip                = "",
+    .sta_gateway           = "",
+    .sta_netmask           = "255.255.255.0",
 };
+
+bool is_dns_ready(void) {
+    esp_netif_t* netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (!netif) {
+        return false;
+    }
+
+    esp_netif_dns_info_t dns;
+    // Check the primary DNS server slot
+    if (esp_netif_get_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns) == ESP_OK) {
+        // Ensure the DNS address is populated and not an empty 0.0.0.0 loop
+        if (dns.ip.u_addr.ip4.addr != 0) {
+            return true;
+        }
+    }
+    return false;
+}
 
 static void set_state(WifiManagerState state, WifiManagerFailReason reason) {
     if (g_current_state != state) {
@@ -121,6 +149,43 @@ static bool is_auth_failure(uint8_t reason) {
     }
 }
 
+static void on_ping_end(esp_ping_handle_t hdl, void* args) {
+    uint32_t received = 0;
+    esp_ping_get_profile(hdl, ESP_PING_PROF_REPLY, &received, sizeof(received));
+    esp_ping_delete_session(hdl);
+    g_ping_hdl = NULL;
+
+    if (received == 0) {
+        ESP_LOGW(g_tag, "Static IP: gateway unreachable, falling back to DHCP");
+        g_static_ip_active = false;
+        esp_netif_dhcpc_start(g_sta_netif);
+    } else {
+        ESP_LOGI(g_tag, "Static IP: gateway reachable (%lu replies)", (unsigned long)received);
+    }
+}
+
+static void gw_check_timer_cb(TimerHandle_t timer) {
+    ip_addr_t target = {0};
+    if (!ipaddr_aton(g_cfg.sta_gateway, &target)) {
+        return;
+    }
+
+    esp_ping_config_t cfg = ESP_PING_DEFAULT_CONFIG();
+    cfg.target_addr       = target;
+    cfg.count             = 3;
+    cfg.timeout_ms        = 1000;
+    cfg.interval_ms       = 500;
+
+    esp_ping_callbacks_t cbs = {.on_ping_end = on_ping_end};
+    if (esp_ping_new_session(&cfg, &cbs, &g_ping_hdl) != ESP_OK) {
+        ESP_LOGW(g_tag, "Failed to create ping session, falling back to DHCP");
+        g_static_ip_active = false;
+        esp_netif_dhcpc_start(g_sta_netif);
+        return;
+    }
+    esp_ping_start(g_ping_hdl);
+}
+
 static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id,
                                void* event_data) {
     if (event_base == WIFI_EVENT) {
@@ -128,6 +193,13 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
         case WIFI_EVENT_STA_START:
             set_state(WIFI_MANAGER_STATE_CONNECTING, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
             esp_wifi_connect();
+            break;
+
+        case WIFI_EVENT_STA_CONNECTED:
+            if (g_static_ip_active && g_gw_check_timer) {
+                xTimerChangePeriod(g_gw_check_timer, pdMS_TO_TICKS(3000), 0);
+                xTimerStart(g_gw_check_timer, 0);
+            }
             break;
 
         case WIFI_EVENT_STA_DISCONNECTED: {
@@ -178,7 +250,19 @@ int wifi_manager_start(const char* ssid, const char* password, const WifiManager
     }
 
     if (config) {
-        g_cfg = *config;
+        if (config->max_retries > 0) {
+            g_cfg.max_retries = config->max_retries;
+        }
+        if (config->base_retry_ms > 0) {
+            g_cfg.base_retry_ms = config->base_retry_ms;
+        }
+        if (config->max_retry_ms > 0) {
+            g_cfg.max_retry_ms = config->max_retry_ms;
+        }
+        g_cfg.sta_static_ip_enabled = config->sta_static_ip_enabled;
+        memcpy(g_cfg.sta_ip, config->sta_ip, sizeof(g_cfg.sta_ip));
+        memcpy(g_cfg.sta_gateway, config->sta_gateway, sizeof(g_cfg.sta_gateway));
+        memcpy(g_cfg.sta_netmask, config->sta_netmask, sizeof(g_cfg.sta_netmask));
     }
 
     g_retry_timer = xTimerCreate("wifi_retry", pdMS_TO_TICKS(g_cfg.base_retry_ms), pdFALSE, NULL,
@@ -188,7 +272,33 @@ int wifi_manager_start(const char* ssid, const char* password, const WifiManager
         return -1;
     }
 
-    esp_netif_create_default_wifi_sta();
+    g_gw_check_timer =
+        xTimerCreate("gw_check", pdMS_TO_TICKS(3000), pdFALSE, NULL, gw_check_timer_cb);
+    if (!g_gw_check_timer) {
+        ESP_LOGE(g_tag, "Failed to create gateway check timer");
+        return -1;
+    }
+
+    g_sta_netif = esp_netif_create_default_wifi_sta();
+
+    if ((int)g_cfg.sta_static_ip_enabled && g_cfg.sta_ip[0] != '\0') {
+        esp_netif_ip_info_t ip_info = {0};
+        if (esp_netif_str_to_ip4(g_cfg.sta_ip, &ip_info.ip) == ESP_OK &&
+            esp_netif_str_to_ip4(g_cfg.sta_gateway, &ip_info.gw) == ESP_OK &&
+            esp_netif_str_to_ip4(g_cfg.sta_netmask, &ip_info.netmask) == ESP_OK) {
+            esp_netif_dhcpc_stop(g_sta_netif);
+            esp_netif_set_ip_info(g_sta_netif, &ip_info);
+            // Without DHCP there is no DNS; use the gateway as the primary resolver.
+            esp_netif_dns_info_t dns = {};
+            dns.ip.u_addr.ip4        = ip_info.gw;
+            dns.ip.type              = ESP_IPADDR_TYPE_V4;
+            esp_netif_set_dns_info(g_sta_netif, ESP_NETIF_DNS_MAIN, &dns);
+            ESP_LOGI(g_tag, "Static IP: %s gw: %s", g_cfg.sta_ip, g_cfg.sta_gateway);
+            g_static_ip_active = true;
+        } else {
+            ESP_LOGW(g_tag, "Invalid static IP config, falling back to DHCP");
+        }
+    }
 
     wifi_init_config_t init_cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&init_cfg));
@@ -202,7 +312,11 @@ int wifi_manager_start(const char* ssid, const char* password, const WifiManager
     strncpy((char*)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
     strncpy((char*)wifi_config.sta.password, password, sizeof(wifi_config.sta.password) - 1);
 
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    wifi_mode_t mode = WIFI_MODE_STA;
+    if (g_ap_netif != NULL) {
+        mode = WIFI_MODE_APSTA;
+    }
+    ESP_ERROR_CHECK(esp_wifi_set_mode(mode));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
@@ -215,11 +329,25 @@ void wifi_manager_stop(void) {
     xTimerDelete(g_retry_timer, 0);
     g_retry_timer = NULL;
 
+    if (g_gw_check_timer) {
+        xTimerStop(g_gw_check_timer, 0);
+        xTimerDelete(g_gw_check_timer, 0);
+        g_gw_check_timer = NULL;
+    }
+
+    if (g_ping_hdl) {
+        esp_ping_stop(g_ping_hdl);
+        esp_ping_delete_session(g_ping_hdl);
+        g_ping_hdl = NULL;
+    }
+
     esp_wifi_stop();
-    g_retry_count = 0;
-    g_scan_active = false;
-    g_scan_cb     = NULL;
-    g_initialized = false;
+    g_retry_count      = 0;
+    g_scan_active      = false;
+    g_scan_cb          = NULL;
+    g_initialized      = false;
+    g_static_ip_active = false;
+    g_sta_netif        = NULL;
     set_state(WIFI_MANAGER_STATE_IDLE, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
 }
 
@@ -293,3 +421,40 @@ int wifi_manager_scan(WifiManagerScanDoneCb cb) {
 WifiManagerState wifi_manager_get_state(void) { return g_current_state; }
 
 void wifi_manager_register_callback(WifiManagerEventCb cb) { g_user_cb = cb; }
+
+void wifi_manager_set_ap_enabled(bool enabled) {
+    if (enabled) {
+        if (g_ap_netif != NULL) {
+            return;
+        }
+        g_ap_netif = esp_netif_create_default_wifi_ap();
+
+        wifi_config_t ap_config = {
+            .ap =
+                {
+                    .ssid           = "ESP32-Settings",
+                    .ssid_len       = 0,
+                    .password       = "",
+                    .max_connection = 4,
+                    .authmode       = WIFI_AUTH_OPEN,
+                    .channel        = 1,
+                },
+        };
+
+        if (g_initialized) {
+            ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+            ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
+        }
+        ESP_LOGI(g_tag, "AP enabled: ESP32-Settings");
+    } else {
+        if (g_ap_netif == NULL) {
+            return;
+        }
+        if (g_initialized) {
+            ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+        }
+        esp_netif_destroy(g_ap_netif);
+        g_ap_netif = NULL;
+        ESP_LOGI(g_tag, "AP disabled");
+    }
+}

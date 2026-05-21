@@ -18,52 +18,31 @@ concurrency:
 
 jobs:
   build_linux:
-    name: Simulator (Linux, IDF v6.0)
+    name: Simulator (Linux)
     runs-on: ubuntu-24.04
 
-    env:
-      IDF_VERSION: v6.0
-      IDF_TARGET: linux
-      IDF_PATH: /home/runner/esp/esp-idf
-      IDF_TOOLS_PATH: /home/runner/.espressif
-
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libsdl2-dev libsdl2-2.0-0 libbsd-dev
-
-      - name: Cache ESP-IDF repo
-        id: cache-idf
-        uses: actions/cache@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
         with:
-          path: /home/runner/esp/esp-idf
-          key: esp-idf-v6.0-linux
+          nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: Clone ESP-IDF
-        if: steps.cache-idf.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p /home/runner/esp
-          git clone --depth 1 --branch ${{ env.IDF_VERSION }} --recursive \
-            https://github.com/espressif/esp-idf.git ${{ env.IDF_PATH }}
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v13
 
-      - name: Cache ESP-IDF tools
-        id: cache-tools
+      - name: Cache Espressif Toolchains
+        id: cache-espressif-tools
         uses: actions/cache@v4
         with:
           path: /home/runner/.espressif
-          key: espressif-tools-v6.0-linux
+          key: espressif-tools-${{ hashFiles('flake.lock') }}
 
-      - name: Install ESP-IDF tools
-        if: steps.cache-tools.outputs.cache-hit != 'true'
-        run: ${{ env.IDF_PATH }}/install.sh ${{ env.IDF_TARGET }}
-
-      - name: Cache managed components
+      - name: Cache Managed Components
         uses: actions/cache@v4
         with:
           path: simulator/managed_components
@@ -72,11 +51,7 @@ jobs:
 
       - name: Build Simulator
         run: |
-          source ${{ env.IDF_PATH }}/export.sh
-          mkdir -p managed_components             # Create dummy root dir
-          mkdir -p simulator/managed_components   # Create dummy sim dir
-          make linux-reconfigure
-          make linux-build
+          nix develop . --command bash -c "make linux-reconfigure && make linux-build"
 
       - name: Upload Simulator Binary
         if: success()
@@ -87,7 +62,7 @@ jobs:
             simulator/build/simulator.elf
           retention-days: 7
 
-      - name: Upload build logs on failure
+      - name: Upload Build Logs on Failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:

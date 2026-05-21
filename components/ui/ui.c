@@ -35,9 +35,16 @@ void ui_build(lv_display_t* disp) {
     // should be moved to ui_binder once it is ready, so that ui.c is not coupled to
     // screen_timeout directly.
     if (ui_dd_timeout) {
-        uint32_t sel     = lv_dropdown_get_selected(ui_dd_timeout);
-        uint32_t minutes = timeout_minutes_from_idx(sel);
-        screen_timeout_set_seconds(minutes * 60U);
+        uint32_t sel           = lv_dropdown_get_selected(ui_dd_timeout);
+        uint32_t minutes       = timeout_minutes_from_idx(sel);
+        uint32_t total_seconds = minutes * 60U;
+
+        ScreenTimeoutConfig cfg = {
+            .dim_timeout_seconds           = (total_seconds * 50U) / 100U,
+            .screensaver_timeout_seconds   = (total_seconds * 75U) / 100U,
+            .backlight_off_timeout_seconds = total_seconds,
+        };
+        screen_timeout_set_config(&cfg);
     }
     ui_connect_timeout_settings();
 
@@ -59,7 +66,17 @@ static void timeout_changed_cb(lv_event_t* e) {
     lv_obj_t* dropdown = lv_event_get_target(e);
     uint32_t sel       = lv_dropdown_get_selected(dropdown);
     uint32_t minutes   = timeout_minutes_from_idx(sel);
-    screen_timeout_set_seconds(minutes * 60U);
+
+    // Build new config with the selected timeout as the total duration
+    // Stages: dim at 50%, screensaver at 75%, backlight off at 100%
+    uint32_t total_seconds      = minutes * 60U;
+    ScreenTimeoutConfig new_cfg = {
+        .dim_timeout_seconds           = (total_seconds * 50U) / 100U, // 50% of total
+        .screensaver_timeout_seconds   = (total_seconds * 75U) / 100U, // 75% of total
+        .backlight_off_timeout_seconds = total_seconds,                // 100% (full timeout)
+    };
+
+    screen_timeout_set_config(&new_cfg);
     screen_timeout_record_activity();
 }
 
