@@ -123,6 +123,7 @@ PROJECT_ROOT   := $(shell pwd)
 
 # Prefer the Xtensa-specific clang-tidy if available, fall back to host clang-tidy.
 CLANG_TIDY_EXE ?= clang-tidy
+
 # Only report diagnostics in our own source tree; skip managed_components.
 HEADER_FILTER  := ^$(PROJECT_ROOT)/(main|components)/(?!managed_components)
 
@@ -190,28 +191,27 @@ lint-ci: lint-scrub
 	@SOURCE_FILES="$$($(call find_sources))"; \
 	if [ -z "$$SOURCE_FILES" ]; then echo "[SKIP] No source files found"; exit 0; fi; \
 	TMPFILE=$$(mktemp /tmp/lint.XXXXXX); \
-	set -o pipefail; \
+	set -e; set -o pipefail; \
 	echo "$$SOURCE_FILES" | tr '\n' '\0' | xargs -0 \
-	  run-clang-tidy \
-	    -clang-tidy-binary "$(CLANG_TIDY_EXE)" \
-	    -p "$(LINT_DB_DIR)" \
-	    -checks='' \
-	    -header-filter "$(HEADER_FILTER)" \
-	    $(TIDY_EXTRA_ARGS) \
-	    -quiet \
-	  2>&1 \
-	  | python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)" --force-color \
-	  | tee "$$TMPFILE"; \
-	WARNINGS=$$(grep -cP ":\d+:\d+:\s+warning:" "$$TMPFILE" 2>/dev/null || true); \
-	ERRORS=$$(grep -cP ":\d+:\d+:\s+error:" "$$TMPFILE" 2>/dev/null || true); \
+		run-clang-tidy \
+			-clang-tidy-binary "$(CLANG_TIDY_EXE)" \
+			-p "$(LINT_DB_DIR)" \
+			-header-filter "$(HEADER_FILTER)" \
+			$(TIDY_EXTRA_ARGS) \
+			-quiet \
+		2>&1 \
+		| python3 $(FILTER_SCRIPT) --root "$(PROJECT_ROOT)" \
+		| tee "$$TMPFILE"; \
+	WARNINGS=$$(grep -E -c "warning:" "$$TMPFILE" || true); \
+	ERRORS=$$(grep -E -c "error:" "$$TMPFILE" || true); \
 	rm -f "$$TMPFILE"; \
 	if [ "$${ERRORS:-0}" -gt 0 ]; then \
-	  echo "[FAIL] clang-tidy: $${ERRORS} error(s) must be fixed (warnings: $${WARNINGS:-0})"; \
-	  exit 1; \
+		echo "[FAIL] clang-tidy: $${ERRORS} error(s) must be fixed (warnings: $${WARNINGS:-0})"; \
+		exit 1; \
 	elif [ "$${WARNINGS:-0}" -gt 0 ]; then \
-	  echo "[WARN] clang-tidy: $${WARNINGS} warning(s) — non-blocking"; \
+		echo "[WARN] clang-tidy: $${WARNINGS} warning(s) — non-blocking"; \
 	else \
-	  echo "[OK] clang-tidy clean"; \
+		echo "[OK] clang-tidy clean"; \
 	fi
 
 # -----------------------------------------------------------------------
