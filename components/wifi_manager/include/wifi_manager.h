@@ -33,6 +33,12 @@ typedef struct {
     char password[64];
 } SavedWifiNetwork;
 
+/**
+ * @brief Helper to verify if the default network interface has assigned DNS servers.
+ * @return true if DNS is configured, false otherwise.
+ */
+bool is_dns_ready(void);
+
 /*
  * Invoked on every state transition. When state is WIFI_MANAGER_STATE_FAILED,
  * reason indicates why — otherwise reason is WIFI_MANAGER_FAIL_REASON_UNKNOWN.
@@ -49,6 +55,10 @@ typedef struct {
     int max_retries;
     int base_retry_ms;
     int max_retry_ms;
+    bool sta_static_ip_enabled;
+    char sta_ip[16];
+    char sta_gateway[16];
+    char sta_netmask[16];
 } WifiManagerConfig;
 
 /**
@@ -117,5 +127,15 @@ WifiManagerState wifi_manager_get_state(void);
  * @brief Register a callback invoked on every state transition.
  */
 void wifi_manager_register_callback(WifiManagerEventCb cb);
+
+/**
+ * @brief Enable or disable the SoftAP interface at runtime.
+ *
+ * When enabled, ESP32 broadcasts an open AP named "ESP32-Settings".
+ * Safe to call before or after wifi_manager_start().
+ *
+ * @param enabled true to start AP, false to stop it.
+ */
+void wifi_manager_set_ap_enabled(bool enabled);
 
 #endif /* WIFI_MANAGER_H */

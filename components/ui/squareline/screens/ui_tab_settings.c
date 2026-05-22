@@ -25,6 +25,9 @@ lv_obj_t* ui_lbl_timeout_sub     = NULL;
 lv_obj_t* ui_dd_timeout          = NULL;
 lv_obj_t* ui_Keyboard1           = NULL;
 lv_obj_t* ui_sw_alerts           = NULL;
+lv_obj_t* ui_sw_ap_enabled       = NULL;
+lv_obj_t* ui_sw_local_web_client = NULL;
+lv_obj_t* ui_lbl_settings_ip    = NULL;
 
 void ui_event_ta_locationinput(lv_event_t* e) {
     lv_event_code_t code = lv_event_get_code(e);
@@ -205,6 +208,26 @@ void ui_tab_settings_init(void) {
     lv_obj_set_style_bg_color(ui_sw_alerts, UI_COLOR_ACCENT, LV_PART_INDICATOR | LV_STATE_CHECKED);
     lv_obj_set_style_bg_opa(ui_sw_alerts, LV_OPA_COVER, LV_PART_INDICATOR | LV_STATE_CHECKED);
 
+    // ---- ESP32-Settings AP row ----
+    lv_obj_t* row_ap = make_setting_row(ui_panel_settings_main,
+                                        "ESP32-Settings AP", "Hotspot for initial setup");
+    ui_sw_ap_enabled = lv_switch_create(row_ap);
+    lv_obj_set_size(ui_sw_ap_enabled, 50, 26);
+    lv_obj_set_style_bg_color(ui_sw_ap_enabled, UI_COLOR_ACCENT,
+                              LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_opa(ui_sw_ap_enabled, LV_OPA_COVER,
+                            LV_PART_INDICATOR | LV_STATE_CHECKED);
+
+    // ---- Local web client row ----
+    lv_obj_t* row_lwc = make_setting_row(ui_panel_settings_main,
+                                         "Local web client", "Fixed IP for home network");
+    ui_sw_local_web_client = lv_switch_create(row_lwc);
+    lv_obj_set_size(ui_sw_local_web_client, 50, 26);
+    lv_obj_set_style_bg_color(ui_sw_local_web_client, UI_COLOR_ACCENT,
+                              LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_opa(ui_sw_local_web_client, LV_OPA_COVER,
+                            LV_PART_INDICATOR | LV_STATE_CHECKED);
+
     // ---- Footer (status-bar sized: 24px, full width, horizontal) ----
     lv_obj_t* footer = lv_obj_create(ui_panel_settings_main);
     lv_obj_set_width(footer, lv_pct(100));
@@ -219,13 +242,20 @@ void ui_tab_settings_init(void) {
     lv_obj_set_style_radius(footer, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(footer, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    static const char* footer_items[] = {"FW v1.0.0", "IP: 192.168.1.100", "Uptime: 0d 0h 0m"};
-    for (int i = 0; i < 3; i++) {
-        lv_obj_t* lbl = lv_label_create(footer);
-        lv_label_set_text(lbl, footer_items[i]);
-        lv_obj_set_style_text_color(lbl, UI_COLOR_INK4, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
-    }
+    lv_obj_t* lbl_fw = lv_label_create(footer);
+    lv_label_set_text(lbl_fw, "FW v1.0.0");
+    lv_obj_set_style_text_color(lbl_fw, UI_COLOR_INK4, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(lbl_fw, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_lbl_settings_ip = lv_label_create(footer);
+    lv_label_set_text(ui_lbl_settings_ip, "IP: ---");
+    lv_obj_set_style_text_color(ui_lbl_settings_ip, UI_COLOR_INK4, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_settings_ip, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    lv_obj_t* lbl_up = lv_label_create(footer);
+    lv_label_set_text(lbl_up, "Uptime: 0d 0h 0m");
+    lv_obj_set_style_text_color(lbl_up, UI_COLOR_INK4, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(lbl_up, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     // ---- Keyboard (hidden until textarea focused) ----
     ui_Keyboard1 = lv_keyboard_create(ui_tabsettings);

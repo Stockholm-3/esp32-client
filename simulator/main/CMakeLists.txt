@@ -13,10 +13,10 @@ idf_component_register(
     wifi_manager
     lib
     esp_idf_stubs
+    loc_server
     fs
     cache_fs
     http_client
     smw_http
-    time_manager
     clock
 )

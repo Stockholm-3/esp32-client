@@ -54,6 +54,11 @@ flash-monitor:
 
 fm: flash-monitor
 
+##Overides and updates the certs for the http_client.
+.PHONY: update-certs
+update-certs:
+	curl -s https://pki.goog/repo/certs/gtsr1.pem https://pki.goog/repo/certs/gtsr2.pem https://pki.goog/repo/certs/gtsr3.pem https://pki.goog/repo/certs/gtsr4.pem https://letsencrypt.org/certs/isrgrootx1.pem https://letsencrypt.org/certs/isrg-root-x2.pem https://www.amazontrust.com/repository/AmazonRootCA1.pem https://cacerts.digicert.com/DigiCertGlobalRootCA.crt.pem > components/http_client/certs/roots.pem
+
 # ----------------------------------------
 # Clean
 # ----------------------------------------
@@ -117,8 +122,7 @@ FILTER_SCRIPT  := scripts/filter_lint.py
 PROJECT_ROOT   := $(shell pwd)
 
 # Prefer the Xtensa-specific clang-tidy if available, fall back to host clang-tidy.
-CLANG_TIDY_EXE := $(shell which xtensa-esp32s3-elf-clang-tidy 2>/dev/null || which clang-tidy)
-
+CLANG_TIDY_EXE ?= clang-tidy
 # Only report diagnostics in our own source tree; skip managed_components.
 HEADER_FILTER  := ^$(PROJECT_ROOT)/(main|components)/(?!managed_components)
 
