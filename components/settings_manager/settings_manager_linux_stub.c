@@ -10,3 +10,6 @@ void settings_manager_save_wifi(const char* ssid, const char* password) {
     (void)ssid;
     (void)password;
 }
+uint8_t settings_manager_get_all_networks(SavedWifiNetwork* out_list, uint8_t max_count) {
+    return 0;
+}

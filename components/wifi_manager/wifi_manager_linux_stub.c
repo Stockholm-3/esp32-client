@@ -13,6 +13,7 @@
  * used on ESP so retry backoff behaviour is exercised without hardware.
  *
  * Simulates:
+ *   - Hardware initialization on wifi_manager_start moving to IDLE state.
  *   - Auth failure on the first attempt (reason: WIFI_MANAGER_FAIL_REASON_AUTH)
  *     if the password is "badpassword", to exercise the failure path.
  *   - Successful connection on STUB_SUCCESS_RETRY for all other passwords.
@@ -91,7 +92,7 @@ static void retry_timer_cb(int sig) {
 
     if (g_bad_password) {
         ESP_LOGE(g_tag, "Stub: auth failure");
-        stop_timer();
+        stop_timer(); // Safe: Disarm timer
         g_retry_count = 0;
         set_state(WIFI_MANAGER_STATE_FAILED, WIFI_MANAGER_FAIL_REASON_AUTH);
         return;
@@ -104,11 +105,12 @@ static void retry_timer_cb(int sig) {
     }
 
     ESP_LOGI(g_tag, "Stub: simulating successful connection");
+    stop_timer();
     g_retry_count = 0;
     set_state(WIFI_MANAGER_STATE_CONNECTED, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
 }
 
-int wifi_manager_start(const char* ssid, const char* password, const WifiManagerConfig* config) {
+int wifi_manager_start(const WifiManagerConfig* config) {
     if (g_initialized) {
         ESP_LOGE(g_tag, "Already initialized");
         return -1;
@@ -117,8 +119,6 @@ int wifi_manager_start(const char* ssid, const char* password, const WifiManager
     if (config) {
         g_cfg = *config;
     }
-
-    g_bad_password = (strcmp(password, "badpassword") == 0);
 
     signal(SIGALRM, retry_timer_cb);
 
@@ -135,10 +135,35 @@ int wifi_manager_start(const char* ssid, const char* password, const WifiManager
     g_timer_created = true;
     g_initialized   = true;
     g_retry_count   = 0;
+    g_bad_password  = false;
 
-    ESP_LOGI(g_tag, "Starting Wi-Fi for SSID '%s'", ssid);
+    ESP_LOGI(g_tag, "Subsystems initialized. Driver operational in STA mode.");
+
+    // In the new decoupled design, starting initialization puts the manager in IDLE
+    set_state(WIFI_MANAGER_STATE_IDLE, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
+
+    return 0;
+}
+
+int wifi_manager_connect(const char* ssid, const char* password) {
+    if (!g_initialized) {
+        ESP_LOGE(g_tag, "Cannot connect: Wi-Fi manager not started.");
+        return -1;
+    }
+
+    if (ssid == NULL || strlen(ssid) == 0) {
+        ESP_LOGE(g_tag, "Cannot connect: Invalid SSID targets provided.");
+        return -1;
+    }
+
+    ESP_LOGI(g_tag, "Initiating connection request to target SSID: '%s'", ssid);
+
+    stop_timer();
+    g_retry_count  = 0;
+    g_bad_password = (password != NULL && strcmp(password, "badpassword") == 0);
+
     set_state(WIFI_MANAGER_STATE_CONNECTING, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
-    arm_timer(1000);
+    arm_timer(1000); // Simulate connection handshake latency
 
     return 0;
 }
@@ -166,24 +191,13 @@ void wifi_manager_reconnect(void) {
     stop_timer();
     g_retry_count = 0;
     set_state(WIFI_MANAGER_STATE_CONNECTING, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
-    arm_timer(0);
+    arm_timer(500);
 }
 
 int wifi_manager_change_network(const char* ssid, const char* password) {
-    if (!g_initialized) {
-        ESP_LOGE(g_tag, "Not initialized");
-        return -1;
-    }
-
-    ESP_LOGI(g_tag, "Stub: changing network to '%s'", ssid);
-
-    g_bad_password = (strcmp(password, "badpassword") == 0);
-
-    stop_timer();
-    g_retry_count = 0;
-    set_state(WIFI_MANAGER_STATE_CONNECTING, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
-    arm_timer(500);
-    return 0;
+    // Under the clean structural layout, changing a network works identically to an explicit new
+    // connection setup
+    return wifi_manager_connect(ssid, password);
 }
 
 int wifi_manager_scan(WifiManagerScanDoneCb cb) {
@@ -207,13 +221,15 @@ int wifi_manager_scan(WifiManagerScanDoneCb cb) {
     };
 
     g_scan_active = true;
+
+    WifiManagerState saved_pre_scan_state = g_current_state;
     set_state(WIFI_MANAGER_STATE_SCANNING, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
 
     cb(FAKE_APS, sizeof(FAKE_APS) / sizeof(FAKE_APS[0]));
 
     g_scan_active = false;
     if (g_current_state == WIFI_MANAGER_STATE_SCANNING) {
-        set_state(WIFI_MANAGER_STATE_IDLE, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
+        set_state(saved_pre_scan_state, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
     }
 
     return 0;

@@ -56,6 +56,19 @@ static SmwTask g_smw_tasks[SMW_MAX_TASKS];
  */
 uint32_t get_system_ms(void) { return (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS); }
 
+static void smw_worker_task(void* ctx) {
+    ESP_LOGI("SMW_TASK", "State machine worker task started.");
+
+    while (1) {
+        // Run the state machine process step
+        smw_process(&g_smw_worker, get_system_ms());
+
+        // Poll at a steady, responsive 50ms interval
+        // This gives your network driver plenty of CPU breathing room
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
 /**
  * @brief Probes the I2C bus for BME280 sensor presence.
  *
@@ -102,12 +115,17 @@ static void on_wifi_connect(const char* ssid, const char* password) {
 }
 
 static void on_test_http_done(HttpClientResponse* resp, int err, void* user_ctx) {
-    if (err != 0) {
-        ESP_LOGE(g_tag, "HTTP request failed");
-    } else {
-        ESP_LOGI(g_tag, "HTTP %d — %.*s", resp->status, (int)resp->length, (char*)resp->buffer);
+    if (err != 0 || resp == NULL) {
+        ESP_LOGE(g_tag, "HTTP request failed or returned empty response context");
+        return;
     }
-    free(resp->buffer);
+
+    ESP_LOGI(g_tag, "HTTP %d — %.*s", resp->status, (int)resp->length, (char*)resp->buffer);
+
+    // Only safe to free if the response structure actually populated successfully
+    if (resp->buffer) {
+        free(resp->buffer);
+    }
     free(resp);
 }
 
@@ -127,11 +145,9 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     if (state == WIFI_MANAGER_STATE_CONNECTED) {
         ui_binder_update_wifi_name(g_current_ssid);
 
-        // Safely initialize time manager (guards against re-initialization)
-        // On first connection, this initializes SNTP.
-        // On reconnection, this is a no-op to avoid SNTP assertion failure.
         time_manager_init(NULL);
-        vTaskDelay(3000 / portTICK_PERIOD_MS);
+    }
+    if (state == WIFI_MANAGER_STATE_CONNECTED_WITH_DNS) {
         if (!g_http_test_fired) {
             g_http_test_fired = true;
 
@@ -139,6 +155,7 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
             req.url    = "https://just-dev.freeduck.dev/v1/get_plan?city=stockholm&price=SE3";
             req.method = HTTP_CLIENT_METHOD_GET;
 
+            ESP_LOGI(g_tag, "DNS confirmed ready. Launching application HTTP test request.");
             smw_register_http_request(&g_smw_worker, &req, on_test_http_done, NULL, NULL);
         }
     }
@@ -214,18 +231,19 @@ void app_main(void) {
     HttpClientConfig http_cfg = {0};
     http_client_init(&http_cfg);
 
-    const char* ssid = settings_manager_get_ssid();
-    const char* pass = settings_manager_get_password();
-    if (ssid[0] != '\0') {
-        wifi_manager_start(ssid, pass, NULL);
-    }
+    wifi_manager_start(NULL);
+    wifi_manager_connect_to_saved_wifi();
 
     smw_init(&g_smw_worker, g_smw_tasks, SMW_MAX_TASKS);
 
+    BaseType_t task_ret = xTaskCreate(smw_worker_task, "smw_worker_task", 4096, NULL, 5, NULL);
+
+    if (task_ret != pdPASS) {
+        ESP_LOGE("MAIN", "Failed to create SMW background task!");
+    }
+
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
-
-        smw_process(&g_smw_worker, get_system_ms());
 
         struct tm timeinfo;
         if (time_manager_get_time(&timeinfo)) {

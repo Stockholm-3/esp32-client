@@ -3,6 +3,7 @@
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
+#include "settings_manager.h"
 #include "wifi_manager.h"
 
 #include <stdlib.h>
@@ -16,6 +17,8 @@ static bool g_initialized              = false;
 static bool g_scan_active              = false;
 static int g_retry_count               = 0;
 static TimerHandle_t g_retry_timer     = NULL;
+static TimerHandle_t g_stable_timer    = NULL; // NEW: Timer to let the link stabilize
+static esp_netif_t* g_sta_netif        = NULL; // Store interface handle for the timer callback
 static WifiManagerScanDoneCb g_scan_cb = NULL;
 static WifiManagerEventCb g_user_cb    = NULL;
 
@@ -53,6 +56,7 @@ static void schedule_retry(void) {
     ESP_LOGW(g_tag, "Retry %d in %d ms", g_retry_count + 1, delay);
     g_retry_count++;
     xTimerChangePeriod(g_retry_timer, pdMS_TO_TICKS(delay), 0);
+    xTaskCreate(NULL, NULL, 0, NULL, 0, NULL); // Safe placeholder
     xTimerStart(g_retry_timer, 0);
 }
 
@@ -60,6 +64,106 @@ static void retry_timer_cb(TimerHandle_t timer) {
     (void)timer;
     set_state(WIFI_MANAGER_STATE_CONNECTING, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
     esp_wifi_connect();
+}
+
+static void stable_timer_cb(TimerHandle_t timer) {
+    (void)timer;
+
+    if (g_current_state != WIFI_MANAGER_STATE_CONNECTED || !g_sta_netif) {
+        return;
+    }
+
+    esp_netif_dns_info_t dns;
+    if (esp_netif_get_dns_info(g_sta_netif, ESP_NETIF_DNS_MAIN, &dns) == ESP_OK) {
+        if (dns.ip.u_addr.ip4.addr != 0) {
+
+            esp_netif_dns_info_t fallback_dns = {0};
+            fallback_dns.ip.type              = ESP_IPADDR_TYPE_V4;
+
+            // Set Backup DNS to Cloudflare (1.1.1.1)
+            fallback_dns.ip.u_addr.ip4.addr = esp_ip4addr_aton("1.1.1.1");
+            esp_netif_set_dns_info(g_sta_netif, ESP_NETIF_DNS_BACKUP, &fallback_dns);
+
+            // Set Alternative DNS to Google (8.8.8.8)
+            fallback_dns.ip.u_addr.ip4.addr = esp_ip4addr_aton("8.8.8.8");
+            esp_netif_set_dns_info(g_sta_netif, ESP_NETIF_DNS_FALLBACK, &fallback_dns);
+
+            ESP_LOGI(g_tag, "Link verified stable. Main DNS: " IPSTR " | Fallbacks configured.",
+                     IP2STR(&dns.ip.u_addr.ip4));
+            set_state(WIFI_MANAGER_STATE_CONNECTED_WITH_DNS, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
+        } else {
+            ESP_LOGW(g_tag, "Stabilization finished, but DNS table is empty. Re-trying...");
+            xTimerStart(g_stable_timer, 0);
+        }
+    }
+}
+
+void wifi_manager_connect_to_saved_wifi(void) {
+    if (!g_initialized) {
+        ESP_LOGE("WIFI_PROFILES", "Wi-Fi manager must be started before auto-connecting.");
+        return;
+    }
+
+    ESP_LOGI("WIFI_PROFILES", "Checking NVS for saved Wi-Fi credentials...");
+
+    SavedWifiNetwork saved_list[MAX_SAVED_NETWORKS];
+    uint8_t saved_count = settings_manager_get_all_networks(saved_list, MAX_SAVED_NETWORKS);
+
+    if (saved_count == 0) {
+        ESP_LOGW("WIFI_PROFILES", "Zero saved Wi-Fi networks found in memory.");
+        set_state(WIFI_MANAGER_STATE_FAILED, WIFI_MANAGER_FAIL_REASON_NO_AP);
+        return;
+    }
+
+    ESP_LOGI("WIFI_PROFILES", "Found %d saved network profile(s) in flash memory.", saved_count);
+    ESP_LOGI("WIFI_PROFILES", "Scanning for nearby airwaves...");
+
+    // The stack is already running, we can just execute our active foreground scan safely
+    wifi_scan_config_t scan_config = {.show_hidden = true};
+    esp_wifi_scan_start(&scan_config, true); // True blocks execution until finished
+
+    uint16_t ap_count = 0;
+    esp_wifi_scan_get_ap_num(&ap_count);
+    wifi_ap_record_t* ap_info = malloc(sizeof(wifi_ap_record_t) * ap_count);
+    esp_wifi_scan_get_ap_records(&ap_count, ap_info);
+
+    int best_saved_index = -1;
+    int highest_rssi     = -100;
+
+    for (int i = 0; i < ap_count; i++) {
+        for (int j = 0; j < saved_count; j++) {
+            if (strcmp((char*)ap_info[i].ssid, saved_list[j].ssid) == 0) {
+                if (ap_info[i].rssi > highest_rssi) {
+                    highest_rssi     = ap_info[i].rssi;
+                    best_saved_index = j;
+                }
+            }
+        }
+    }
+
+    free(ap_info);
+
+    if (best_saved_index != -1) {
+        ESP_LOGI("WIFI_PROFILES", "Match found! Decided to connect to '%s' (Signal: %d dBm)",
+                 saved_list[best_saved_index].ssid, highest_rssi);
+
+        // Feed the target profile directly to our active Wi-Fi hardware configuration
+        wifi_config_t wifi_config = {0};
+        strncpy((char*)wifi_config.sta.ssid, saved_list[best_saved_index].ssid,
+                sizeof(wifi_config.sta.ssid) - 1);
+        strncpy((char*)wifi_config.sta.password, saved_list[best_saved_index].password,
+                sizeof(wifi_config.sta.password) - 1);
+
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+
+        // Trigger the internal background asynchronous loop cleanly
+        set_state(WIFI_MANAGER_STATE_CONNECTING, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
+        esp_wifi_connect();
+    } else {
+        ESP_LOGE("WIFI_PROFILES",
+                 "None of the %d saved networks are currently within physical range.", saved_count);
+        set_state(WIFI_MANAGER_STATE_FAILED, WIFI_MANAGER_FAIL_REASON_NO_AP);
+    }
 }
 
 static void deliver_scan_results(void) {
@@ -133,6 +237,9 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
         case WIFI_EVENT_STA_DISCONNECTED: {
             wifi_event_sta_disconnected_t* info = (wifi_event_sta_disconnected_t*)event_data;
 
+            // CRITICAL: Stop the validation process instantly if the link cuts out
+            xTimerStop(g_stable_timer, 0);
+
             if (info->reason == WIFI_REASON_NO_AP_FOUND) {
                 ESP_LOGE(g_tag, "SSID not found");
                 xTimerStop(g_retry_timer, 0);
@@ -164,14 +271,24 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
         }
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*)event_data;
-        ESP_LOGI(g_tag, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
+        ESP_LOGI(g_tag, "Got IP: " IPSTR ". Starting 500ms stabilization grace period...",
+                 IP2STR(&event->ip_info.ip));
+
         g_retry_count = 0;
         xTimerStop(g_retry_timer, 0);
+
+        // Save the interface link context for the background timer thread
+        g_sta_netif = event->esp_netif;
+
+        // Move to basic CONNECTED status first
         set_state(WIFI_MANAGER_STATE_CONNECTED, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
+
+        // Arm the stabilization countdown timer (500ms)
+        xTimerStart(g_stable_timer, 0);
     }
 }
 
-int wifi_manager_start(const char* ssid, const char* password, const WifiManagerConfig* config) {
+int wifi_manager_start(const WifiManagerConfig* config) {
     if (g_initialized) {
         ESP_LOGE(g_tag, "Already initialized");
         return -1;
@@ -183,12 +300,21 @@ int wifi_manager_start(const char* ssid, const char* password, const WifiManager
 
     g_retry_timer = xTimerCreate("wifi_retry", pdMS_TO_TICKS(g_cfg.base_retry_ms), pdFALSE, NULL,
                                  retry_timer_cb);
-    if (!g_retry_timer) {
-        ESP_LOGE(g_tag, "Failed to create retry timer");
+    g_stable_timer =
+        xTimerCreate("wifi_stable", pdMS_TO_TICKS(500), pdFALSE, NULL, stable_timer_cb);
+
+    if (!g_retry_timer || !g_stable_timer) {
+        ESP_LOGE(g_tag, "Failed to create core software timers");
+        if (g_retry_timer) {
+            xTimerDelete(g_retry_timer, 0);
+        }
+        if (g_stable_timer) {
+            xTimerDelete(g_stable_timer, 0);
+        }
         return -1;
     }
 
-    esp_netif_create_default_wifi_sta();
+    g_sta_netif = esp_netif_create_default_wifi_sta();
 
     wifi_init_config_t init_cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&init_cfg));
@@ -198,22 +324,25 @@ int wifi_manager_start(const char* ssid, const char* password, const WifiManager
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
                                                         &wifi_event_handler, NULL, NULL));
 
-    wifi_config_t wifi_config = {0};
-    strncpy((char*)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
-    strncpy((char*)wifi_config.sta.password, password, sizeof(wifi_config.sta.password) - 1);
-
+    // Hardware starts here in STA mode, but we do NOT call esp_wifi_connect() yet
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
     g_initialized = true;
+    set_state(WIFI_MANAGER_STATE_IDLE, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
     return 0;
 }
 
 void wifi_manager_stop(void) {
     xTimerStop(g_retry_timer, 0);
+    xTimerStop(g_stable_timer, 0);
+
     xTimerDelete(g_retry_timer, 0);
-    g_retry_timer = NULL;
+    xTimerDelete(g_stable_timer, 0);
+
+    g_retry_timer  = NULL;
+    g_stable_timer = NULL;
+    g_sta_netif    = NULL;
 
     esp_wifi_stop();
     g_retry_count = 0;
@@ -229,6 +358,7 @@ void wifi_manager_reconnect(void) {
         return;
     }
     xTimerStop(g_retry_timer, 0);
+    xTimerStop(g_stable_timer, 0);
     g_retry_count = 0;
     set_state(WIFI_MANAGER_STATE_CONNECTING, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
     esp_wifi_connect();
@@ -243,6 +373,7 @@ int wifi_manager_change_network(const char* ssid, const char* password) {
     ESP_LOGI(g_tag, "Changing network to '%s'", ssid);
 
     xTimerStop(g_retry_timer, 0);
+    xTimerStop(g_stable_timer, 0);
     g_retry_count = 0;
     esp_wifi_disconnect();
 

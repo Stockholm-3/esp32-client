@@ -4,10 +4,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define MAX_SAVED_NETWORKS 5
+
 typedef enum {
     WIFI_MANAGER_STATE_IDLE = 0,
     WIFI_MANAGER_STATE_CONNECTING,
     WIFI_MANAGER_STATE_CONNECTED,
+    WIFI_MANAGER_STATE_CONNECTED_WITH_DNS,
     WIFI_MANAGER_STATE_DISCONNECTED,
     WIFI_MANAGER_STATE_FAILED, /* unrecoverable — bad password, SSID not found, etc. */
     WIFI_MANAGER_STATE_SCANNING,
@@ -24,6 +27,11 @@ typedef struct {
     int8_t rssi;
     uint8_t authmode; /* maps to wifi_auth_mode_t on ESP, 0 = open on stub */
 } WifiManagerApInfo;
+
+typedef struct {
+    char ssid[32];
+    char password[64];
+} SavedWifiNetwork;
 
 /*
  * Invoked on every state transition. When state is WIFI_MANAGER_STATE_FAILED,
@@ -60,7 +68,9 @@ typedef struct {
  * @param config   Optional retry/backoff config. NULL uses defaults.
  * @return 0 on success, -1 on failure.
  */
-int wifi_manager_start(const char* ssid, const char* password, const WifiManagerConfig* config);
+int wifi_manager_start(const WifiManagerConfig* config);
+
+void wifi_manager_connect_to_saved_wifi(void);
 
 /**
  * @brief Stop Wi-Fi, cancel any pending retry, and reset all state.
