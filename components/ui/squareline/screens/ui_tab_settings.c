@@ -28,6 +28,7 @@ lv_obj_t* ui_sw_alerts           = NULL;
 lv_obj_t* ui_sw_ap_enabled       = NULL;
 lv_obj_t* ui_sw_local_web_client = NULL;
 lv_obj_t* ui_lbl_settings_ip    = NULL;
+lv_obj_t* ui_sl_brightness       = NULL;
 
 void ui_event_ta_locationinput(lv_event_t* e) {
     lv_event_code_t code = lv_event_get_code(e);
@@ -200,7 +201,21 @@ void ui_tab_settings_init(void) {
     ui_dd_timeout = make_dropdown(ui_panel_timeout, "5 min\n10 min\n15 min\n20 min\nNever");
     lv_dropdown_set_selected(ui_dd_timeout, 1);  // default 10 min
 
-    // ---- Price alerts row (new) ----
+    // ---- Brightness row ----
+    lv_obj_t* row_brightness = make_setting_row(ui_panel_settings_main,
+                                                "Brightness", "Backlight level");
+    ui_sl_brightness = lv_slider_create(row_brightness);
+    lv_slider_set_range(ui_sl_brightness, 1, 100);
+    lv_slider_set_value(ui_sl_brightness, 100, LV_ANIM_OFF);
+    lv_obj_set_width(ui_sl_brightness, 160);
+    lv_obj_set_style_bg_color(ui_sl_brightness, UI_COLOR_BG3,
+                              LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui_sl_brightness, UI_COLOR_ACCENT,
+                              LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui_sl_brightness, UI_COLOR_INK1,
+                              LV_PART_KNOB | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(ui_sl_brightness, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(ui_sl_brightness, 4, LV_PART_INDICATOR | LV_STATE_DEFAULT);
     lv_obj_t* row_alerts = make_setting_row(ui_panel_settings_main,
                                              "Price alerts", "Notify on cheap hours");
     ui_sw_alerts = lv_switch_create(row_alerts);

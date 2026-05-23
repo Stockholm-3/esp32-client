@@ -12,6 +12,7 @@ static char g_s_password[65]  = "";
 static char g_s_location[128] = "";
 static int g_s_price_zone     = 0;
 static int g_s_timeout        = 0;
+static int g_s_brightness     = 100;
 
 static bool g_s_local_web_client_enabled = false;
 static char g_s_sta_static_ip[16]        = "";
@@ -49,6 +50,20 @@ void settings_manager_save_timeout(int index) {
     }
 }
 
+void settings_manager_save_brightness(int value) {
+    if (value < 1)
+        value = 1;
+    if (value > 100)
+        value = 100;
+    g_s_brightness = value;
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u8(h, "brightness", (uint8_t)value);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
 void(settings_manager_init(void)) {
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -72,6 +87,13 @@ void(settings_manager_init(void)) {
         }
         if (nvs_get_u8(h, "timeout", &val) == ESP_OK) {
             g_s_timeout = val;
+        }
+        if (nvs_get_u8(h, "brightness", &val) == ESP_OK) {
+            g_s_brightness = (int)val;
+            if (g_s_brightness < 1)
+                g_s_brightness = 1;
+            if (g_s_brightness > 100)
+                g_s_brightness = 100;
         }
         if (nvs_get_u8(h, "lwc_enabled", &val) == ESP_OK) {
             g_s_local_web_client_enabled = (bool)val;
@@ -99,16 +121,19 @@ void(settings_manager_init(void)) {
     ui_binder_set_timeout(g_s_timeout);
     ui_binder_set_ap_enabled(g_s_ap_enabled);
     ui_binder_set_local_web_client_enabled(g_s_local_web_client_enabled);
+    ui_binder_set_brightness(g_s_brightness);
 
     ui_binder_on_location_changed(settings_manager_save_location);
     ui_binder_on_price_changed(settings_manager_save_price_zone);
     ui_binder_on_timeout_changed(settings_manager_save_timeout);
     ui_binder_on_ap_enabled_changed(settings_manager_save_ap_enabled);
     ui_binder_on_local_web_client_changed(settings_manager_save_local_web_client_enabled);
+    ui_binder_on_brightness_changed(settings_manager_save_brightness);
 }
 const char* settings_manager_get_location(void) { return g_s_location; }
 int settings_manager_get_price_zone(void) { return g_s_price_zone; }
 int settings_manager_get_timeout(void) { return g_s_timeout; }
+int settings_manager_get_brightness(void) { return g_s_brightness; }
 const char* settings_manager_get_ssid(void) { return g_s_ssid; }
 const char* settings_manager_get_password(void) { return g_s_password; }
 

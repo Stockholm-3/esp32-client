@@ -13,6 +13,9 @@ void settings_manager_save_wifi(const char* ssid, const char* password) {
 void settings_manager_save_location(const char* city) { (void)city; }
 void settings_manager_save_price_zone(int index) { (void)index; }
 void settings_manager_save_timeout(int index) { (void)index; }
+static int s_brightness = 100;
+int settings_manager_get_brightness(void) { return s_brightness; }
+void settings_manager_save_brightness(int value) { s_brightness = value; }
 bool settings_manager_get_local_web_client_enabled(void) { return false; }
 const char* settings_manager_get_sta_static_ip(void) { return ""; }
 const char* settings_manager_get_sta_gateway(void) { return ""; }

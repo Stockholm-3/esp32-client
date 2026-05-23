@@ -5,15 +5,16 @@
 
 #include <stdio.h>
 
-static ui_binder_location_cb_t g_s_location_cb  = NULL;
-static ui_binder_dropdown_cb_t g_s_price_cb     = NULL;
-static ui_binder_dropdown_cb_t g_s_timeout_cb   = NULL;
-static ui_binder_location_cb_t g_s_location_cb2 = NULL;
-static ui_binder_dropdown_cb_t g_s_price_cb2    = NULL;
-static ui_binder_dropdown_cb_t g_s_timeout_cb2  = NULL;
-static ui_binder_bool_cb_t g_s_ap_enabled_cb    = NULL;
-static ui_binder_bool_cb_t g_s_ap_enabled_cb2   = NULL;
-static ui_binder_bool_cb_t g_s_lwc_cb           = NULL;
+static ui_binder_location_cb_t g_s_location_cb     = NULL;
+static ui_binder_dropdown_cb_t g_s_price_cb        = NULL;
+static ui_binder_dropdown_cb_t g_s_timeout_cb      = NULL;
+static ui_binder_location_cb_t g_s_location_cb2    = NULL;
+static ui_binder_dropdown_cb_t g_s_price_cb2       = NULL;
+static ui_binder_dropdown_cb_t g_s_timeout_cb2     = NULL;
+static ui_binder_bool_cb_t g_s_ap_enabled_cb       = NULL;
+static ui_binder_bool_cb_t g_s_ap_enabled_cb2      = NULL;
+static ui_binder_bool_cb_t g_s_lwc_cb              = NULL;
+static ui_binder_brightness_cb_t g_s_brightness_cb = NULL;
 
 static void on_location_defocused(lv_event_t* e) {
     (void)e;
@@ -81,12 +82,21 @@ static void on_lwc_changed(lv_event_t* e) {
     }
 }
 
+static void on_brightness_changed(lv_event_t* e) {
+    (void)e;
+    int value = (int)lv_slider_get_value(ui_sl_brightness);
+    if (g_s_brightness_cb) {
+        g_s_brightness_cb(value);
+    }
+}
+
 void ui_binder_init(void) {
     lv_obj_add_event_cb(ui_ta_locationinput, on_location_defocused, LV_EVENT_DEFOCUSED, NULL);
     lv_obj_add_event_cb(ui_dd_price, on_price_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_dd_timeout, on_timeout_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_sw_ap_enabled, on_ap_enabled_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_sw_local_web_client, on_lwc_changed, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(ui_sl_brightness, on_brightness_changed, LV_EVENT_RELEASED, NULL);
 }
 
 void ui_binder_update_localtime(const struct tm* t) {
@@ -130,6 +140,7 @@ void ui_binder_on_timeout_changed2(ui_binder_dropdown_cb_t cb) { g_s_timeout_cb2
 void ui_binder_on_ap_enabled_changed(ui_binder_bool_cb_t cb) { g_s_ap_enabled_cb = cb; }
 void ui_binder_on_ap_enabled_changed2(ui_binder_bool_cb_t cb) { g_s_ap_enabled_cb2 = cb; }
 void ui_binder_on_local_web_client_changed(ui_binder_bool_cb_t cb) { g_s_lwc_cb = cb; }
+void ui_binder_on_brightness_changed(ui_binder_brightness_cb_t cb) { g_s_brightness_cb = cb; }
 
 void ui_binder_set_ap_enabled(bool enabled) {
     if (display_lvgl_lock(100)) {
@@ -149,6 +160,13 @@ void ui_binder_set_local_web_client_enabled(bool enabled) {
         } else {
             lv_obj_remove_state(ui_sw_local_web_client, LV_STATE_CHECKED);
         }
+        display_lvgl_unlock();
+    }
+}
+
+void ui_binder_set_brightness(int value) {
+    if (display_lvgl_lock(100)) {
+        lv_slider_set_value(ui_sl_brightness, (int32_t)value, LV_ANIM_OFF);
         display_lvgl_unlock();
     }
 }

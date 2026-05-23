@@ -37,6 +37,7 @@ static uint8_t* s_fb            = NULL;
 static volatile int16_t s_mouse_x    = 0;
 static volatile int16_t s_mouse_y    = 0;
 static volatile bool s_mouse_pressed = false;
+static volatile uint8_t s_backlight  = 255;
 
 static pthread_mutex_t s_lvgl_mux = PTHREAD_MUTEX_INITIALIZER;
 static volatile bool s_setup_done = false;
@@ -59,6 +60,7 @@ static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px
 
     if (lv_display_flush_is_last(disp)) {
         SDL_UpdateTexture(s_texture, NULL, s_fb, dst_stride);
+        SDL_SetTextureColorMod(s_texture, s_backlight, s_backlight, s_backlight);
         SDL_RenderClear(s_renderer);
         SDL_RenderCopy(s_renderer, s_texture, NULL, NULL);
         SDL_RenderPresent(s_renderer);
@@ -201,6 +203,6 @@ bool display_lvgl_lock(int timeout_ms) {
 
 void display_lvgl_unlock(void) { pthread_mutex_unlock(&s_lvgl_mux); }
 
-void display_set_backlight(uint8_t brightness) { (void)brightness; }
+void display_set_backlight(uint8_t brightness) { s_backlight = brightness; }
 
 uint32_t display_get_idle_percent(void) { return 0; }

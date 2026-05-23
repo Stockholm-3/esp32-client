@@ -13,6 +13,9 @@ void settings_manager_save_location(const char* city);
 void settings_manager_save_price_zone(int index);
 void settings_manager_save_timeout(int index);
 
+int         settings_manager_get_brightness(void);
+void        settings_manager_save_brightness(int value);
+
 bool        settings_manager_get_local_web_client_enabled(void);
 const char* settings_manager_get_sta_static_ip(void);
 const char* settings_manager_get_sta_gateway(void);

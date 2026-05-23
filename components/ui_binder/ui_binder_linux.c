@@ -4,9 +4,16 @@
 
 #include <stdio.h>
 
-static ui_binder_location_cb_t s_location_cb = NULL;
-static ui_binder_dropdown_cb_t s_price_cb    = NULL;
-static ui_binder_dropdown_cb_t s_timeout_cb  = NULL;
+static ui_binder_location_cb_t s_location_cb     = NULL;
+static ui_binder_dropdown_cb_t s_price_cb        = NULL;
+static ui_binder_dropdown_cb_t s_timeout_cb      = NULL;
+static ui_binder_location_cb_t s_location_cb2    = NULL;
+static ui_binder_dropdown_cb_t s_price_cb2       = NULL;
+static ui_binder_dropdown_cb_t s_timeout_cb2     = NULL;
+static ui_binder_bool_cb_t s_ap_cb               = NULL;
+static ui_binder_bool_cb_t s_ap_cb2              = NULL;
+static ui_binder_bool_cb_t s_lwc_cb              = NULL;
+static ui_binder_brightness_cb_t s_brightness_cb = NULL;
 
 static void on_location_defocused(lv_event_t* e) {
     (void)e;
@@ -34,10 +41,18 @@ static void on_timeout_changed(lv_event_t* e) {
         s_timeout_cb((int)lv_dropdown_get_selected(ui_dd_timeout));
 }
 
+static void on_brightness_changed(lv_event_t* e) {
+    (void)e;
+    int value = (int)lv_slider_get_value(ui_sl_brightness);
+    if (s_brightness_cb)
+        s_brightness_cb(value);
+}
+
 void ui_binder_init(void) {
     lv_obj_add_event_cb(ui_ta_locationinput, on_location_defocused, LV_EVENT_DEFOCUSED, NULL);
     lv_obj_add_event_cb(ui_dd_price, on_price_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_dd_timeout, on_timeout_changed, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(ui_sl_brightness, on_brightness_changed, LV_EVENT_RELEASED, NULL);
 }
 
 void ui_binder_update_localtime(const struct tm* t) {
@@ -54,13 +69,6 @@ void ui_binder_on_location_changed(ui_binder_location_cb_t cb) { s_location_cb =
 void ui_binder_on_price_changed(ui_binder_dropdown_cb_t cb) { s_price_cb = cb; }
 void ui_binder_on_timeout_changed(ui_binder_dropdown_cb_t cb) { s_timeout_cb = cb; }
 
-static ui_binder_location_cb_t s_location_cb2 = NULL;
-static ui_binder_dropdown_cb_t s_price_cb2    = NULL;
-static ui_binder_dropdown_cb_t s_timeout_cb2  = NULL;
-static ui_binder_bool_cb_t s_ap_cb            = NULL;
-static ui_binder_bool_cb_t s_ap_cb2           = NULL;
-static ui_binder_bool_cb_t s_lwc_cb           = NULL;
-
 void ui_binder_on_location_changed2(ui_binder_location_cb_t cb) { s_location_cb2 = cb; }
 void ui_binder_on_price_changed2(ui_binder_dropdown_cb_t cb) { s_price_cb2 = cb; }
 void ui_binder_on_timeout_changed2(ui_binder_dropdown_cb_t cb) { s_timeout_cb2 = cb; }
@@ -69,8 +77,12 @@ void ui_binder_set_local_web_client_enabled(bool enabled) { (void)enabled; }
 void ui_binder_on_ap_enabled_changed(ui_binder_bool_cb_t cb) { s_ap_cb = cb; }
 void ui_binder_on_ap_enabled_changed2(ui_binder_bool_cb_t cb) { s_ap_cb2 = cb; }
 void ui_binder_on_local_web_client_changed(ui_binder_bool_cb_t cb) { s_lwc_cb = cb; }
+void ui_binder_on_brightness_changed(ui_binder_brightness_cb_t cb) { s_brightness_cb = cb; }
 void ui_binder_update_local_ip(const char* ip) { (void)ip; }
 
+void ui_binder_set_brightness(int value) {
+    lv_slider_set_value(ui_sl_brightness, (int32_t)value, LV_ANIM_OFF);
+}
 void ui_binder_update_bme280(const Bme280Reading* reading) {
     char buf[10];
     snprintf(buf, sizeof(buf), "%.1f", (double)reading->temperature_c);

@@ -118,6 +118,16 @@ static void on_test_http_done(HttpClientResponse* resp, int err, void* user_ctx)
 
 static bool g_http_test_fired = false;
 
+static void on_brightness_changed(int value) {
+    if (value < 1)
+        value = 1;
+    if (value > 100)
+        value = 100;
+    uint8_t hw = (uint8_t)((value * 255) / 100);
+    display_set_backlight(hw);
+    screen_timeout_set_active_brightness(hw);
+}
+
 /**
  * @brief Callback invoked on Wi-Fi manager state changes.
  *
@@ -239,6 +249,16 @@ void app_main(void) {
     display_lvgl_unlock();
 
     settings_manager_init();
+
+    // Apply saved brightness immediately and keep screen_timeout in sync
+    {
+        int saved  = settings_manager_get_brightness();
+        uint8_t hw = (uint8_t)((saved * 255) / 100);
+        display_set_backlight(hw);
+        screen_timeout_set_active_brightness(hw);
+    }
+    ui_binder_on_brightness_changed(on_brightness_changed);
+
     loc_server_init();
 
     wifi_popup_on_connect(on_wifi_connect);

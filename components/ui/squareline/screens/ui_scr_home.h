@@ -58,6 +58,7 @@ extern lv_obj_t * ui_Keyboard1;
 extern lv_obj_t * ui_ta_locationinput;
 extern lv_obj_t * ui_dd_price;
 extern lv_obj_t * ui_dd_timeout;
+extern lv_obj_t * ui_sl_brightness;
 extern lv_obj_t * ui_lbl_wifi_name;
 extern lv_obj_t * ui_btn_wifi_change;
 extern lv_obj_t * ui_dd_timeout;

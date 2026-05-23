@@ -24,6 +24,8 @@ static uint32_t g_s_last_activity_ms    = 0;
 static screen_timeout_stage_t g_s_stage = SCREEN_TIMEOUT_STAGE_ACTIVE;
 static lv_obj_t* g_s_dim_overlay        = NULL;
 
+static uint8_t g_s_active_brightness = 255;
+
 static ScreenTimeoutConfig g_s_config = {0};
 
 // ── Configuration Validation & Normalization
@@ -165,7 +167,7 @@ void screen_timeout_record_activity(void) {
         screensaver_hide();
 
         // Restore full brightness
-        display_set_backlight(255);
+        display_set_backlight(g_s_active_brightness);
     }
 }
 
@@ -184,5 +186,12 @@ void screen_timeout_set_config(const ScreenTimeoutConfig* config) {
 void screen_timeout_get_config(ScreenTimeoutConfig* config) {
     if (config) {
         *config = g_s_config;
+    }
+}
+
+void screen_timeout_set_active_brightness(uint8_t brightness) {
+    g_s_active_brightness = brightness;
+    if (g_s_stage == SCREEN_TIMEOUT_STAGE_ACTIVE) {
+        display_set_backlight(brightness);
     }
 }

@@ -71,6 +71,17 @@ void screen_timeout_set_config(const ScreenTimeoutConfig* config);
  */
 void screen_timeout_get_config(ScreenTimeoutConfig* config);
 
+/**
+ * @brief Set the backlight level used when the screen is active.
+ *
+ * Call this whenever the user changes the brightness slider.
+ * The value is immediately applied if the screen is currently active,
+ * and is restored whenever the screen wakes from dim/off.
+ *
+ * @param brightness  Hardware brightness value (0–255).
+ */
+void screen_timeout_set_active_brightness(uint8_t brightness);
+
 #ifdef __cplusplus
 }
 #endif

@@ -30,6 +30,11 @@ void ui_binder_update_bme280(const Bme280Reading *reading);
 
 typedef void (*ui_binder_bool_cb_t)(bool enabled);
 
+typedef void (*ui_binder_brightness_cb_t)(int value);
+
+void ui_binder_set_brightness(int value);              // 1-100
+void ui_binder_on_brightness_changed(ui_binder_brightness_cb_t cb);
+
 void ui_binder_set_ap_enabled(bool enabled);
 void ui_binder_set_local_web_client_enabled(bool enabled);
 
