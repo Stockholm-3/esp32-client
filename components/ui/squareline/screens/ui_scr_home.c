@@ -89,7 +89,6 @@ lv_obj_t* ui_lbl_elec_status        = NULL;
 lv_obj_t* ui_lbl_elec_sub           = NULL;
 lv_obj_t* ui_lbl_elec_price         = NULL;
 lv_obj_t* ui_tabweather             = NULL;
-lv_obj_t* ui_tabbattery             = NULL;
 lv_obj_t* ui_tabelpris              = NULL;
 lv_obj_t* ui_tabsettings            = NULL;
 lv_obj_t* ui_panel_statusbar        = NULL;
@@ -632,13 +631,6 @@ void ui_scr_home_screen_init(void) {
 
     ui_tab_weather_init();
 
-    ui_tabbattery = lv_tabview_add_tab(ui_TabView, "BATTERY");
-    lv_obj_set_style_pad_left(ui_tabbattery, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_right(ui_tabbattery, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_top(ui_tabbattery, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_bottom(ui_tabbattery, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    ui_tab_battery_init();
-
 
     ui_tabelpris = lv_tabview_add_tab(ui_TabView, "ELPRIS");
     lv_obj_set_style_pad_left(ui_tabelpris, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -785,7 +777,6 @@ void ui_scr_home_screen_destroy(void) {
     uic_lbl_elec_price         = NULL;
     ui_lbl_elec_price          = NULL;
     ui_tabweather              = NULL;
-    ui_tabbattery              = NULL;
     ui_tabelpris               = NULL;
     ui_tabsettings             = NULL;
     ui_panel_statusbar         = NULL;
