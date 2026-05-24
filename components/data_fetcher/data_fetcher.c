@@ -79,7 +79,7 @@
 #define POLL_INTERVAL_DNS_WAIT_MS 2000U
 
 /** @brief Log tag for this module. */
-static const char* G_TAG = "data_fetcher";
+static const char* g_tag = "data_fetcher";
 
 /* =========================================================================
  * Internal types
@@ -293,7 +293,7 @@ static void on_http_done(HttpClientResponse* resp, int err, void* user_ctx) {
  * Logs an error and schedules a retry if the HTTP layer refuses the request.
  */
 static void job_begin_request(FetchJob* job) {
-    ESP_LOGI(G_TAG, "[%s] Starting fetch → %s",
+    ESP_LOGI(g_tag, "[%s] Starting fetch → %s",
              job->kind == FETCH_KIND_ELPRIS ? "elpris" : "weather", job->url);
 
     HttpClientRequest req = {0};
@@ -306,7 +306,7 @@ static void job_begin_request(FetchJob* job) {
 
     job->http_handle = http_client_async_begin(&req, on_http_done, job);
     if (!job->http_handle) {
-        ESP_LOGE(G_TAG, "[%s] http_client_async_begin failed",
+        ESP_LOGE(g_tag, "[%s] http_client_async_begin failed",
                  job->kind == FETCH_KIND_ELPRIS ? "elpris" : "weather");
         job_schedule_retry(job, (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS));
         return;
@@ -335,7 +335,7 @@ static void job_handle_response(FetchJob* job, uint32_t now_ms) {
     job->response_ready = false;
 
     if (err != 0 || resp == NULL) {
-        ESP_LOGE(G_TAG, "[%s] Fetch failed (err=%d)", kind_str, err);
+        ESP_LOGE(g_tag, "[%s] Fetch failed (err=%d)", kind_str, err);
         if (resp) {
             free(resp->buffer);
             free(resp);
@@ -345,7 +345,7 @@ static void job_handle_response(FetchJob* job, uint32_t now_ms) {
     }
 
     if (resp->status < 200 || resp->status >= 300) {
-        ESP_LOGE(G_TAG, "[%s] HTTP %d — treating as failure", kind_str, resp->status);
+        ESP_LOGE(g_tag, "[%s] HTTP %d — treating as failure", kind_str, resp->status);
         free(resp->buffer);
         free(resp);
         job_schedule_retry(job, now_ms);
@@ -353,7 +353,7 @@ static void job_handle_response(FetchJob* job, uint32_t now_ms) {
     }
 
     if (resp->buffer == NULL || resp->length == 0U) {
-        ESP_LOGW(G_TAG, "[%s] HTTP %d but empty body — treating as failure", kind_str,
+        ESP_LOGW(g_tag, "[%s] HTTP %d but empty body — treating as failure", kind_str,
                  resp->status);
         free(resp->buffer);
         free(resp);
@@ -364,11 +364,11 @@ static void job_handle_response(FetchJob* job, uint32_t now_ms) {
     /* ---- Write to cache ------------------------------------------------ */
     int rc = cache_put(job->cache_key, resp->buffer, resp->length, job->cache_ttl_sec);
     if (rc != CACHE_OK) {
-        ESP_LOGE(G_TAG, "[%s] cache_put failed (rc=%d) — data not persisted", kind_str, rc);
+        ESP_LOGE(g_tag, "[%s] cache_put failed (rc=%d) — data not persisted", kind_str, rc);
         /* Non-fatal: the response was valid; still treat as success so we
          * don't hammer the server with retries due to a filesystem issue. */
     } else {
-        ESP_LOGI(G_TAG, "[%s] Cached %zu bytes (TTL %lu s) under key \"%s\"", kind_str,
+        ESP_LOGI(g_tag, "[%s] Cached %zu bytes (TTL %lu s) under key \"%s\"", kind_str,
                  resp->length, (unsigned long)job->cache_ttl_sec, job->cache_key);
 
         /* Notify the caller that fresh data is available in the cache. */
@@ -411,7 +411,7 @@ static void job_schedule_retry(FetchJob* job, uint32_t now_ms) {
     job->retry_count++;
 
     if (job->retry_count > g_cfg.max_retries) {
-        ESP_LOGE(G_TAG, "[%s] Exhausted %lu retries — giving up until next window", kind_str,
+        ESP_LOGE(g_tag, "[%s] Exhausted %lu retries — giving up until next window", kind_str,
                  (unsigned long)g_cfg.max_retries);
         job->retry_count = 0U;
         job_reset_to_idle(job);
@@ -419,7 +419,7 @@ static void job_schedule_retry(FetchJob* job, uint32_t now_ms) {
     }
 
     uint32_t delay_ms = compute_backoff_ms(job);
-    ESP_LOGW(G_TAG, "[%s] Retry %lu/%lu in %lu ms", kind_str, (unsigned long)job->retry_count,
+    ESP_LOGW(g_tag, "[%s] Retry %lu/%lu in %lu ms", kind_str, (unsigned long)job->retry_count,
              (unsigned long)g_cfg.max_retries, (unsigned long)delay_ms);
 
     job->retry_deadline_ms = now_ms + delay_ms;
@@ -477,7 +477,7 @@ static SmwTaskStatus job_poll(FetchJob* job, uint32_t now_ms) {
 
     /* If we lose DNS while a request is in-flight, abort it cleanly. */
     if (!dns && job->state == FETCH_STATE_REQUESTING) {
-        ESP_LOGW(G_TAG, "[%s] DNS lost mid-request — aborting",
+        ESP_LOGW(g_tag, "[%s] DNS lost mid-request — aborting",
                  job->kind == FETCH_KIND_ELPRIS ? "elpris" : "weather");
         job_abort_in_flight(job);
         job->state = FETCH_STATE_IDLE;
@@ -486,7 +486,7 @@ static SmwTaskStatus job_poll(FetchJob* job, uint32_t now_ms) {
     /* If we lose DNS during a retry wait, return to idle to avoid stale
      * timestamps causing an immediate fire on reconnect. */
     if (!dns && job->state == FETCH_STATE_RETRY_WAIT) {
-        ESP_LOGW(G_TAG, "[%s] DNS lost during retry wait — resetting",
+        ESP_LOGW(g_tag, "[%s] DNS lost during retry wait — resetting",
                  job->kind == FETCH_KIND_ELPRIS ? "elpris" : "weather");
         job->retry_count = 0U;
         job->state       = FETCH_STATE_IDLE;
@@ -496,7 +496,7 @@ static SmwTaskStatus job_poll(FetchJob* job, uint32_t now_ms) {
 
     /* ------------------------------------------------------------------ */
     case FETCH_STATE_IDLE: {
-        bool triggered = (bool)job->force_now || job->is_due(job, now_ms);
+        bool triggered = ((int)(bool)job->force_now || (int)job->is_due(job, now_ms)) != 0;
         if (!triggered) {
             return (SmwTaskStatus){.next_wake_ms = POLL_INTERVAL_IDLE_MS, .code = SMW_TASK_RUNNING};
         }
@@ -504,7 +504,7 @@ static SmwTaskStatus job_poll(FetchJob* job, uint32_t now_ms) {
         job->force_now = false;
 
         if (!dns) {
-            ESP_LOGW(G_TAG, "[%s] Triggered but DNS unavailable — holding",
+            ESP_LOGW(g_tag, "[%s] Triggered but DNS unavailable — holding",
                      job->kind == FETCH_KIND_ELPRIS ? "elpris" : "weather");
             job->state = FETCH_STATE_WAITING_FOR_DNS;
             return (SmwTaskStatus){.next_wake_ms = POLL_INTERVAL_DNS_WAIT_MS,
@@ -522,11 +522,11 @@ static SmwTaskStatus job_poll(FetchJob* job, uint32_t now_ms) {
                                    .code         = SMW_TASK_RUNNING};
         }
         /* Respect the boot stagger even when we were already waiting. */
-        if (job->first_run && (now_ms - job->dns_ready_at_ms) < job->initial_delay_ms) {
+        if ((int)job->first_run && (now_ms - job->dns_ready_at_ms) < job->initial_delay_ms) {
             return (SmwTaskStatus){.next_wake_ms = POLL_INTERVAL_ACTIVE_MS,
                                    .code         = SMW_TASK_RUNNING};
         }
-        ESP_LOGI(G_TAG, "[%s] DNS now available — starting held request",
+        ESP_LOGI(g_tag, "[%s] DNS now available — starting held request",
                  job->kind == FETCH_KIND_ELPRIS ? "elpris" : "weather");
         job_begin_request(job);
         return (SmwTaskStatus){.next_wake_ms = POLL_INTERVAL_ACTIVE_MS, .code = SMW_TASK_RUNNING};
@@ -536,7 +536,7 @@ static SmwTaskStatus job_poll(FetchJob* job, uint32_t now_ms) {
     case FETCH_STATE_REQUESTING: {
         if (!job->http_handle) {
             /* Should not happen; guard against stale state. */
-            ESP_LOGE(G_TAG, "[%s] REQUESTING but no HTTP handle — resetting",
+            ESP_LOGE(g_tag, "[%s] REQUESTING but no HTTP handle — resetting",
                      job->kind == FETCH_KIND_ELPRIS ? "elpris" : "weather");
             job_schedule_retry(job, now_ms);
             return (SmwTaskStatus){.next_wake_ms = POLL_INTERVAL_ACTIVE_MS,
@@ -587,7 +587,7 @@ static SmwTaskStatus job_poll(FetchJob* job, uint32_t now_ms) {
 
         if (!dns) {
             /* Back-off elapsed but DNS is gone; park until it returns. */
-            ESP_LOGW(G_TAG, "[%s] Back-off elapsed but no DNS — holding",
+            ESP_LOGW(g_tag, "[%s] Back-off elapsed but no DNS — holding",
                      job->kind == FETCH_KIND_ELPRIS ? "elpris" : "weather");
             job->state = FETCH_STATE_WAITING_FOR_DNS;
             return (SmwTaskStatus){.next_wake_ms = POLL_INTERVAL_DNS_WAIT_MS,
@@ -599,7 +599,7 @@ static SmwTaskStatus job_poll(FetchJob* job, uint32_t now_ms) {
     }
 
     default:
-        ESP_LOGE(G_TAG, "Unknown FetchJobState %d — resetting to idle", (int)job->state);
+        ESP_LOGE(g_tag, "Unknown FetchJobState %d — resetting to idle", (int)job->state);
         job_reset_to_idle(job);
         return (SmwTaskStatus){.next_wake_ms = POLL_INTERVAL_IDLE_MS, .code = SMW_TASK_RUNNING};
     }
@@ -650,12 +650,12 @@ DataFetcherConfig data_fetcher_default_config(void) {
 
 int data_fetcher_init(const DataFetcherConfig* config, SmwWorker* worker) {
     if (!config || !worker) {
-        ESP_LOGE(G_TAG, "data_fetcher_init: NULL argument");
+        ESP_LOGE(g_tag, "data_fetcher_init: NULL argument");
         return -1;
     }
 
     if (g_initialized) {
-        ESP_LOGW(G_TAG, "Already initialised — ignoring duplicate init call");
+        ESP_LOGW(g_tag, "Already initialised — ignoring duplicate init call");
         return 0;
     }
 
@@ -695,29 +695,29 @@ int data_fetcher_init(const DataFetcherConfig* config, SmwWorker* worker) {
     if (g_cfg.elpris_url) {
         rc = smw_register_task(g_worker, elpris_poll, elpris, NULL);
         if (rc != SMW_OK) {
-            ESP_LOGE(G_TAG, "Failed to register elpris SMW task (rc=%d)", (int)rc);
+            ESP_LOGE(g_tag, "Failed to register elpris SMW task (rc=%d)", (int)rc);
             return -1;
         }
-        ESP_LOGI(G_TAG, "Elpris fetch scheduled — triggers daily at %02u:00 → %s",
+        ESP_LOGI(g_tag, "Elpris fetch scheduled — triggers daily at %02u:00 → %s",
                  (unsigned)g_cfg.elpris_trigger_hour, g_cfg.elpris_url);
     } else {
-        ESP_LOGW(G_TAG, "Elpris URL not configured — elpris fetching disabled");
+        ESP_LOGW(g_tag, "Elpris URL not configured — elpris fetching disabled");
     }
 
     if (g_cfg.weather_url) {
         rc = smw_register_task(g_worker, weather_poll, weather, NULL);
         if (rc != SMW_OK) {
-            ESP_LOGE(G_TAG, "Failed to register weather SMW task (rc=%d)", (int)rc);
+            ESP_LOGE(g_tag, "Failed to register weather SMW task (rc=%d)", (int)rc);
             return -1;
         }
-        ESP_LOGI(G_TAG, "Weather fetch scheduled — interval %lu s → %s",
+        ESP_LOGI(g_tag, "Weather fetch scheduled — interval %lu s → %s",
                  (unsigned long)g_cfg.weather_interval_sec, g_cfg.weather_url);
     } else {
-        ESP_LOGW(G_TAG, "Weather URL not configured — weather fetching disabled");
+        ESP_LOGW(g_tag, "Weather URL not configured — weather fetching disabled");
     }
 
     g_initialized = true;
-    ESP_LOGI(G_TAG, "Initialised (retries=%lu, base=%lu ms, max=%lu ms)",
+    ESP_LOGI(g_tag, "Initialised (retries=%lu, base=%lu ms, max=%lu ms)",
              (unsigned long)g_cfg.max_retries, (unsigned long)g_cfg.retry_base_ms,
              (unsigned long)g_cfg.retry_max_ms);
     return 0;
@@ -729,50 +729,50 @@ void data_fetcher_notify_wifi_state(WifiManagerState state) {
 
     g_dns_ready = now_ready;
 
-    if (!was_ready && now_ready) {
+    if (!was_ready && (int)now_ready) {
         uint32_t now_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
         g_jobs[FETCH_KIND_ELPRIS].dns_ready_at_ms  = now_ms;
         g_jobs[FETCH_KIND_WEATHER].dns_ready_at_ms = now_ms;
-        ESP_LOGI(G_TAG, "DNS available — fetch jobs unblocked");
-    } else if (was_ready && !now_ready) {
-        ESP_LOGW(G_TAG, "DNS lost — fetch jobs suspended");
+        ESP_LOGI(g_tag, "DNS available — fetch jobs unblocked");
+    } else if ((int)was_ready && !now_ready) {
+        ESP_LOGW(g_tag, "DNS lost — fetch jobs suspended");
     }
 }
 
 void data_fetcher_request_weather_now(void) {
     if (!g_initialized) {
-        ESP_LOGW(G_TAG, "data_fetcher_request_weather_now: not initialised");
+        ESP_LOGW(g_tag, "data_fetcher_request_weather_now: not initialised");
         return;
     }
     if (!g_cfg.weather_url) {
-        ESP_LOGW(G_TAG, "data_fetcher_request_weather_now: weather URL not set");
+        ESP_LOGW(g_tag, "data_fetcher_request_weather_now: weather URL not set");
         return;
     }
     FetchJob* job = &g_jobs[FETCH_KIND_WEATHER];
     if (job->state != FETCH_STATE_IDLE) {
-        ESP_LOGW(G_TAG, "[weather] Force-fetch requested but job is busy (state=%d)",
+        ESP_LOGW(g_tag, "[weather] Force-fetch requested but job is busy (state=%d)",
                  (int)job->state);
         return;
     }
-    ESP_LOGI(G_TAG, "[weather] Force-fetch requested");
+    ESP_LOGI(g_tag, "[weather] Force-fetch requested");
     job->force_now = true;
 }
 
 void data_fetcher_request_elpris_now(void) {
     if (!g_initialized) {
-        ESP_LOGW(G_TAG, "data_fetcher_request_elpris_now: not initialised");
+        ESP_LOGW(g_tag, "data_fetcher_request_elpris_now: not initialised");
         return;
     }
     if (!g_cfg.elpris_url) {
-        ESP_LOGW(G_TAG, "data_fetcher_request_elpris_now: elpris URL not set");
+        ESP_LOGW(g_tag, "data_fetcher_request_elpris_now: elpris URL not set");
         return;
     }
     FetchJob* job = &g_jobs[FETCH_KIND_ELPRIS];
     if (job->state != FETCH_STATE_IDLE) {
-        ESP_LOGW(G_TAG, "[elpris] Force-fetch requested but job is busy (state=%d)",
+        ESP_LOGW(g_tag, "[elpris] Force-fetch requested but job is busy (state=%d)",
                  (int)job->state);
         return;
     }
-    ESP_LOGI(G_TAG, "[elpris] Force-fetch requested");
+    ESP_LOGI(g_tag, "[elpris] Force-fetch requested");
     job->force_now = true;
 }
