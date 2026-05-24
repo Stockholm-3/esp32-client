@@ -10,6 +10,7 @@
 #include "cache.h"
 #include "cache_fs.h"
 #include "clock.h"
+#include "data_fetcher.h"
 #include "display.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -54,8 +55,6 @@ static bool g_bme_was_present = false;
 static SmwWorker g_smw_worker;
 /** @brief Task array for the SMW scheduler. */
 static SmwTask g_smw_tasks[SMW_MAX_TASKS];
-
-static bool g_http_test_fired = false;
 
 /**
  * @brief Returns the current system time in milliseconds.
@@ -121,21 +120,6 @@ static void on_wifi_connect(const char* ssid, const char* password) {
     settings_manager_save_wifi(ssid, password);
 }
 
-static void on_test_http_done(HttpClientResponse* resp, int err, void* user_ctx) {
-    if (err != 0 || resp == NULL) {
-        ESP_LOGE(g_tag, "HTTP request failed or returned empty response context");
-        return;
-    }
-
-    ESP_LOGI(g_tag, "HTTP %d — %.*s", resp->status, (int)resp->length, (char*)resp->buffer);
-
-    // Only safe to free if the response structure actually populated successfully
-    if (resp->buffer) {
-        free(resp->buffer);
-    }
-    free(resp);
-}
-
 /**
  * @brief Callback invoked on Wi-Fi manager state changes.
  *
@@ -147,6 +131,7 @@ static void on_test_http_done(HttpClientResponse* resp, int err, void* user_ctx)
 static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) {
     (void)reason;
     ui_binder_update_wifi_status(state);
+    data_fetcher_notify_wifi_state(state);
     if (state == WIFI_MANAGER_STATE_CONNECTED) {
         ui_binder_update_wifi_name(g_current_ssid);
 
@@ -176,6 +161,22 @@ static void on_ap_toggled(bool enabled) {
     if (enabled) {
         loc_server_start();
     }
+}
+
+static void on_data_cached(DataFetcherKind kind, const char* cache_key, void* user_ctx) {
+    (void)user_ctx;
+    void* data = NULL;
+    size_t len = 0;
+    if (cache_get_alloc(cache_key, &data, &len) != CACHE_OK) {
+        return;
+    }
+
+    const char* kind_str = (kind == DATA_FETCHER_KIND_ELPRIS) ? "elpris" : "weather";
+    ESP_LOGI(g_tag, "[%s] Fresh data ready — %zu bytes in cache", kind_str, len);
+
+    ESP_LOGI(g_tag, "[%s] Preview: %.200s%s", kind_str, (const char*)data, len > 200U ? "…" : "");
+
+    cache_free(data);
 }
 
 /**
@@ -291,6 +292,13 @@ void app_main(void) {
         ESP_LOGE("MAIN", "Failed to create SMW background task!");
     }
 
+    DataFetcherConfig df_cfg = data_fetcher_default_config();
+    df_cfg.elpris_url        = "https://just-dev.freeduck.dev/v1/elpris?price=SE3";
+    df_cfg.weather_url       = "https://just-dev.freeduck.dev/v1/minutely?lat=59.3293&lon=18.0686";
+    df_cfg.on_cached         = on_data_cached;
+    df_cfg.on_cached_ctx     = NULL;
+    data_fetcher_init(&df_cfg, &g_smw_worker);
+
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
 
@@ -298,20 +306,6 @@ void app_main(void) {
         bool time_is_valid = time_manager_get_time(&timeinfo);
         if (time_is_valid) {
             ui_binder_update_localtime(&timeinfo);
-        }
-
-        // Safe evaluation zone: Run the HTTP client test only if DNS is confirmed
-        // AND time verification matches the real world.
-        if ((int)is_dns_ready() && (int)time_is_valid && !g_http_test_fired) {
-            g_http_test_fired = true;
-
-            HttpClientRequest req = {0};
-            req.url    = "https://just-dev.freeduck.dev/v1/get_plan?city=stockholm&price=SE3";
-            req.method = HTTP_CLIENT_METHOD_GET;
-
-            ESP_LOGI(g_tag,
-                     "DNS ready and system clock synchronized. Safely launching secure HTTP test.");
-            smw_register_http_request(&g_smw_worker, &req, on_test_http_done, NULL, NULL);
         }
 
         // Handle BME280 hot-plug: check if sensor presence changed
