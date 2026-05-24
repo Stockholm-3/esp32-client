@@ -122,11 +122,11 @@ int wifi_manager_start(const char* ssid, const char* password, const WifiManager
 
     g_bad_password = (strcmp(password, "badpassword") == 0);
 
-    signal(SIGALRM, retry_timer_cb);
+    signal(SIGRTMIN, retry_timer_cb);
 
     struct sigevent sev = {
         .sigev_notify = SIGEV_SIGNAL,
-        .sigev_signo  = SIGALRM,
+        .sigev_signo  = SIGRTMIN,
     };
 
     if (timer_create(CLOCK_MONOTONIC, &sev, &g_retry_timer) != 0) {

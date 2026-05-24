@@ -36,7 +36,7 @@ static void on_timeout_changed(lv_event_t* e) {
 }
 
 static void load_mock_elpris(void) {
-    FILE* f = fopen("docs/response.json", "rb");
+    FILE* f = fopen("spiffs_image/response.json", "rb");
     if (!f) {
         LV_LOG_WARN("ui_binder: docs/response.json not found");
         return;
