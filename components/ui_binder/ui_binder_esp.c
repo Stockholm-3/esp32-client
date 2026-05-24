@@ -96,6 +96,15 @@ static void on_lwc_changed(lv_event_t* e) {
     }
 }
 
+static void on_wifi_sw_changed(lv_event_t* e) {
+    (void)e;
+    if (lv_obj_has_state(ui_sw_wifi, LV_STATE_CHECKED)) {
+        lv_obj_clear_state(ui_btn_wifi_change, LV_STATE_DISABLED);
+    } else {
+        lv_obj_add_state(ui_btn_wifi_change, LV_STATE_DISABLED);
+    }
+}
+
 void ui_binder_init(void) {
     load_mock_elpris();
     lv_obj_add_event_cb(ui_ta_locationinput, on_location_defocused, LV_EVENT_DEFOCUSED, NULL);
@@ -103,6 +112,7 @@ void ui_binder_init(void) {
     lv_obj_add_event_cb(ui_dd_timeout, on_timeout_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_sw_ap_enabled, on_ap_enabled_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_sw_local_web_client, on_lwc_changed, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(ui_sw_wifi, on_wifi_sw_changed, LV_EVENT_VALUE_CHANGED, NULL);
 }
 
 void ui_binder_update_localtime(const struct tm* t) {

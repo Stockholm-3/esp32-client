@@ -196,7 +196,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
             break;
 
         case WIFI_EVENT_STA_CONNECTED:
-            if (g_static_ip_active && g_gw_check_timer) {
+            if ((int)g_static_ip_active && g_gw_check_timer) {
                 xTimerChangePeriod(g_gw_check_timer, pdMS_TO_TICKS(3000), 0);
                 xTimerStart(g_gw_check_timer, 0);
             }

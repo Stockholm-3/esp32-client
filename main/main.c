@@ -131,6 +131,7 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     (void)reason;
     ui_binder_update_wifi_status(state);
     if (state == WIFI_MANAGER_STATE_CONNECTED) {
+        wifi_popup_set_connected_ssid(g_current_ssid);
         ui_binder_update_wifi_name(g_current_ssid);
 
         // Safely initialize time manager (guards against re-initialization)
@@ -161,6 +162,8 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
 
             smw_register_http_request(&g_smw_worker, &req, on_test_http_done, NULL, NULL);
         }
+    } else if (state == WIFI_MANAGER_STATE_DISCONNECTED || state == WIFI_MANAGER_STATE_FAILED) {
+        wifi_popup_set_connected_ssid("");
     }
     loc_server_notify_wifi_state(state);
 }
