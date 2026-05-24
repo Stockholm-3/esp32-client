@@ -2,6 +2,7 @@
 
 #include "squareline/screens/ui_scr_home.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -32,6 +33,8 @@ static char g_connected_ssid[33]        = "";
 static lv_obj_t* g_pw_info_backdrop     = NULL;
 static lv_obj_t* g_panel_net_info_popup = NULL;
 static lv_obj_t* g_lbl_info_ssid        = NULL;
+static lv_obj_t* g_lbl_info_security    = NULL;
+static lv_obj_t* g_lbl_info_rssi        = NULL;
 
 typedef struct {
     WifiManagerApInfo* aps;
@@ -39,7 +42,7 @@ typedef struct {
 } ScanData;
 
 static lv_obj_t* make_net_panel(lv_obj_t* parent, const char* name, const char* sub,
-                                uint8_t authmode);
+                                uint8_t authmode, int8_t rssi);
 
 static void update_networks_async(void* user_data) {
     ScanData* data = (ScanData*)user_data;
@@ -47,7 +50,8 @@ static void update_networks_async(void* user_data) {
     for (uint16_t i = 0; i < data->count; i++) {
         // Map authmode (0 is usually open, > 0 is WPA/WPA2/etc.)
         const char* sub = (data->aps[i].authmode == 0) ? "Open" : "WPA2";
-        make_net_panel(g_net_container, data->aps[i].ssid, sub, data->aps[i].authmode);
+        make_net_panel(g_net_container, data->aps[i].ssid, sub, data->aps[i].authmode,
+                       data->aps[i].rssi);
     }
     free(data->aps);
     free(data);
@@ -107,6 +111,19 @@ static void show_wifi_popup_cb(lv_event_t* e) {
     wifi_manager_scan(wifi_popup_update_networks);
 }
 
+static const char* rssi_to_str(int8_t rssi) {
+    if (rssi >= -50) {
+        return "Excellent";
+    }
+    if (rssi >= -65) {
+        return "Good";
+    }
+    if (rssi >= -75) {
+        return "Fair";
+    }
+    return "Weak";
+}
+
 static void open_password_popup_cb(lv_event_t* e) {
     lv_obj_t* net_panel = lv_event_get_current_target_obj(e);
     lv_obj_t* name_lbl  = lv_obj_get_child(net_panel, 0);
@@ -114,10 +131,18 @@ static void open_password_popup_cb(lv_event_t* e) {
     strncpy(g_selected_ssid, ssid, 32);
     g_selected_ssid[32] = '\0';
 
+    uintptr_t packed = (uintptr_t)lv_obj_get_user_data(net_panel);
+    uint8_t authmode = (uint8_t)(packed & 0xFF);
+    int8_t rssi      = (int8_t)((packed >> 8) & 0xFF);
+
     bool is_connected_net =
         ((g_connected_ssid[0] != '\0') && (strncmp(ssid, g_connected_ssid, 32) == 0)) != 0;
     if (is_connected_net) {
         lv_label_set_text(g_lbl_info_ssid, ssid);
+        lv_label_set_text(g_lbl_info_security, authmode == 0 ? "Open" : "WPA2");
+        char rssi_buf[32];
+        snprintf(rssi_buf, sizeof(rssi_buf), "%s  (%d dBm)", rssi_to_str(rssi), (int)rssi);
+        lv_label_set_text(g_lbl_info_rssi, rssi_buf);
         lv_obj_add_flag(g_panel_wifi_popup, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(g_wifi_backdrop, LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_flag(g_pw_info_backdrop, LV_OBJ_FLAG_HIDDEN);
@@ -125,7 +150,7 @@ static void open_password_popup_cb(lv_event_t* e) {
         return;
     }
 
-    bool is_open = (lv_obj_get_user_data(net_panel) == (void*)0);
+    bool is_open = (authmode == 0);
     if (is_open) {
         if (g_connect_cb) {
             g_connect_cb(g_selected_ssid, "");
@@ -188,7 +213,7 @@ static void on_disconnect_pressed_cb(lv_event_t* e) {
 // ── Network panels ────────────────────────────────────────────────────────────
 
 static lv_obj_t* make_net_panel(lv_obj_t* parent, const char* name, const char* sub,
-                                uint8_t authmode) {
+                                uint8_t authmode, int8_t rssi) {
     lv_obj_t* p = lv_obj_create(parent);
     lv_obj_set_pos(p, 0, 0);
     lv_obj_set_size(p, 420, 52);
@@ -197,7 +222,7 @@ static lv_obj_t* make_net_panel(lv_obj_t* parent, const char* name, const char* 
     lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(p, 0, 0);
     lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_user_data(p, (void*)(uintptr_t)authmode);
+    lv_obj_set_user_data(p, (void*)((uintptr_t)(uint8_t)rssi << 8 | authmode));
 
     make_label(p, 36, 10, 240, 18, name, lv_color_hex(0xE0E0F0), &lv_font_montserrat_16);
     make_label(p, 36, 30, 240, 14, sub, lv_color_hex(0x8888AA), &lv_font_montserrat_14);
@@ -212,8 +237,8 @@ static void build_net_info_popup(void) {
     g_pw_info_backdrop = make_backdrop(lv_color_hex(0x000000), LV_OPA_50, close_net_info_popup_cb);
 
     g_panel_net_info_popup = lv_obj_create(lv_scr_act());
-    lv_obj_set_pos(g_panel_net_info_popup, 302, TAB_Y + POPUP_Y_OFS);
-    lv_obj_set_size(g_panel_net_info_popup, 420, 160);
+    lv_obj_set_pos(g_panel_net_info_popup, 272, TAB_Y + POPUP_Y_OFS);
+    lv_obj_set_size(g_panel_net_info_popup, 480, 260);
     style_panel(g_panel_net_info_popup);
     lv_obj_set_style_bg_color(g_panel_net_info_popup, lv_color_hex(0x2A2A3E), 0);
     lv_obj_set_style_bg_opa(g_panel_net_info_popup, LV_OPA_COVER, 0);
@@ -225,17 +250,17 @@ static void build_net_info_popup(void) {
     // Header
     lv_obj_t* hdr = lv_obj_create(g_panel_net_info_popup);
     lv_obj_set_pos(hdr, 0, 0);
-    lv_obj_set_size(hdr, 420, 44);
+    lv_obj_set_size(hdr, 480, 44);
     style_panel(hdr);
     lv_obj_set_style_bg_color(hdr, lv_color_hex(0x252538), 0);
     lv_obj_set_style_bg_opa(hdr, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(hdr, 0, 0);
 
-    make_label(hdr, 16, 12, 200, 20, "Network info", lv_color_hex(0xE0E0F0),
+    make_label(hdr, 16, 12, 260, 20, "Network info", lv_color_hex(0xE0E0F0),
                &lv_font_montserrat_16);
 
     lv_obj_t* btn_close = lv_button_create(hdr);
-    lv_obj_set_pos(btn_close, 378, 8);
+    lv_obj_set_pos(btn_close, 438, 8);
     lv_obj_set_size(btn_close, 28, 28);
     lv_obj_set_style_bg_color(btn_close, lv_color_hex(0x252538), 0);
     lv_obj_set_style_shadow_width(btn_close, 0, 0);
@@ -248,20 +273,37 @@ static void build_net_info_popup(void) {
     // Network info bar
     lv_obj_t* net_info = lv_obj_create(g_panel_net_info_popup);
     lv_obj_set_pos(net_info, 0, 44);
-    lv_obj_set_size(net_info, 420, 60);
+    lv_obj_set_size(net_info, 480, 70);
     style_panel(net_info);
     lv_obj_set_style_bg_color(net_info, lv_color_hex(0x1A2E1A), 0);
     lv_obj_set_style_bg_opa(net_info, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(net_info, 0, 0);
 
     g_lbl_info_ssid =
-        make_label(net_info, 16, 10, 340, 20, "", lv_color_hex(0xE0E0F0), &lv_font_montserrat_16);
-    make_label(net_info, 16, 34, 200, 14, "Connected", lv_color_hex(0x55FF55),
+        make_label(net_info, 20, 12, 400, 22, "", lv_color_hex(0xE0E0F0), &lv_font_montserrat_16);
+    make_label(net_info, 20, 40, 200, 16, "Connected", lv_color_hex(0x55FF55),
                &lv_font_montserrat_14);
+
+    // Details section (security + signal)
+    lv_obj_t* det = lv_obj_create(g_panel_net_info_popup);
+    lv_obj_set_pos(det, 0, 114);
+    lv_obj_set_size(det, 480, 72);
+    style_panel(det);
+    lv_obj_set_style_bg_color(det, lv_color_hex(0x252538), 0);
+    lv_obj_set_style_bg_opa(det, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(det, 0, 0);
+
+    make_label(det, 20, 10, 80, 16, "Security", lv_color_hex(0x8888AA), &lv_font_montserrat_14);
+    g_lbl_info_security =
+        make_label(det, 110, 10, 240, 16, "WPA2", lv_color_hex(0xE0E0F0), &lv_font_montserrat_14);
+
+    make_label(det, 20, 40, 80, 16, "Signal", lv_color_hex(0x8888AA), &lv_font_montserrat_14);
+    g_lbl_info_rssi =
+        make_label(det, 110, 40, 320, 16, "", lv_color_hex(0xE0E0F0), &lv_font_montserrat_14);
 
     // Disconnect button
     lv_obj_t* btn_dc = lv_button_create(g_panel_net_info_popup);
-    lv_obj_set_pos(btn_dc, 286, 116);
+    lv_obj_set_pos(btn_dc, 340, 210);
     lv_obj_set_size(btn_dc, 120, 34);
     lv_obj_set_style_bg_color(btn_dc, lv_color_hex(0xAA3333), 0);
     lv_obj_set_style_radius(btn_dc, 8, 0);
