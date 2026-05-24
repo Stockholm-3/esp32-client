@@ -414,7 +414,6 @@ int wifi_manager_scan(WifiManagerScanDoneCb cb) {
 
     g_scan_cb     = cb;
     g_scan_active = true;
-    set_state(WIFI_MANAGER_STATE_SCANNING, WIFI_MANAGER_FAIL_REASON_UNKNOWN);
     return 0;
 }
 

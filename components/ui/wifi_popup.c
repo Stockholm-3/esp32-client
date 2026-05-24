@@ -114,8 +114,8 @@ static void open_password_popup_cb(lv_event_t* e) {
     strncpy(g_selected_ssid, ssid, 32);
     g_selected_ssid[32] = '\0';
 
-    bool is_connected_net = ((wifi_manager_get_state() == WIFI_MANAGER_STATE_CONNECTED) &&
-                             (strncmp(ssid, g_connected_ssid, 32) == 0)) != 0;
+    bool is_connected_net =
+        ((g_connected_ssid[0] != '\0') && (strncmp(ssid, g_connected_ssid, 32) == 0)) != 0;
     if (is_connected_net) {
         lv_label_set_text(g_lbl_info_ssid, ssid);
         lv_obj_add_flag(g_panel_wifi_popup, LV_OBJ_FLAG_HIDDEN);
@@ -465,8 +465,7 @@ static void build_password_popup(void) {
 // ── Result notifications ──────────────────────────────────────────────────────
 
 static void notify_result_async(void* user_data) {
-    WifiPopupConnectResult result = *(WifiPopupConnectResult*)user_data;
-    free(user_data);
+    WifiPopupConnectResult result = (WifiPopupConnectResult)(uintptr_t)user_data;
 
     bool pw_visible   = (!lv_obj_has_flag(g_panel_password_popup, LV_OBJ_FLAG_HIDDEN)) != 0;
     bool scan_visible = (!lv_obj_has_flag(g_panel_wifi_popup, LV_OBJ_FLAG_HIDDEN)) != 0;
@@ -497,12 +496,7 @@ static void notify_result_async(void* user_data) {
 }
 
 void wifi_popup_notify_result(WifiPopupConnectResult result) {
-    WifiPopupConnectResult* r = malloc(sizeof(*r));
-    if (!r) {
-        return;
-    }
-    *r = result;
-    lv_async_call(notify_result_async, r);
+    lv_async_call(notify_result_async, (void*)(uintptr_t)result);
 }
 
 // ── Public init ───────────────────────────────────────────────────────────────

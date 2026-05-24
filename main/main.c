@@ -103,7 +103,10 @@ static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
 static void on_wifi_connect(const char* ssid, const char* password) {
     strncpy(g_current_ssid, ssid, 32);
     g_current_ssid[32] = '\0';
-    wifi_manager_change_network(ssid, password);
+    if (wifi_manager_change_network(ssid, password) != 0) {
+        // Manager not yet initialized (first boot, no saved credentials) — start it now.
+        wifi_manager_start(ssid, password, NULL);
+    }
     settings_manager_save_wifi(ssid, password);
 }
 
@@ -125,13 +128,13 @@ static bool g_http_test_fired = false;
  * Safely initializes time manager on first connection and resyncs on reconnection.
  *
  * @param state   New connection state.
- * @param reason  Failure reason (currently unused).
+ * @param reason  Failure reason (AUTH, NO_AP, or UNKNOWN).
  */
 static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) {
-    (void)reason;
     ui_binder_update_wifi_status(state);
     if (state == WIFI_MANAGER_STATE_CONNECTED) {
         wifi_popup_set_connected_ssid(g_current_ssid);
+        wifi_popup_notify_result(WIFI_POPUP_RESULT_CONNECTED);
         ui_binder_update_wifi_name(g_current_ssid);
 
         // Safely initialize time manager (guards against re-initialization)
@@ -162,7 +165,14 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
 
             smw_register_http_request(&g_smw_worker, &req, on_test_http_done, NULL, NULL);
         }
-    } else if (state == WIFI_MANAGER_STATE_DISCONNECTED || state == WIFI_MANAGER_STATE_FAILED) {
+    } else if (state == WIFI_MANAGER_STATE_FAILED) {
+        wifi_popup_set_connected_ssid("");
+        WifiPopupConnectResult r =
+            (reason == WIFI_MANAGER_FAIL_REASON_AUTH)    ? WIFI_POPUP_RESULT_WRONG_PASSWORD
+            : (reason == WIFI_MANAGER_FAIL_REASON_NO_AP) ? WIFI_POPUP_RESULT_NO_AP
+                                                         : WIFI_POPUP_RESULT_FAILED;
+        wifi_popup_notify_result(r);
+    } else if (state == WIFI_MANAGER_STATE_DISCONNECTED) {
         wifi_popup_set_connected_ssid("");
     }
     loc_server_notify_wifi_state(state);
@@ -268,22 +278,23 @@ void app_main(void) {
     HttpClientConfig http_cfg = {0};
     http_client_init(&http_cfg);
 
-    const char* ssid = settings_manager_get_ssid();
-    const char* pass = settings_manager_get_password();
-    if (ssid[0] != '\0') {
-        bool lwc_enabled           = settings_manager_get_local_web_client_enabled();
-        WifiManagerConfig wifi_cfg = {0};
-        if (lwc_enabled) {
-            wifi_cfg.sta_static_ip_enabled = true;
-            strncpy(wifi_cfg.sta_ip, settings_manager_get_sta_static_ip(),
-                    sizeof(wifi_cfg.sta_ip) - 1);
-            strncpy(wifi_cfg.sta_gateway, settings_manager_get_sta_gateway(),
-                    sizeof(wifi_cfg.sta_gateway) - 1);
-            strncpy(wifi_cfg.sta_netmask, settings_manager_get_sta_netmask(),
-                    sizeof(wifi_cfg.sta_netmask) - 1);
-        }
-        wifi_manager_start(ssid, pass, (int)lwc_enabled ? &wifi_cfg : NULL);
+    const char* ssid           = settings_manager_get_ssid();
+    const char* pass           = settings_manager_get_password();
+    bool lwc_enabled           = settings_manager_get_local_web_client_enabled();
+    WifiManagerConfig wifi_cfg = {0};
+    WifiManagerConfig* pcfg    = NULL;
+    if (ssid[0] != '\0' && (int)lwc_enabled) {
+        wifi_cfg.sta_static_ip_enabled = true;
+        strncpy(wifi_cfg.sta_ip, settings_manager_get_sta_static_ip(), sizeof(wifi_cfg.sta_ip) - 1);
+        strncpy(wifi_cfg.sta_gateway, settings_manager_get_sta_gateway(),
+                sizeof(wifi_cfg.sta_gateway) - 1);
+        strncpy(wifi_cfg.sta_netmask, settings_manager_get_sta_netmask(),
+                sizeof(wifi_cfg.sta_netmask) - 1);
+        pcfg = &wifi_cfg;
     }
+    strncpy(g_current_ssid, ssid, 32);
+    g_current_ssid[32] = '\0';
+    wifi_manager_start(ssid, pass, pcfg);
 
     smw_init(&g_smw_worker, g_smw_tasks, SMW_MAX_TASKS);
 
