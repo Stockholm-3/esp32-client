@@ -2,6 +2,8 @@
 #include <time.h>
 #include "bme280_sensor.h"
 #include "wifi_manager.h"
+#include "elpris_api.h"
+
 
 // initialization for LVGL callbacks for changes in settings (location, price zone, timeout)
 void ui_binder_init(void);
@@ -37,3 +39,5 @@ void ui_binder_on_ap_enabled_changed(ui_binder_bool_cb_t cb);
 void ui_binder_on_ap_enabled_changed2(ui_binder_bool_cb_t cb);
 void ui_binder_on_local_web_client_changed(ui_binder_bool_cb_t cb);
 void ui_binder_update_local_ip(const char* ip);
+void ui_binder_refresh_elpris(void);
+void ui_binder_set_price_group(ElprisPriceGroup group);

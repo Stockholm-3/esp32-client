@@ -55,4 +55,5 @@ idf_component_register(
         screen_timeout
         lvgl__lvgl
         wifi_manager
+        elpris_api          
 )

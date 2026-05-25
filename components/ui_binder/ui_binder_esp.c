@@ -2,6 +2,10 @@
 #include "lvgl.h"
 #include "squareline/screens/ui_scr_home.h"
 #include "ui_binder.h"
+#include "elpris_api.h"
+#include "time_manager.h"
+#include "esp_log.h"  
+#include "squareline/screens/ui_tab_elpris.h" 
 
 #include <stdio.h>
 
@@ -14,6 +18,9 @@ static ui_binder_dropdown_cb_t g_s_timeout_cb2  = NULL;
 static ui_binder_bool_cb_t g_s_ap_enabled_cb    = NULL;
 static ui_binder_bool_cb_t g_s_ap_enabled_cb2   = NULL;
 static ui_binder_bool_cb_t g_s_lwc_cb           = NULL;
+
+// Current price group (default SE3)
+static ElprisPriceGroup g_price_group = ELPRIS_SE3;
 
 static void on_location_defocused(lv_event_t* e) {
     (void)e;
@@ -44,11 +51,25 @@ void ui_binder_update_wifi_name(const char* ssid) {
 
 static void on_price_changed(lv_event_t* e) {
     (void)e;
+    int selected = (int)lv_dropdown_get_selected(ui_dd_price);
+    
+    // Map dropdown selection to price group
+    switch (selected) {
+        case 0: g_price_group = ELPRIS_SE1; break;
+        case 1: g_price_group = ELPRIS_SE2; break;
+        case 2: g_price_group = ELPRIS_SE3; break;
+        case 3: g_price_group = ELPRIS_SE4; break;
+        default: g_price_group = ELPRIS_SE3; break;
+    }
+    
+    // Refresh prices when group changes
+    ui_binder_refresh_elpris();
+    
     if (g_s_price_cb) {
-        g_s_price_cb((int)lv_dropdown_get_selected(ui_dd_price));
+        g_s_price_cb(selected);
     }
     if (g_s_price_cb2) {
-        g_s_price_cb2((int)lv_dropdown_get_selected(ui_dd_price));
+        g_s_price_cb2(selected);
     }
 }
 
@@ -96,6 +117,11 @@ void ui_binder_update_localtime(const struct tm* t) {
         lv_label_set_text(ui_lbl_localtime, buf);
         display_lvgl_unlock();
     }
+    
+    // Update current hour for elpris "Now" indicator
+    if (t) {
+        ui_elpris_set_current_hour(t->tm_hour);
+    }
 }
 
 void ui_binder_set_location(const char* city) {
@@ -109,6 +135,14 @@ void ui_binder_set_price_zone(int index) {
     if (display_lvgl_lock(100)) {
         lv_dropdown_set_selected(ui_dd_price, (uint32_t)index);
         display_lvgl_unlock();
+    }
+    // Update price group based on index
+    switch (index) {
+        case 0: g_price_group = ELPRIS_SE1; break;
+        case 1: g_price_group = ELPRIS_SE2; break;
+        case 2: g_price_group = ELPRIS_SE3; break;
+        case 3: g_price_group = ELPRIS_SE4; break;
+        default: g_price_group = ELPRIS_SE3; break;
     }
 }
 
@@ -177,4 +211,46 @@ void ui_binder_update_bme280(const Bme280Reading* reading) {
     lv_label_set_text(ui_lbl_hum_val, buf);
     lv_arc_set_value(ui_arc_humidity, (int32_t)reading->humidity_pct);
     display_lvgl_unlock();
+}
+
+// ========== ELPRIS (Electricity Price) Functions ==========
+
+void ui_binder_refresh_elpris(void) {
+    // Check if time is synced
+    if (time_manager_get_state() != TIME_STATE_SYNCED) {
+        ESP_LOGW("UI_BINDER", "Time not synced, skipping elpris fetch");
+        return;
+    }
+    
+    ElprisData prices;
+    
+    // Fetch latest prices for selected price group
+    if (elpris_fetch_latest(g_price_group, &prices) != ESP_OK) {
+        ESP_LOGE("UI_BINDER", "Failed to fetch elpris data");
+        return;
+    }
+    
+    // Update the UI
+    ui_elpris_update_display(&prices);
+}
+
+void ui_binder_set_price_group(ElprisPriceGroup group) {
+    g_price_group = group;
+    
+    // Update dropdown to match
+    int index = 0;
+    switch (group) {
+        case ELPRIS_SE1: index = 0; break;
+        case ELPRIS_SE2: index = 1; break;
+        case ELPRIS_SE3: index = 2; break;
+        case ELPRIS_SE4: index = 3; break;
+    }
+    
+    if (display_lvgl_lock(100)) {
+        lv_dropdown_set_selected(ui_dd_price, (uint32_t)index);
+        display_lvgl_unlock();
+    }
+    
+    // Refresh prices
+    ui_binder_refresh_elpris();
 }

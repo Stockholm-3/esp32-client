@@ -1,6 +1,9 @@
 #include "../ui.h"
 #include "../ui_theme.h"
 #include "ui_scr_home.h"
+#include "elpris_api.h"
+#include "ui_tab_elpris.h"  
+
 
 lv_obj_t* ui_panel_price_header  = NULL;
 lv_obj_t* ui_lbl_price_now       = NULL;
@@ -17,6 +20,15 @@ lv_obj_t* ui_lbl_leg_cheap       = NULL;
 lv_obj_t* ui_lbl_leg_avg         = NULL;
 lv_obj_t* ui_lbl_leg_exp         = NULL;
 lv_obj_t* ui_lbl_leg_now         = NULL;
+
+// Global chart data array (so elpris_api can update it)
+lv_coord_t g_elpris_data[24] = {
+    8, 7, 7, 6, 6, 8, 18, 35, 52, 58, 55, 50,
+    42, 38, 29, 12, 5, 18, 45, 72, 100, 95, 80, 60
+};
+
+// Current hour for "Now" indicator
+static uint8_t g_current_hour = 12;
 
 static void elpris_chart_draw_cb(lv_event_t* e) {
     lv_event_code_t code = lv_event_get_code(e);
@@ -75,6 +87,45 @@ static lv_obj_t* card_label(lv_obj_t* card, const char* text, lv_color_t color,
     return lbl;
 }
 
+// Public function to update the display with new price data
+void ui_elpris_update_display(const ElprisData* data) {
+    if (!data || !data->valid) return;
+    
+    char buf[32];
+    
+    // Update current price (at current hour)
+    uint32_t current_price = data->hourly_prices[g_current_hour];
+    snprintf(buf, sizeof(buf), "%.2f", (float)current_price / 100.0f);
+    lv_label_set_text(ui_lbl_price_val, buf);
+    
+    // Update min price
+    snprintf(buf, sizeof(buf), "%.2f kr", data->min_price_sek);
+    lv_label_set_text(ui_lbl_price_lo, buf);
+    
+    // Update max price
+    snprintf(buf, sizeof(buf), "%.2f kr", data->max_price_sek);
+    lv_label_set_text(ui_lbl_price_hi, buf);
+    
+    // Update avg price
+    snprintf(buf, sizeof(buf), "%.2f kr", data->avg_price_sek);
+    lv_label_set_text(ui_lbl_price_avg, buf);
+    
+    // Update the chart data array
+    for (int i = 0; i < 24; i++) {
+        g_elpris_data[i] = (lv_coord_t)data->hourly_prices[i];
+    }
+    
+    // Refresh the chart
+    if (ui_chart_elpris) {
+        lv_chart_refresh(ui_chart_elpris);
+    }
+}
+
+// Set current hour for the "Now" indicator
+void ui_elpris_set_current_hour(uint8_t hour) {
+    g_current_hour = hour;
+}
+
 void ui_tab_elpris_init(void) {
     lv_obj_t* body = lv_obj_create(ui_tabelpris);
     lv_obj_set_size(body, lv_pct(100), lv_pct(100));
@@ -105,7 +156,7 @@ void ui_tab_elpris_init(void) {
     lv_obj_t* card_curr = make_summary_card(ui_panel_price_header, 2);
     ui_lbl_price_now = card_label(card_curr, "CURRENT PRICE", UI_COLOR_INK3,
                                   &lv_font_montserrat_12);
-    ui_lbl_price_val = card_label(card_curr, "0.29", UI_COLOR_GOOD,
+    ui_lbl_price_val = card_label(card_curr, "0.00", UI_COLOR_GOOD,
                                   &lv_font_montserrat_40);
     ui_lbl_price_unit = card_label(card_curr, "kr/kWh", UI_COLOR_INK3,
                                    &lv_font_montserrat_14);
@@ -113,19 +164,19 @@ void ui_tab_elpris_init(void) {
     // Max card
     lv_obj_t* card_max = make_summary_card(ui_panel_price_header, 1);
     card_label(card_max, "MAX", UI_COLOR_INK3, &lv_font_montserrat_12);
-    ui_lbl_price_hi = card_label(card_max, "1.05 kr", UI_COLOR_BAD, &lv_font_montserrat_18);
-    card_label(card_max, "at 20:00", UI_COLOR_INK3, &lv_font_montserrat_12);
+    ui_lbl_price_hi = card_label(card_max, "-- kr", UI_COLOR_BAD, &lv_font_montserrat_18);
+    card_label(card_max, "at --:--", UI_COLOR_INK3, &lv_font_montserrat_12);
 
     // Min card
     lv_obj_t* card_min = make_summary_card(ui_panel_price_header, 1);
     card_label(card_min, "MIN", UI_COLOR_INK3, &lv_font_montserrat_12);
-    ui_lbl_price_lo = card_label(card_min, "0.05 kr", UI_COLOR_GOOD, &lv_font_montserrat_18);
-    card_label(card_min, "at 16:00", UI_COLOR_INK3, &lv_font_montserrat_12);
+    ui_lbl_price_lo = card_label(card_min, "-- kr", UI_COLOR_GOOD, &lv_font_montserrat_18);
+    card_label(card_min, "at --:--", UI_COLOR_INK3, &lv_font_montserrat_12);
 
     // Avg card
     lv_obj_t* card_avg = make_summary_card(ui_panel_price_header, 1);
     card_label(card_avg, "AVG", UI_COLOR_INK3, &lv_font_montserrat_12);
-    ui_lbl_price_avg = card_label(card_avg, "0.35 kr", UI_COLOR_INK1, &lv_font_montserrat_18);
+    ui_lbl_price_avg = card_label(card_avg, "-- kr", UI_COLOR_INK1, &lv_font_montserrat_18);
 
     // ---- Chart card ----
     ui_panel_chart = lv_obj_create(body);
@@ -169,11 +220,7 @@ void ui_tab_elpris_init(void) {
 
     lv_chart_series_t* ser = lv_chart_add_series(ui_chart_elpris, UI_COLOR_GOOD,
                                                   LV_CHART_AXIS_PRIMARY_Y);
-    static lv_coord_t elpris_data[24] = {
-        8, 7, 7, 6, 6, 8, 18, 35, 52, 58, 55, 50,
-        42, 38, 29, 12, 5, 18, 45, 72, 100, 95, 80, 60
-    };
-    lv_chart_set_ext_y_array(ui_chart_elpris, ser, elpris_data);
+    lv_chart_set_ext_y_array(ui_chart_elpris, ser, g_elpris_data);
 
     lv_obj_add_event_cb(ui_chart_elpris, elpris_chart_draw_cb,
                         LV_EVENT_DRAW_TASK_ADDED, NULL);

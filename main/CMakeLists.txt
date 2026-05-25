@@ -18,6 +18,8 @@ idf_component_register(
         cache_fs
         smw_http
         http_client
+        elpris_api
+     
 )
 
 target_include_directories(__idf_main PRIVATE ${CMAKE_SOURCE_DIR})

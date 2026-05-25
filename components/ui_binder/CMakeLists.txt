@@ -9,6 +9,6 @@ endif()
 idf_component_register(
     SRCS ${SRC}
     INCLUDE_DIRS "include"
-    REQUIRES wifi_manager bme280_sensor
+    REQUIRES wifi_manager bme280_sensor elpris_api
     PRIV_REQUIRES ${PRIV_REQS}
 )

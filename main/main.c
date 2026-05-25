@@ -161,7 +161,6 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
             smw_register_http_request(&g_smw_worker, &req, on_test_http_done, NULL, NULL);
         }
     }
-    loc_server_notify_wifi_state(state);
 }
 
 static void on_ap_toggled(bool enabled) {
