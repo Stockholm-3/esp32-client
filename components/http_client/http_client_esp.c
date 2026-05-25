@@ -375,41 +375,42 @@ err:
 }
 
 HttpClientPollResult http_client_async_poll(HttpClientAsyncHandle* h) {
-    if (h->done) {
+    if (!h || (int)h->done) {
         return HTTP_CLIENT_POLL_DONE;
     }
 
-    /*
-     * With is_async set, esp_http_client_perform() returns ESP_ERR_HTTP_EAGAIN
-     * whenever the socket would block. Each call does as much work as is
-     * currently available without blocking.
-     */
     esp_err_t err = esp_http_client_perform(h->client);
 
     if (err == ESP_ERR_HTTP_EAGAIN) {
         return HTTP_CLIENT_POLL_BUSY;
     }
 
+    // Mark done before firing the callback to prevent double-processing re-entry
     h->done = true;
 
-    HttpClientResponse* resp = calloc(1, sizeof(HttpClientResponse));
-    if (!resp) {
-        h->cb(NULL, -1, h->user_ctx);
-        return HTTP_CLIENT_POLL_DONE;
-    }
-
     if (err == ESP_OK) {
+        HttpClientResponse* resp = calloc(1, sizeof(HttpClientResponse));
+        if (!resp) {
+            h->cb(NULL, -1, h->user_ctx);
+            return HTTP_CLIENT_POLL_DONE;
+        }
+
         resp->status = esp_http_client_get_status_code(h->client);
         resp->buffer = h->rx.data;
         resp->length = h->rx.len;
         h->rx.data   = NULL;
+
         ESP_LOGI(g_tag, "%s %s -> %d (%zu bytes)", g_k_method_str[h->req_copy.method], h->url_copy,
                  resp->status, resp->length);
+
         h->cb(resp, 0, h->user_ctx);
     } else {
-        ESP_LOGE(g_tag, "%s %s failed: %s", g_k_method_str[h->req_copy.method], h->url_copy,
-                 esp_err_to_name(err));
-        h->cb(resp, -1, h->user_ctx);
+        ESP_LOGE(g_tag, "%s %s connection failed: %s", g_k_method_str[h->req_copy.method],
+                 h->url_copy, esp_err_to_name(err));
+
+        // Pass NULL for the response context because no connection happened.
+        // This stops higher-level parsing loops from attempting to read invalid response fields.
+        h->cb(NULL, -1, h->user_ctx);
     }
 
     return HTTP_CLIENT_POLL_DONE;

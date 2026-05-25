@@ -19,4 +19,5 @@ idf_component_register(
     http_client
     smw_http
     clock
+    data_fetcher
 )
