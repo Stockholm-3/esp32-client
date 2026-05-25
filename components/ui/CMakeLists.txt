@@ -55,4 +55,6 @@ idf_component_register(
         lvgl__lvgl
         wifi_manager
         espressif__cjson
+    PRIV_REQUIRES
+        ui_binder
 )

@@ -190,8 +190,11 @@ static void on_data_cached(DataFetcherKind kind, const char* cache_key, void* us
 
     const char* kind_str = (kind == DATA_FETCHER_KIND_ELPRIS) ? "elpris" : "weather";
     ESP_LOGI(g_tag, "[%s] Fresh data ready — %zu bytes in cache", kind_str, len);
-
     ESP_LOGI(g_tag, "[%s] Preview: %.200s%s", kind_str, (const char*)data, len > 200U ? "…" : "");
+
+    if (kind == DATA_FETCHER_KIND_WEATHER) {
+        ui_binder_update_weather((const char*)data, len);
+    }
 
     cache_free(data);
 }
@@ -262,6 +265,7 @@ void app_main(void) {
     setenv("TZ", "CET-1CEST-2,M3.5.0/2,M10.5.0/3", 1);
     tzset();
     ui_binder_init();
+    ui_binder_on_weather_refresh(data_fetcher_request_weather_now);
     clock_init();
     display_lvgl_unlock();
 
@@ -324,7 +328,7 @@ void app_main(void) {
     }
 
     result = snprintf(weather_url, sizeof(weather_url),
-                      "https://just-dev.freeduck.dev/v1/minutely?city=%s", city);
+                      "https://just-dev.freeduck.dev/v1/hourly?city=%s&hours=168", city);
 
     if (result < 0) {
         ESP_LOGE(g_tag, "Failed to write weather_url");
