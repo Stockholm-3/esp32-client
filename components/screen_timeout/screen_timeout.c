@@ -15,14 +15,14 @@ typedef enum {
     SCREEN_TIMEOUT_STAGE_DIM,           // Stage 1: dim overlay visible
     SCREEN_TIMEOUT_STAGE_SCREENSAVER,   // Stage 2: screensaver bouncing
     SCREEN_TIMEOUT_STAGE_BACKLIGHT_OFF, // Stage 3: backlight off
-} screen_timeout_stage_t;
+} ScreenTimeoutStage;
 
 // ── State
 // ────────────────────────────────────────────────────────────────────
-static lv_timer_t* g_s_timer            = NULL;
-static uint32_t g_s_last_activity_ms    = 0;
-static screen_timeout_stage_t g_s_stage = SCREEN_TIMEOUT_STAGE_ACTIVE;
-static lv_obj_t* g_s_dim_overlay        = NULL;
+static lv_timer_t* g_s_timer         = NULL;
+static uint32_t g_s_last_activity_ms = 0;
+static ScreenTimeoutStage g_s_stage  = SCREEN_TIMEOUT_STAGE_ACTIVE;
+static lv_obj_t* g_s_dim_overlay     = NULL;
 
 static ScreenTimeoutConfig g_s_config = {0};
 
@@ -72,7 +72,7 @@ static void timeout_timer_cb(lv_timer_t* timer) {
     uint32_t elapsed_ms = lv_tick_get() - g_s_last_activity_ms;
 
     // Determine which stage SHOULD be active based on elapsed time
-    screen_timeout_stage_t target_stage = SCREEN_TIMEOUT_STAGE_ACTIVE;
+    ScreenTimeoutStage target_stage = SCREEN_TIMEOUT_STAGE_ACTIVE;
 
     if (g_s_config.backlight_off_timeout_seconds > 0 &&
         elapsed_ms >= g_s_config.backlight_off_timeout_seconds * 1000U) {
@@ -94,22 +94,25 @@ static void timeout_timer_cb(lv_timer_t* timer) {
 
     switch (g_s_stage) {
     case SCREEN_TIMEOUT_STAGE_BACKLIGHT_OFF:
-        if (g_s_dim_overlay)
+        if (g_s_dim_overlay) {
             lv_obj_add_flag(g_s_dim_overlay, LV_OBJ_FLAG_HIDDEN);
+        }
         screensaver_hide();
         display_set_backlight(0);
         break;
 
     case SCREEN_TIMEOUT_STAGE_SCREENSAVER:
-        if (g_s_dim_overlay)
+        if (g_s_dim_overlay) {
             lv_obj_add_flag(g_s_dim_overlay, LV_OBJ_FLAG_HIDDEN);
+        }
         screensaver_show();
         break;
 
     case SCREEN_TIMEOUT_STAGE_DIM:
         screensaver_hide();
-        if (g_s_dim_overlay)
+        if (g_s_dim_overlay) {
             lv_obj_remove_flag(g_s_dim_overlay, LV_OBJ_FLAG_HIDDEN);
+        }
         break;
 
     case SCREEN_TIMEOUT_STAGE_ACTIVE:
