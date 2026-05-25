@@ -46,6 +46,7 @@ int wifi_manager_connect(const char* ssid, const char* password) {
     (void)password;
     if (!g_initialized) {
         ESP_LOGE(g_tag, "Cannot connect: Wi-Fi manager not started.");
+
         return -1;
     }
 

@@ -1,9 +1,12 @@
 #include "display.h"
+#include "esp_log.h"
+#include "fs.h"
 #include "lvgl.h"
 #include "squareline/screens/ui_scr_home.h"
 #include "ui_binder.h"
 
 #include <stdio.h>
+#include <string.h>
 
 static ui_binder_location_cb_t g_s_location_cb  = NULL;
 static ui_binder_dropdown_cb_t g_s_price_cb     = NULL;
@@ -14,6 +17,16 @@ static ui_binder_dropdown_cb_t g_s_timeout_cb2  = NULL;
 static ui_binder_bool_cb_t g_s_ap_enabled_cb    = NULL;
 static ui_binder_bool_cb_t g_s_ap_enabled_cb2   = NULL;
 static ui_binder_bool_cb_t g_s_lwc_cb           = NULL;
+
+static void load_mock_elpris(void) {
+    char* buf = fs_read_str("/storage/response.json");
+    if (!buf) {
+        ESP_LOGW("ui_binder", "response.json not found on storage");
+        return;
+    }
+    ui_tab_elpris_handle_server_response(buf, strlen(buf));
+    free(buf);
+}
 
 static void on_location_defocused(lv_event_t* e) {
     (void)e;
@@ -26,9 +39,11 @@ static void on_location_defocused(lv_event_t* e) {
 }
 
 void ui_binder_update_wifi_status(WifiManagerState state) {
-    const char* text = state == WIFI_MANAGER_STATE_CONNECTED    ? "WiFi"
-                       : state == WIFI_MANAGER_STATE_CONNECTING ? "..."
-                                                                : "No WiFi";
+    const char* text = state == WIFI_MANAGER_STATE_CONNECTED      ? "Connected"
+                       : state == WIFI_MANAGER_STATE_CONNECTING   ? "Connecting..."
+                       : state == WIFI_MANAGER_STATE_FAILED       ? "Failed"
+                       : state == WIFI_MANAGER_STATE_DISCONNECTED ? "Disconnected"
+                                                                  : "No internet";
     if (display_lvgl_lock(100)) {
         lv_label_set_text(ui_lbl_wifi_status, text);
         display_lvgl_unlock();
@@ -81,12 +96,23 @@ static void on_lwc_changed(lv_event_t* e) {
     }
 }
 
+static void on_wifi_sw_changed(lv_event_t* e) {
+    (void)e;
+    if (lv_obj_has_state(ui_sw_wifi, LV_STATE_CHECKED)) {
+        lv_obj_clear_state(ui_btn_wifi_change, LV_STATE_DISABLED);
+    } else {
+        lv_obj_add_state(ui_btn_wifi_change, LV_STATE_DISABLED);
+    }
+}
+
 void ui_binder_init(void) {
+    load_mock_elpris();
     lv_obj_add_event_cb(ui_ta_locationinput, on_location_defocused, LV_EVENT_DEFOCUSED, NULL);
     lv_obj_add_event_cb(ui_dd_price, on_price_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_dd_timeout, on_timeout_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_sw_ap_enabled, on_ap_enabled_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_sw_local_web_client, on_lwc_changed, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(ui_sw_wifi, on_wifi_sw_changed, LV_EVENT_VALUE_CHANGED, NULL);
 }
 
 void ui_binder_update_localtime(const struct tm* t) {

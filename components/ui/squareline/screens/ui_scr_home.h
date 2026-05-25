@@ -51,7 +51,6 @@ extern lv_obj_t * ui_lbl_elec_status;
 extern lv_obj_t * ui_lbl_elec_sub;
 extern lv_obj_t * ui_lbl_elec_price;
 extern lv_obj_t * ui_tabweather;
-extern lv_obj_t * ui_tabbattery;
 extern lv_obj_t * ui_tabelpris;
 extern lv_obj_t * ui_tabsettings;
 extern lv_obj_t * ui_Keyboard1;
@@ -66,6 +65,7 @@ extern lv_obj_t * ui_lbl_localtime;
 extern lv_obj_t * ui_lbl_wifi_status;
 extern lv_obj_t * ui_sw_ap_enabled;
 extern lv_obj_t * ui_sw_local_web_client;
+extern lv_obj_t * ui_sw_wifi;
 extern lv_obj_t * ui_lbl_settings_ip;
 
 // Traffic light dots (home screen electricity recommendation)
@@ -94,20 +94,10 @@ extern lv_obj_t * ui_panel_home_h6;
 extern lv_obj_t * ui_lbl_home_htime6;
 extern lv_obj_t * ui_lbl_home_htemp6;
 
-// Battery tab widgets (ui_tab_battery.c)
-extern lv_obj_t * ui_panel_batt_hero;
-extern lv_obj_t * ui_arc_battery;
-extern lv_obj_t * ui_lbl_batt_pct;
-extern lv_obj_t * ui_lbl_batt_status;
-extern lv_obj_t * ui_panel_batt_stats;
-extern lv_obj_t * ui_lbl_batt_voltage;
-extern lv_obj_t * ui_lbl_batt_current;
-extern lv_obj_t * ui_lbl_batt_cycles;
-extern lv_obj_t * ui_panel_batt_trend;
-extern lv_obj_t * ui_chart_batt_trend;
-extern void ui_tab_battery_init(void);
 extern void ui_tab_weather_init(void);
 extern void ui_tab_elpris_init(void);
+extern void ui_tab_elpris_handle_server_response(const char* json, size_t len);
+extern void ui_tab_elpris_update_now(void);
 extern void ui_tab_settings_init(void);
 
 // CUSTOM VARIABLES

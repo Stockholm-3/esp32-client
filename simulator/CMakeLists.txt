@@ -11,7 +11,8 @@ set(COMPONENTS main)
 # The ui component lives one level up, alongside ws7b_board.
 # We add the parent's components/ directory so IDF can resolve it.
 set(EXTRA_COMPONENT_DIRS
-    "${CMAKE_CURRENT_SOURCE_DIR}/../components"   # shared: ui
+    "${CMAKE_CURRENT_SOURCE_DIR}/../components"          # shared: ui
+    "${CMAKE_CURRENT_SOURCE_DIR}/../managed_components"  # shared: cjson, etc.
 )
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

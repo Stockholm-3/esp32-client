@@ -1,18 +1,31 @@
 dependencies:
+  espressif/cjson:
+    dependencies: []
+    source:
+      path: ../managed_components/espressif__cjson
+      type: local
+    version: 1.7.19~2
+  espressif/esp_lcd_touch:
+    dependencies: []
+    source:
+      path: ../managed_components/espressif__esp_lcd_touch
+      type: local
+    version: 1.2.1
   idf:
     source:
       type: idf
     version: 6.0.0
   lvgl/lvgl:
-    component_hash: 184e532558c1c45fefed631f3e235423d22582aafb4630f3e8885c35281a49ae
     dependencies: []
     source:
-      registry_url: https://components.espressif.com/
-      type: service
+      path: ../managed_components/lvgl__lvgl
+      type: local
     version: 9.5.0
 direct_dependencies:
+- espressif/cjson
+- espressif/esp_lcd_touch
 - idf
 - lvgl/lvgl
-manifest_hash: 1e31b991fe59081c9ea33dc2f3bc5e94b85ce9728db1cf77fc7bfd9d24220bc2
+manifest_hash: 7d211127944b30fe6ce6a3cab420cf480fa1e07b8a26e723addff24da387cac3
 target: linux
 version: 3.0.0

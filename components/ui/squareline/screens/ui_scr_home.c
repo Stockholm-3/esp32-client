@@ -89,7 +89,6 @@ lv_obj_t* ui_lbl_elec_status        = NULL;
 lv_obj_t* ui_lbl_elec_sub           = NULL;
 lv_obj_t* ui_lbl_elec_price         = NULL;
 lv_obj_t* ui_tabweather             = NULL;
-lv_obj_t* ui_tabbattery             = NULL;
 lv_obj_t* ui_tabelpris              = NULL;
 lv_obj_t* ui_tabsettings            = NULL;
 lv_obj_t* ui_panel_statusbar        = NULL;
@@ -632,13 +631,6 @@ void ui_scr_home_screen_init(void) {
 
     ui_tab_weather_init();
 
-    ui_tabbattery = lv_tabview_add_tab(ui_TabView, "BATTERY");
-    lv_obj_set_style_pad_left(ui_tabbattery, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_right(ui_tabbattery, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_top(ui_tabbattery, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_bottom(ui_tabbattery, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    ui_tab_battery_init();
-
 
     ui_tabelpris = lv_tabview_add_tab(ui_TabView, "ELPRIS");
     lv_obj_set_style_pad_left(ui_tabelpris, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -670,15 +662,15 @@ void ui_scr_home_screen_init(void) {
     ui_lbl_localtime = lv_label_create(ui_panel_statusbar);
     lv_obj_set_width(ui_lbl_localtime, LV_SIZE_CONTENT);  /// 50
     lv_obj_set_height(ui_lbl_localtime, LV_SIZE_CONTENT); /// 20
-    lv_obj_set_x(ui_lbl_localtime, 900);
-    lv_obj_set_y(ui_lbl_localtime, 5);
+    lv_obj_align(ui_lbl_localtime, LV_ALIGN_RIGHT_MID, -8, 0);
     lv_label_set_text(ui_lbl_localtime, "12:00");
 
     ui_lbl_wifi_status = lv_label_create(ui_panel_statusbar);
     lv_obj_set_width(ui_lbl_wifi_status, LV_SIZE_CONTENT);  /// 50
     lv_obj_set_height(ui_lbl_wifi_status, LV_SIZE_CONTENT); /// 20
-    lv_obj_set_x(ui_lbl_wifi_status, 958);
+    lv_obj_set_x(ui_lbl_wifi_status, 12);
     lv_obj_set_y(ui_lbl_wifi_status, 5);
+    lv_label_set_long_mode(ui_lbl_wifi_status, LV_LABEL_LONG_CLIP);
     lv_label_set_text(ui_lbl_wifi_status, "WIFI");
 
     uic_scr_home               = ui_scr_home;
@@ -785,7 +777,6 @@ void ui_scr_home_screen_destroy(void) {
     uic_lbl_elec_price         = NULL;
     ui_lbl_elec_price          = NULL;
     ui_tabweather              = NULL;
-    ui_tabbattery              = NULL;
     ui_tabelpris               = NULL;
     ui_tabsettings             = NULL;
     ui_panel_statusbar         = NULL;

@@ -43,7 +43,6 @@ idf_component_register(
         "squareline/images/weather/ui_img_wx_rain_png.c"
         "squareline/images/weather/ui_img_wx_snow_png.c"
         "squareline/screens/ui_scr_home.c"
-        "squareline/screens/ui_tab_battery.c"
         "squareline/screens/ui_tab_weather.c"
         "squareline/screens/ui_tab_elpris.c"
         "squareline/screens/ui_tab_settings.c"
@@ -55,4 +54,5 @@ idf_component_register(
         screen_timeout
         lvgl__lvgl
         wifi_manager
+        espressif__cjson
 )

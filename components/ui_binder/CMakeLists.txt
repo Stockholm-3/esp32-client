@@ -3,7 +3,7 @@ if(IDF_TARGET STREQUAL "linux")
     set(PRIV_REQS ui)
 else()
     set(SRC "ui_binder_esp.c")
-    set(PRIV_REQS display ui)
+    set(PRIV_REQS display ui fs)
 endif()
 
 idf_component_register(

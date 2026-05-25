@@ -25,6 +25,7 @@
 #include "settings_manager.h"
 #include "smw.h"
 #include "smw_http.h"
+#include "squareline/screens/ui_scr_home.h"
 #include "time_manager.h"
 #include "ui.h"
 #include "ui_binder.h"
@@ -118,7 +119,11 @@ static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
 static void on_wifi_connect(const char* ssid, const char* password) {
     strncpy(g_current_ssid, ssid, 32);
     g_current_ssid[32] = '\0';
-    wifi_manager_change_network(ssid, password);
+    if (wifi_manager_change_network(ssid, password) != 0) {
+        // Manager not yet initialized (first boot, no saved credentials) — start it, then connect.
+        wifi_manager_start(NULL);
+        wifi_manager_change_network(ssid, password);
+    }
     settings_manager_save_wifi(ssid, password);
 }
 
@@ -128,13 +133,14 @@ static void on_wifi_connect(const char* ssid, const char* password) {
  * Safely initializes time manager on first connection and resyncs on reconnection.
  *
  * @param state   New connection state.
- * @param reason  Failure reason (currently unused).
+ * @param reason  Failure reason (AUTH, NO_AP, or UNKNOWN).
  */
 static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) {
-    (void)reason;
     ui_binder_update_wifi_status(state);
     data_fetcher_notify_wifi_state(state);
     if (state == WIFI_MANAGER_STATE_CONNECTED) {
+        wifi_popup_set_connected_ssid(g_current_ssid);
+        wifi_popup_notify_result(WIFI_POPUP_RESULT_CONNECTED);
         ui_binder_update_wifi_name(g_current_ssid);
 
         time_manager_init(NULL);
@@ -154,6 +160,15 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
         }
 #endif
         ui_binder_update_local_ip(ip_str);
+    } else if (state == WIFI_MANAGER_STATE_FAILED) {
+        wifi_popup_set_connected_ssid("");
+        WifiPopupConnectResult r =
+            (reason == WIFI_MANAGER_FAIL_REASON_AUTH)    ? WIFI_POPUP_RESULT_WRONG_PASSWORD
+            : (reason == WIFI_MANAGER_FAIL_REASON_NO_AP) ? WIFI_POPUP_RESULT_NO_AP
+                                                         : WIFI_POPUP_RESULT_FAILED;
+        wifi_popup_notify_result(r);
+    } else if (state == WIFI_MANAGER_STATE_DISCONNECTED) {
+        wifi_popup_set_connected_ssid("");
     }
     loc_server_notify_wifi_state(state);
 }
@@ -244,6 +259,8 @@ void app_main(void) {
     };
     screen_timeout_init(&timeout_cfg);
     display_set_activity_callback(screen_timeout_record_activity);
+    setenv("TZ", "CET-1CEST-2,M3.5.0/2,M10.5.0/3", 1);
+    tzset();
     ui_binder_init();
     clock_init();
     display_lvgl_unlock();
@@ -283,7 +300,6 @@ void app_main(void) {
                 sizeof(wifi_cfg.sta_netmask) - 1);
     }
     wifi_manager_start((int)lwc_enabled ? &wifi_cfg : NULL);
-
     wifi_manager_connect_to_saved_wifi();
 
     smw_init(&g_smw_worker, g_smw_tasks, SMW_MAX_TASKS);
@@ -328,6 +344,7 @@ void app_main(void) {
         bool time_is_valid = time_manager_get_time(&timeinfo);
         if (time_is_valid) {
             ui_binder_update_localtime(&timeinfo);
+            ui_tab_elpris_update_now();
         }
 
         // Handle BME280 hot-plug: check if sensor presence changed
