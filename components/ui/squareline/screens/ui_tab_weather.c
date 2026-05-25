@@ -105,52 +105,90 @@ lv_obj_t* ui_lbl_detail_desc   = NULL;
 lv_obj_t* ui_lbl_detail_hi     = NULL;
 lv_obj_t* ui_lbl_detail_lo     = NULL;
 
-lv_obj_t* ui_panel_hours       = NULL;
-lv_obj_t* ui_panel_hour1       = NULL;
-lv_obj_t* ui_lbl_hour_time1    = NULL;
-lv_obj_t* ui_lbl_hour_temp1    = NULL;
-lv_obj_t* ui_lbl_hour_precip1  = NULL;
-lv_obj_t* ui_img_hour_icon1    = NULL;
-lv_obj_t* ui_panel_hour2       = NULL;
-lv_obj_t* ui_lbl_hour_time2    = NULL;
-lv_obj_t* ui_lbl_hour_temp2    = NULL;
-lv_obj_t* ui_lbl_hour_precip2  = NULL;
-lv_obj_t* ui_img_hour_icon2    = NULL;
-lv_obj_t* ui_panel_hour3       = NULL;
-lv_obj_t* ui_lbl_hour_time3    = NULL;
-lv_obj_t* ui_lbl_hour_temp3    = NULL;
-lv_obj_t* ui_lbl_hour_precip3  = NULL;
-lv_obj_t* ui_img_hour_icon3    = NULL;
-lv_obj_t* ui_panel_hour4       = NULL;
-lv_obj_t* ui_lbl_hour_time4    = NULL;
-lv_obj_t* ui_lbl_hour_temp4    = NULL;
-lv_obj_t* ui_lbl_hour_precip4  = NULL;
-lv_obj_t* ui_img_hour_icon4    = NULL;
-lv_obj_t* ui_panel_hour5       = NULL;
-lv_obj_t* ui_lbl_hour_time5    = NULL;
-lv_obj_t* ui_lbl_hour_temp5    = NULL;
-lv_obj_t* ui_lbl_hour_precip5  = NULL;
-lv_obj_t* ui_img_hour_icon5    = NULL;
-lv_obj_t* ui_panel_hour6       = NULL;
-lv_obj_t* ui_lbl_hour_time6    = NULL;
-lv_obj_t* ui_lbl_hour_temp6    = NULL;
-lv_obj_t* ui_lbl_hour_precip6  = NULL;
-lv_obj_t* ui_img_hour_icon6    = NULL;
-lv_obj_t* ui_panel_hour7       = NULL;
-lv_obj_t* ui_lbl_hour_time7    = NULL;
-lv_obj_t* ui_lbl_hour_temp7    = NULL;
-lv_obj_t* ui_lbl_hour_precip7  = NULL;
-lv_obj_t* ui_img_hour_icon7    = NULL;
-lv_obj_t* ui_panel_hour8       = NULL;
-lv_obj_t* ui_lbl_hour_time8    = NULL;
-lv_obj_t* ui_lbl_hour_temp8    = NULL;
-lv_obj_t* ui_lbl_hour_precip8  = NULL;
-lv_obj_t* ui_img_hour_icon8    = NULL;
-lv_obj_t* ui_panel_hour9       = NULL;
-lv_obj_t* ui_lbl_hour_time9    = NULL;
-lv_obj_t* ui_lbl_hour_temp9    = NULL;
-lv_obj_t* ui_lbl_hour_precip9  = NULL;
-lv_obj_t* ui_img_hour_icon9    = NULL;
+#define WEATHER_HOUR_MAX 48
+#define METRIC_COUNT     5
+
+typedef enum {
+    METRIC_TEMP = 0,
+    METRIC_HUMIDITY,
+    METRIC_PRECIP,
+    METRIC_WIND,
+    METRIC_PRESSURE,
+} WeatherMetric;
+
+static int32_t   g_hour_data[METRIC_COUNT][WEATHER_HOUR_MAX];
+static int                g_hour_count = 0;
+static lv_obj_t*          g_chart      = NULL;
+static lv_chart_series_t* g_chart_ser  = NULL;
+static lv_obj_t*          g_dd_metric   = NULL;
+static lv_obj_t*          g_lbl_unit    = NULL;
+static lv_chart_cursor_t* g_chart_cursor  = NULL;
+static lv_obj_t*          g_lbl_chart_info = NULL;
+static char               g_hour_times[WEATHER_HOUR_MAX][6];
+
+static void chart_update_metric(int m) {
+    if (!g_chart || !g_chart_ser || g_hour_count == 0) return;
+    lv_chart_set_point_count(g_chart, (uint16_t)g_hour_count);
+    int32_t mn = g_hour_data[m][0], mx = g_hour_data[m][0];
+    for (int i = 1; i < g_hour_count; i++) {
+        if (g_hour_data[m][i] < mn) mn = g_hour_data[m][i];
+        if (g_hour_data[m][i] > mx) mx = g_hour_data[m][i];
+    }
+    int32_t pad = (mx - mn) / 5 + 1;
+    lv_chart_set_axis_range(g_chart, LV_CHART_AXIS_PRIMARY_Y, mn - pad, mx + pad);
+    lv_chart_set_series_ext_y_array(g_chart, g_chart_ser, g_hour_data[m]);
+    lv_chart_refresh(g_chart);
+    static const char* const k_units[METRIC_COUNT] = {
+        "\xc2\xb0""C", "%", "mm\xc3\x97""10", "km/h", "hPa"
+    };
+    if (g_lbl_unit) lv_label_set_text(g_lbl_unit, k_units[m]);
+}
+
+static void on_metric_changed(lv_event_t* e) {
+    (void)e;
+    chart_update_metric((int)lv_dropdown_get_selected(g_dd_metric));
+}
+
+static void on_chart_pressed(lv_event_t* e) {
+    (void)e;
+    if (g_hour_count == 0) return;
+
+    lv_indev_t* indev = lv_indev_active();
+    if (!indev) return;
+    lv_point_t pt;
+    lv_indev_get_point(indev, &pt);
+
+    lv_area_t coords;
+    lv_obj_get_coords(g_chart, &coords);
+    int32_t chart_w = lv_area_get_width(&coords);
+    if (chart_w <= 0) return;
+
+    int32_t rel_x = pt.x - coords.x1;
+    rel_x = LV_CLAMP(0, rel_x, chart_w - 1);
+    uint32_t idx = (uint32_t)((int64_t)rel_x * g_hour_count / chart_w);
+    if ((int)idx >= g_hour_count) idx = (uint32_t)(g_hour_count - 1);
+
+    static uint32_t s_last_idx = UINT32_MAX;
+    if (idx == s_last_idx) return;
+    s_last_idx = idx;
+
+    lv_chart_set_cursor_point(g_chart, g_chart_cursor, g_chart_ser, idx);
+
+    int m = g_dd_metric ? (int)lv_dropdown_get_selected(g_dd_metric) : METRIC_TEMP;
+    static const char* const k_units[METRIC_COUNT] = {
+        "\xc2\xb0""C", "%", "mm", "km/h", "hPa"
+    };
+    int32_t raw = g_hour_data[m][idx];
+    char buf[32];
+    if (m == METRIC_PRECIP)
+        snprintf(buf, sizeof(buf), "%s  %.1f %s", g_hour_times[idx], raw / 10.0, k_units[m]);
+    else if (m == METRIC_TEMP)
+        snprintf(buf, sizeof(buf), "%s  %+d%s", g_hour_times[idx], (int)raw, k_units[m]);
+    else
+        snprintf(buf, sizeof(buf), "%s  %d %s", g_hour_times[idx], (int)raw, k_units[m]);
+
+    if (g_lbl_chart_info) lv_label_set_text(g_lbl_chart_info, buf);
+}
 
 void ui_tab_weather_handle_server_response(const char* json, size_t len) {
     if (!json || len == 0) {
@@ -179,9 +217,7 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len) {
         return;
     }
 
-    int hour_count = count < 9 ? count : 9;
-
-    // ── Агрегація по днях (поза LVGL lock) ───────────────────────────────────
+    // ── Day aggregation (outside LVGL lock) ──────────────────────────────────
     typedef struct {
         char   date[11];
         double min_temp;
@@ -242,6 +278,34 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len) {
         }
     }
 
+    // ── Fill chart data arrays ───────────────────────────────────────────────
+    int hmax = count < WEATHER_HOUR_MAX ? count : WEATHER_HOUR_MAX;
+    const char* current_time = NULL;
+    for (int i = 0; i < hmax; i++) {
+        cJSON* item     = cJSON_GetArrayItem(forecast, i);
+        if (!cJSON_IsObject(item)) { hmax = i; break; }
+        cJSON* time_obj  = cJSON_GetObjectItemCaseSensitive(item, "time");
+        cJSON* temp_obj  = cJSON_GetObjectItemCaseSensitive(item, "temperature");
+        cJSON* hum_obj   = cJSON_GetObjectItemCaseSensitive(item, "humidity");
+        cJSON* prec_obj  = cJSON_GetObjectItemCaseSensitive(item, "precipitation");
+        cJSON* wind_obj  = cJSON_GetObjectItemCaseSensitive(item, "windspeed");
+        cJSON* press_obj = cJSON_GetObjectItemCaseSensitive(item, "pressure");
+
+        g_hour_data[METRIC_TEMP][i]     = cJSON_IsNumber(temp_obj)  ? (int32_t)round(temp_obj->valuedouble)       : 0;
+        g_hour_data[METRIC_HUMIDITY][i] = cJSON_IsNumber(hum_obj)   ? (int32_t)round(hum_obj->valuedouble)        : 0;
+        g_hour_data[METRIC_PRECIP][i]   = cJSON_IsNumber(prec_obj)  ? (int32_t)round(prec_obj->valuedouble * 10)  : 0;
+        g_hour_data[METRIC_WIND][i]     = cJSON_IsNumber(wind_obj)  ? (int32_t)round(wind_obj->valuedouble)       : 0;
+        g_hour_data[METRIC_PRESSURE][i] = cJSON_IsNumber(press_obj) ? (int32_t)round(press_obj->valuedouble)      : 0;
+
+        if (cJSON_IsString(time_obj))
+            weather_timestamp_to_label(time_obj->valuestring, g_hour_times[i], sizeof(g_hour_times[i]));
+        else
+            g_hour_times[i][0] = '\0';
+
+        if (i == 0) current_time = cJSON_IsString(time_obj) ? time_obj->valuestring : NULL;
+    }
+    g_hour_count = hmax;
+
     // ── LVGL update ──────────────────────────────────────────────────────────
     lv_obj_t* day_name_arr[7] = {ui_lbl_day_name1, ui_lbl_day_name2, ui_lbl_day_name3,
                                  ui_lbl_day_name4, ui_lbl_day_name5, ui_lbl_day_name6,
@@ -256,25 +320,12 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len) {
                                  ui_img_day_icon4, ui_img_day_icon5, ui_img_day_icon6,
                                  ui_img_day_icon7};
 
-    lv_obj_t* hour_time_arr[9]   = {ui_lbl_hour_time1,   ui_lbl_hour_time2,   ui_lbl_hour_time3,
-                                     ui_lbl_hour_time4,   ui_lbl_hour_time5,   ui_lbl_hour_time6,
-                                     ui_lbl_hour_time7,   ui_lbl_hour_time8,   ui_lbl_hour_time9};
-    lv_obj_t* hour_icon_arr[9]   = {ui_img_hour_icon1,   ui_img_hour_icon2,   ui_img_hour_icon3,
-                                     ui_img_hour_icon4,   ui_img_hour_icon5,   ui_img_hour_icon6,
-                                     ui_img_hour_icon7,   ui_img_hour_icon8,   ui_img_hour_icon9};
-    lv_obj_t* hour_temp_arr[9]   = {ui_lbl_hour_temp1,   ui_lbl_hour_temp2,   ui_lbl_hour_temp3,
-                                     ui_lbl_hour_temp4,   ui_lbl_hour_temp5,   ui_lbl_hour_temp6,
-                                     ui_lbl_hour_temp7,   ui_lbl_hour_temp8,   ui_lbl_hour_temp9};
-    lv_obj_t* hour_precip_arr[9] = {ui_lbl_hour_precip1, ui_lbl_hour_precip2, ui_lbl_hour_precip3,
-                                     ui_lbl_hour_precip4, ui_lbl_hour_precip5, ui_lbl_hour_precip6,
-                                     ui_lbl_hour_precip7, ui_lbl_hour_precip8, ui_lbl_hour_precip9};
-
     if (!display_lvgl_lock(100)) {
         cJSON_Delete(root);
         return;
     }
 
-    // Карусель 7 днів
+    // 7-day carousel
     for (int i = 0; i < 7; i++) {
         if (!days[i].valid) break;
         char wday[8];
@@ -289,52 +340,19 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len) {
                                  weather_code_to_icon(days[i].weather_code));
     }
 
-    // Годинна стрічка (перші 9 записів)
-    const char* current_time = NULL;
+    // Chart
+    int sel = g_dd_metric ? (int)lv_dropdown_get_selected(g_dd_metric) : METRIC_TEMP;
+    chart_update_metric(sel);
+
+    // Detail panel — current conditions + today's min/max
     const char* current_desc = NULL;
-
-    for (int i = 0; i < hour_count; ++i) {
-        cJSON* item = cJSON_GetArrayItem(forecast, i);
-        if (!cJSON_IsObject(item)) continue;
-
-        cJSON* temp_obj   = cJSON_GetObjectItemCaseSensitive(item, "temperature");
-        cJSON* time_obj   = cJSON_GetObjectItemCaseSensitive(item, "time");
-        cJSON* precip_obj = cJSON_GetObjectItemCaseSensitive(item, "precipitation");
-        cJSON* code_obj   = cJSON_GetObjectItemCaseSensitive(item, "weather_code");
-
-        double temp   = cJSON_IsNumber(temp_obj)   ? temp_obj->valuedouble   : NAN;
-        double precip = cJSON_IsNumber(precip_obj) ? precip_obj->valuedouble : 0.0;
-        int    code   = cJSON_IsNumber(code_obj)   ? code_obj->valueint      : -1;
-        const char* time = cJSON_IsString(time_obj) ? time_obj->valuestring  : NULL;
-
-        char time_buf[16] = "";
-        weather_timestamp_to_label(time, time_buf, sizeof(time_buf));
-
-        char temp_buf[16];
-        if (isnan(temp)) {
-            snprintf(temp_buf, sizeof(temp_buf), "--");
-        } else {
-            snprintf(temp_buf, sizeof(temp_buf), "%+g%s", temp, current_unit);
-        }
-        char precip_buf[16];
-        snprintf(precip_buf, sizeof(precip_buf), "%.1f mm", precip);
-
-        if (hour_time_arr[i])   lv_label_set_text(hour_time_arr[i], time_buf);
-        if (hour_temp_arr[i])   lv_label_set_text(hour_temp_arr[i], temp_buf);
-        if (hour_precip_arr[i]) lv_label_set_text(hour_precip_arr[i], precip_buf);
-        if (hour_icon_arr[i])   lv_image_set_src(hour_icon_arr[i], weather_code_to_icon(code));
-
-        if (i == 0) current_time = time;
-    }
-
-    // Detail panel — опис поточного моменту + min/max за сьогодні
     if (cJSON_IsObject(first_item)) {
         cJSON* desc_obj = cJSON_GetObjectItemCaseSensitive(first_item, "weather_description");
         if (cJSON_IsString(desc_obj)) current_desc = desc_obj->valuestring;
     }
 
-    char name_buf[16] = "Now";
-    if (current_time) weather_timestamp_to_label(current_time, name_buf, sizeof(name_buf));
+    char name_buf[8] = "---";
+    if (days[0].valid) weather_date_to_weekday(days[0].date, name_buf, sizeof(name_buf));
     lv_label_set_text(ui_lbl_detail_name, name_buf);
     lv_label_set_text(ui_lbl_detail_desc, current_desc ? current_desc : "-");
 
@@ -395,47 +413,6 @@ static lv_obj_t* make_day_btn(lv_obj_t* parent, const char* name,
     return btn;
 }
 
-static void make_hour_cell(lv_obj_t* parent, const char* time, const lv_image_dsc_t* icon,
-                            const char* temp, const char* precip,
-                            lv_obj_t** out_panel, lv_obj_t** out_time, lv_obj_t** out_img,
-                            lv_obj_t** out_temp, lv_obj_t** out_precip) {
-    *out_panel = lv_obj_create(parent);
-    lv_obj_set_flex_grow(*out_panel, 1);
-    lv_obj_set_height(*out_panel, LV_PCT(100));
-    lv_obj_remove_flag(*out_panel, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_flex_flow(*out_panel, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(*out_panel, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_bg_color(*out_panel, UI_COLOR_BG2, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(*out_panel, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(*out_panel, UI_COLOR_LINE_SOFT, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(*out_panel, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(*out_panel, 8, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_all(*out_panel, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-    *out_time = lv_label_create(*out_panel);
-    lv_label_set_text(*out_time, time);
-    lv_obj_set_style_text_color(*out_time, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(*out_time, &lv_font_montserrat_12,
-                               LV_PART_MAIN | LV_STATE_DEFAULT);
-
-    *out_img = lv_image_create(*out_panel);
-    lv_image_set_src(*out_img, icon);
-    lv_image_set_scale(*out_img, 112);
-    lv_obj_set_size(*out_img, 28, 28);
-
-    *out_temp = lv_label_create(*out_panel);
-    lv_label_set_text(*out_temp, temp);
-    lv_obj_set_style_text_color(*out_temp, UI_COLOR_INK1, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(*out_temp, &lv_font_montserrat_14,
-                               LV_PART_MAIN | LV_STATE_DEFAULT);
-
-    *out_precip = lv_label_create(*out_panel);
-    lv_label_set_text(*out_precip, precip);
-    lv_obj_set_style_text_color(*out_precip, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(*out_precip, &lv_font_montserrat_12,
-                               LV_PART_MAIN | LV_STATE_DEFAULT);
-}
 
 void ui_tab_weather_init(void) {
     // ── Body ─────────────────────────────────────────────────────────────────
@@ -570,53 +547,60 @@ void ui_tab_weather_init(void) {
     lv_obj_set_style_pad_row(hourly_card, 8, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(hourly_card, LV_FLEX_FLOW_COLUMN);
 
-    lv_obj_t* lbl_title = lv_label_create(hourly_card);
+    // ── Header: title + metric dropdown ──────────────────────────────────────
+    lv_obj_t* hdr = lv_obj_create(hourly_card);
+    lv_obj_set_width(hdr, lv_pct(100));
+    lv_obj_set_height(hdr, LV_SIZE_CONTENT);
+    lv_obj_remove_flag(hdr, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(hdr, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(hdr, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(hdr, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_flex_flow(hdr, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(hdr, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+
+    lv_obj_t* lbl_title = lv_label_create(hdr);
     lv_label_set_text(lbl_title, "HOURLY FORECAST");
     lv_obj_set_style_text_color(lbl_title, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(lbl_title, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_panel_hours = lv_obj_create(hourly_card);
-    lv_obj_set_flex_grow(ui_panel_hours, 1);
-    lv_obj_set_width(ui_panel_hours, lv_pct(100));
-    lv_obj_remove_flag(ui_panel_hours, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_opa(ui_panel_hours, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(ui_panel_hours, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_all(ui_panel_hours, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_column(ui_panel_hours, 6, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_flex_flow(ui_panel_hours, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(ui_panel_hours, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
+    g_lbl_unit = lv_label_create(hdr);
+    lv_label_set_text(g_lbl_unit, "\xc2\xb0""C");
+    lv_obj_set_style_text_color(g_lbl_unit, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(g_lbl_unit, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    static const char* h_times[]  = {"08", "09", "10", "11", "12", "13", "14", "15", "16"};
-    static const char* h_temps[]  = {"+11\xc2\xb0", "+12\xc2\xb0", "+13\xc2\xb0", "+14\xc2\xb0",
-                                     "+15\xc2\xb0", "+14\xc2\xb0", "+13\xc2\xb0", "+12\xc2\xb0",
-                                     "+11\xc2\xb0"};
-    static const char* h_precips[] = {"0%", "0%", "0%", "0%", "5%", "10%", "15%", "20%", "30%"};
-    static const lv_image_dsc_t* h_icons[] = {
-        &UI_IMG_WX_PARTLY_PNG,  &UI_IMG_WX_PARTLY_PNG, &UI_IMG_WX_SUNNY_PNG,
-        &UI_IMG_WX_SUNNY_PNG,   &UI_IMG_WX_PARTLY_PNG, &UI_IMG_WX_PARTLY_PNG,
-        &UI_IMG_WX_CLOUDY_PNG,  &UI_IMG_WX_CLOUDY_PNG, &UI_IMG_WX_RAIN_PNG,
-    };
-    lv_obj_t** h_panels[]  = {&ui_panel_hour1, &ui_panel_hour2, &ui_panel_hour3,
-                               &ui_panel_hour4, &ui_panel_hour5, &ui_panel_hour6,
-                               &ui_panel_hour7, &ui_panel_hour8, &ui_panel_hour9};
-    lv_obj_t** h_time_lbl[] = {&ui_lbl_hour_time1, &ui_lbl_hour_time2, &ui_lbl_hour_time3,
-                                &ui_lbl_hour_time4, &ui_lbl_hour_time5, &ui_lbl_hour_time6,
-                                &ui_lbl_hour_time7, &ui_lbl_hour_time8, &ui_lbl_hour_time9};
-    lv_obj_t** h_imgs[]     = {&ui_img_hour_icon1, &ui_img_hour_icon2, &ui_img_hour_icon3,
-                                &ui_img_hour_icon4, &ui_img_hour_icon5, &ui_img_hour_icon6,
-                                &ui_img_hour_icon7, &ui_img_hour_icon8, &ui_img_hour_icon9};
-    lv_obj_t** h_temp_lbl[] = {&ui_lbl_hour_temp1, &ui_lbl_hour_temp2, &ui_lbl_hour_temp3,
-                                &ui_lbl_hour_temp4, &ui_lbl_hour_temp5, &ui_lbl_hour_temp6,
-                                &ui_lbl_hour_temp7, &ui_lbl_hour_temp8, &ui_lbl_hour_temp9};
-    lv_obj_t** h_prec_lbl[] = {&ui_lbl_hour_precip1, &ui_lbl_hour_precip2, &ui_lbl_hour_precip3,
-                                &ui_lbl_hour_precip4, &ui_lbl_hour_precip5, &ui_lbl_hour_precip6,
-                                &ui_lbl_hour_precip7, &ui_lbl_hour_precip8, &ui_lbl_hour_precip9};
+    g_dd_metric = lv_dropdown_create(hdr);
+    lv_dropdown_set_options(g_dd_metric, "Temperature\nHumidity\nPrecipitation\nWind\nPressure");
+    lv_obj_set_width(g_dd_metric, 120);
+    lv_obj_set_style_text_font(g_dd_metric, &lv_font_montserrat_12,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(g_dd_metric, UI_COLOR_BG2, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(g_dd_metric, UI_COLOR_LINE_SOFT,
+                                  LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_add_event_cb(g_dd_metric, on_metric_changed, LV_EVENT_VALUE_CHANGED, NULL);
 
-    for (int i = 0; i < 9; i++) {
-        make_hour_cell(ui_panel_hours, h_times[i], h_icons[i], h_temps[i], h_precips[i],
-                       h_panels[i], h_time_lbl[i], h_imgs[i], h_temp_lbl[i], h_prec_lbl[i]);
-    }
+    // ── Chart ─────────────────────────────────────────────────────────────────
+    g_chart = lv_chart_create(hourly_card);
+    lv_obj_set_flex_grow(g_chart, 1);
+    lv_obj_set_width(g_chart, lv_pct(100));
+    lv_chart_set_type(g_chart, LV_CHART_TYPE_LINE);
+    lv_chart_set_point_count(g_chart, WEATHER_HOUR_MAX);
+    lv_chart_set_div_line_count(g_chart, 5, 7);
+    lv_obj_set_style_size(g_chart, 0, 0, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_opa(g_chart, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(g_chart, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(g_chart, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_line_color(g_chart, UI_COLOR_LINE_SOFT, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    g_chart_ser = lv_chart_add_series(g_chart, UI_COLOR_ACCENT, LV_CHART_AXIS_PRIMARY_Y);
+    g_chart_cursor = lv_chart_add_cursor(g_chart, UI_COLOR_ACCENT, LV_DIR_VER);
+    lv_obj_add_event_cb(g_chart, on_chart_pressed, LV_EVENT_PRESSING, NULL);
+
+    g_lbl_chart_info = lv_label_create(hourly_card);
+    lv_label_set_text(g_lbl_chart_info, "---");
+    lv_obj_set_style_text_font(g_lbl_chart_info, &lv_font_montserrat_14,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(g_lbl_chart_info, UI_COLOR_INK1, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     // ── Refresh button — 10 px above bottom edge ──────────────────────────────
     ui_btn_weather_refresh = lv_btn_create(ui_tabweather);

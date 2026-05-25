@@ -105,6 +105,7 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_bg_opa(ui_scr_home, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_TabView = lv_tabview_create(ui_scr_home);
+    lv_obj_remove_flag(lv_tabview_get_content(ui_TabView), LV_OBJ_FLAG_SCROLLABLE);
     lv_tabview_set_tab_bar_size(ui_TabView, 78);
     lv_obj_set_width(ui_TabView, 1024);
     lv_obj_set_height(ui_TabView, 576);
