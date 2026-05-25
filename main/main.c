@@ -32,6 +32,8 @@
 #include "wifi_popup.h"
 #include "ws7b_board.h"
 
+#include <stdio.h>
+
 #ifndef CONFIG_IDF_TARGET_LINUX
 #    include "mdns.h"
 #endif
@@ -292,9 +294,29 @@ void app_main(void) {
         ESP_LOGE("MAIN", "Failed to create SMW background task!");
     }
 
+    char* price_zone = settings_manager_get_price_zone_as_string();
+    const char* city = settings_manager_get_location();
+
+    char elpris_url[256];
+
+    char weather_url[256];
+
+    int result = snprintf(elpris_url, sizeof(elpris_url),
+                          "https://just-dev.freeduck.dev/v1/elpris?price=%s", price_zone);
+    if (result < 0) {
+        ESP_LOGE(g_tag, "Failed to write elpris_url");
+    }
+
+    result = snprintf(weather_url, sizeof(weather_url),
+                      "https://just-dev.freeduck.dev/v1/minutely?city=%s", city);
+
+    if (result < 0) {
+        ESP_LOGE(g_tag, "Failed to write weather_url");
+    }
+
     DataFetcherConfig df_cfg = data_fetcher_default_config();
-    df_cfg.elpris_url        = "https://just-dev.freeduck.dev/v1/elpris?price=SE3";
-    df_cfg.weather_url       = "https://just-dev.freeduck.dev/v1/minutely?lat=59.3293&lon=18.0686";
+    df_cfg.elpris_url        = elpris_url;
+    df_cfg.weather_url       = weather_url;
     df_cfg.on_cached         = on_data_cached;
     df_cfg.on_cached_ctx     = NULL;
     data_fetcher_init(&df_cfg, &g_smw_worker);

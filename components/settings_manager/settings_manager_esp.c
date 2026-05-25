@@ -131,6 +131,23 @@ void settings_manager_init(void) {
 
 const char* settings_manager_get_location(void) { return g_s_location; }
 int settings_manager_get_price_zone(void) { return g_s_price_zone; }
+
+char* settings_manager_get_price_zone_as_string() {
+    int price_zone = settings_manager_get_price_zone();
+    if (price_zone == 0) {
+        return "SE1";
+    }
+    if (price_zone == 1) {
+        return "SE2";
+    }
+    if (price_zone == 2) {
+        return "SE3";
+    }
+    if (price_zone == 3) {
+        return "SE4";
+    }
+    return NULL;
+}
 int settings_manager_get_timeout(void) { return g_s_timeout; }
 
 // Returns the total quantity of saved profiles inside the runtime array
