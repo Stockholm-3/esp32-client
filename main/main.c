@@ -293,8 +293,7 @@ void app_main(void) {
     WifiManagerConfig wifi_cfg = {0};
     if (lwc_enabled) {
         wifi_cfg.sta_static_ip_enabled = true;
-        strncpy(wifi_cfg.sta_ip, settings_manager_get_sta_static_ip(),
-                sizeof(wifi_cfg.sta_ip) - 1);
+        strncpy(wifi_cfg.sta_ip, settings_manager_get_sta_static_ip(), sizeof(wifi_cfg.sta_ip) - 1);
         strncpy(wifi_cfg.sta_gateway, settings_manager_get_sta_gateway(),
                 sizeof(wifi_cfg.sta_gateway) - 1);
         strncpy(wifi_cfg.sta_netmask, settings_manager_get_sta_netmask(),
