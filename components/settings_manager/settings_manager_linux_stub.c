@@ -1,5 +1,7 @@
 #include "settings_manager.h"
 
+#include <stddef.h>
+
 void settings_manager_init(void) {}
 const char* settings_manager_get_location(void) { return ""; }
 int settings_manager_get_price_zone(void) { return 0; }
