@@ -10,9 +10,14 @@
 #include "cache_fs.h"
 
 #include "cache.h"
+#include "esp_log.h"
 #include "fs.h"
 
+#include <dirent.h>
+#include <errno.h>
+#include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 
 /* -------------------------------------------------------------------------
  * Adapter functions
@@ -49,9 +54,6 @@ static long adapter_get_size(const char* path) {
  * the POSIX dirent API that is available through ESP-IDF's VFS layer.
  * This keeps fs.h unchanged and the adapter self-contained.
  */
-#include <dirent.h>
-#include <stdio.h>
-
 static int adapter_list_dir(const char* dir_path, void (*cb)(const char* filename, void* user_ctx),
                             void* user_ctx) {
     DIR* dir = opendir(dir_path);
@@ -89,7 +91,30 @@ const CacheIo CACHE_IO_ESP32 = {
  * Config builder
  * ---------------------------------------------------------------------- */
 
+/**
+ * @brief Builds a @ref CacheConfig backed by LittleFS and ensures the cache
+ *        root directory exists.
+ *
+ * @c mkdir is called unconditionally; EEXIST is silently ignored so the call
+ * is idempotent across reboots.  Any other error (e.g. the mount point does
+ * not exist yet) is a hard fault — the caller must mount the filesystem
+ * before calling this function.
+ *
+ * @param root_path       Absolute VFS path for the cache directory
+ *                        (e.g. "/storage/cache").
+ * @param default_ttl_sec Default TTL in seconds applied to entries that do
+ *                        not specify one explicitly.
+ * @return Populated @ref CacheConfig ready to pass to @ref cache_init.
+ */
 CacheConfig cache_fs_config(const char* root_path, uint32_t default_ttl_sec) {
+    /* Create the directory if it does not already exist.
+     * EEXIST is not an error — every boot after the first will hit it. */
+    if (mkdir(root_path, 0775) != 0 && errno != EEXIST) {
+        ESP_LOGE("cache_fs", "mkdir('%s') failed: %s", root_path, strerror(errno));
+        /* Non-fatal: cache_put will fail loudly if the directory is truly
+         * absent; we do not abort the whole boot sequence here. */
+    }
+
     CacheConfig cfg;
     memset(&cfg, 0, sizeof(cfg));
     cfg.root_path       = root_path;

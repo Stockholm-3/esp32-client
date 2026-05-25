@@ -18,6 +18,7 @@ idf_component_register(
         cache_fs
         smw_http
         http_client
+        data_fetcher
 )
 
 target_include_directories(__idf_main PRIVATE ${CMAKE_SOURCE_DIR})

@@ -10,6 +10,7 @@
 #include "cache.h"
 #include "cache_fs.h"
 #include "clock.h"
+#include "data_fetcher.h"
 #include "display.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -31,6 +32,8 @@
 #include "wifi_manager.h"
 #include "wifi_popup.h"
 #include "ws7b_board.h"
+
+#include <stdio.h>
 
 #ifndef CONFIG_IDF_TARGET_LINUX
 #    include "mdns.h"
@@ -61,6 +64,19 @@ static SmwTask g_smw_tasks[SMW_MAX_TASKS];
  * @return Elapsed milliseconds since system start (uint32_t).
  */
 uint32_t get_system_ms(void) { return (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS); }
+
+static void smw_worker_task(void* ctx) {
+    ESP_LOGI("SMW_TASK", "State machine worker task started.");
+
+    while (1) {
+        // Run the state machine process step
+        smw_process(&g_smw_worker, get_system_ms());
+
+        // Poll at a steady, responsive 50ms interval
+        // This gives your network driver plenty of CPU breathing room
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
 
 /**
  * @brief Probes the I2C bus for BME280 sensor presence.
@@ -105,22 +121,10 @@ static void on_wifi_connect(const char* ssid, const char* password) {
     g_current_ssid[32] = '\0';
     if (wifi_manager_change_network(ssid, password) != 0) {
         // Manager not yet initialized (first boot, no saved credentials) — start it now.
-        wifi_manager_start(ssid, password, NULL);
+        wifi_manager_connect(ssid, password);
     }
     settings_manager_save_wifi(ssid, password);
 }
-
-static void on_test_http_done(HttpClientResponse* resp, int err, void* user_ctx) {
-    if (err != 0) {
-        ESP_LOGE(g_tag, "HTTP request failed");
-    } else {
-        ESP_LOGI(g_tag, "HTTP %d — %.*s", resp->status, (int)resp->length, (char*)resp->buffer);
-    }
-    free(resp->buffer);
-    free(resp);
-}
-
-static bool g_http_test_fired = false;
 
 /**
  * @brief Callback invoked on Wi-Fi manager state changes.
@@ -132,15 +136,15 @@ static bool g_http_test_fired = false;
  */
 static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) {
     ui_binder_update_wifi_status(state);
+    data_fetcher_notify_wifi_state(state);
     if (state == WIFI_MANAGER_STATE_CONNECTED) {
         wifi_popup_set_connected_ssid(g_current_ssid);
         wifi_popup_notify_result(WIFI_POPUP_RESULT_CONNECTED);
         ui_binder_update_wifi_name(g_current_ssid);
 
-        // Safely initialize time manager (guards against re-initialization)
-        // On first connection, this initializes SNTP.
-        // On reconnection, this is a no-op to avoid SNTP assertion failure.
         time_manager_init(NULL);
+    }
+    if (state == WIFI_MANAGER_STATE_CONNECTED_WITH_DNS) {
 
         loc_server_start();
 
@@ -155,16 +159,6 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
         }
 #endif
         ui_binder_update_local_ip(ip_str);
-        vTaskDelay(3000 / portTICK_PERIOD_MS);
-        if (!g_http_test_fired) {
-            g_http_test_fired = true;
-
-            HttpClientRequest req = {0};
-            req.url    = "https://just-dev.freeduck.dev/v1/get_plan?city=stockholm&price=SE3";
-            req.method = HTTP_CLIENT_METHOD_GET;
-
-            smw_register_http_request(&g_smw_worker, &req, on_test_http_done, NULL, NULL);
-        }
     } else if (state == WIFI_MANAGER_STATE_FAILED) {
         wifi_popup_set_connected_ssid("");
         WifiPopupConnectResult r =
@@ -183,6 +177,22 @@ static void on_ap_toggled(bool enabled) {
     if (enabled) {
         loc_server_start();
     }
+}
+
+static void on_data_cached(DataFetcherKind kind, const char* cache_key, void* user_ctx) {
+    (void)user_ctx;
+    void* data = NULL;
+    size_t len = 0;
+    if (cache_get_alloc(cache_key, &data, &len) != CACHE_OK) {
+        return;
+    }
+
+    const char* kind_str = (kind == DATA_FETCHER_KIND_ELPRIS) ? "elpris" : "weather";
+    ESP_LOGI(g_tag, "[%s] Fresh data ready — %zu bytes in cache", kind_str, len);
+
+    ESP_LOGI(g_tag, "[%s] Preview: %.200s%s", kind_str, (const char*)data, len > 200U ? "…" : "");
+
+    cache_free(data);
 }
 
 /**
@@ -278,33 +288,61 @@ void app_main(void) {
     HttpClientConfig http_cfg = {0};
     http_client_init(&http_cfg);
 
-    const char* ssid           = settings_manager_get_ssid();
-    const char* pass           = settings_manager_get_password();
     bool lwc_enabled           = settings_manager_get_local_web_client_enabled();
     WifiManagerConfig wifi_cfg = {0};
-    WifiManagerConfig* pcfg    = NULL;
-    if (ssid[0] != '\0' && (int)lwc_enabled) {
+    if (lwc_enabled) {
         wifi_cfg.sta_static_ip_enabled = true;
-        strncpy(wifi_cfg.sta_ip, settings_manager_get_sta_static_ip(), sizeof(wifi_cfg.sta_ip) - 1);
+        strncpy(wifi_cfg.sta_ip, settings_manager_get_sta_static_ip(),
+                sizeof(wifi_cfg.sta_ip) - 1);
         strncpy(wifi_cfg.sta_gateway, settings_manager_get_sta_gateway(),
                 sizeof(wifi_cfg.sta_gateway) - 1);
         strncpy(wifi_cfg.sta_netmask, settings_manager_get_sta_netmask(),
                 sizeof(wifi_cfg.sta_netmask) - 1);
-        pcfg = &wifi_cfg;
     }
-    strncpy(g_current_ssid, ssid, 32);
-    g_current_ssid[32] = '\0';
-    wifi_manager_start(ssid, pass, pcfg);
+    wifi_manager_start((int)lwc_enabled ? &wifi_cfg : NULL);
+    wifi_manager_connect_to_saved_wifi();
 
     smw_init(&g_smw_worker, g_smw_tasks, SMW_MAX_TASKS);
+
+    BaseType_t task_ret = xTaskCreate(smw_worker_task, "smw_worker_task", 4096, NULL, 5, NULL);
+
+    if (task_ret != pdPASS) {
+        ESP_LOGE("MAIN", "Failed to create SMW background task!");
+    }
+
+    char* price_zone = settings_manager_get_price_zone_as_string();
+    const char* city = settings_manager_get_location();
+
+    char elpris_url[256];
+
+    char weather_url[256];
+
+    int result = snprintf(elpris_url, sizeof(elpris_url),
+                          "https://just-dev.freeduck.dev/v1/elpris?price=%s", price_zone);
+    if (result < 0) {
+        ESP_LOGE(g_tag, "Failed to write elpris_url");
+    }
+
+    result = snprintf(weather_url, sizeof(weather_url),
+                      "https://just-dev.freeduck.dev/v1/minutely?city=%s", city);
+
+    if (result < 0) {
+        ESP_LOGE(g_tag, "Failed to write weather_url");
+    }
+
+    DataFetcherConfig df_cfg = data_fetcher_default_config();
+    df_cfg.elpris_url        = elpris_url;
+    df_cfg.weather_url       = weather_url;
+    df_cfg.on_cached         = on_data_cached;
+    df_cfg.on_cached_ctx     = NULL;
+    data_fetcher_init(&df_cfg, &g_smw_worker);
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
 
-        smw_process(&g_smw_worker, get_system_ms());
-
         struct tm timeinfo;
-        if (time_manager_get_time(&timeinfo)) {
+        bool time_is_valid = time_manager_get_time(&timeinfo);
+        if (time_is_valid) {
             ui_binder_update_localtime(&timeinfo);
             ui_tab_elpris_update_now();
         }

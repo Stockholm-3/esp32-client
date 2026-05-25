@@ -54,6 +54,11 @@ flash-monitor:
 
 fm: flash-monitor
 
+##Overides and updates the certs for the http_client.
+.PHONY: update-certs
+update-certs:
+	curl -s https://pki.goog/repo/certs/gtsr1.pem https://pki.goog/repo/certs/gtsr2.pem https://pki.goog/repo/certs/gtsr3.pem https://pki.goog/repo/certs/gtsr4.pem https://letsencrypt.org/certs/isrgrootx1.pem https://letsencrypt.org/certs/isrg-root-x2.pem https://www.amazontrust.com/repository/AmazonRootCA1.pem https://cacerts.digicert.com/DigiCertGlobalRootCA.crt.pem > components/http_client/certs/roots.pem
+
 # ----------------------------------------
 # Clean
 # ----------------------------------------
