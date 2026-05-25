@@ -120,8 +120,9 @@ static void on_wifi_connect(const char* ssid, const char* password) {
     strncpy(g_current_ssid, ssid, 32);
     g_current_ssid[32] = '\0';
     if (wifi_manager_change_network(ssid, password) != 0) {
-        // Manager not yet initialized (first boot, no saved credentials) — start it now.
-        wifi_manager_connect(ssid, password);
+        // Manager not yet initialized (first boot, no saved credentials) — start it, then connect.
+        wifi_manager_start(NULL);
+        wifi_manager_change_network(ssid, password);
     }
     settings_manager_save_wifi(ssid, password);
 }
