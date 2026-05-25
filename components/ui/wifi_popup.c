@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// TabView y=24, tab bar height=78 → tab content starts at screen y=102
+// TabView y=24, tab bar height=78 - tab content starts at screen y=102
 #define TAB_Y 102
 // Vertical offset from tab content top
 #define POPUP_Y_OFS 50
@@ -27,6 +27,8 @@ static char g_selected_ssid[33]         = "";
 static WifiPopupConnectCbT g_connect_cb = NULL;
 static lv_obj_t* g_lbl_pw_status        = NULL;
 static lv_obj_t* g_btn_connect          = NULL;
+static lv_obj_t* g_btn_show_pw          = NULL;
+static bool g_pw_visible                = false;
 static lv_obj_t* g_lbl_scan_status      = NULL;
 static lv_obj_t* g_btn_scan             = NULL;
 static char g_connected_ssid[33]        = "";
@@ -163,6 +165,11 @@ static void open_password_popup_cb(lv_event_t* e) {
 
     lv_label_set_text(g_lbl_pw_net_name, ssid);
     lv_textarea_set_text(g_ta_password, "");
+    if (g_pw_visible) {
+        g_pw_visible = false;
+        lv_textarea_set_password_mode(g_ta_password, true);
+        lv_label_set_text(lv_obj_get_child(g_btn_show_pw, 0), "Show");
+    }
     lv_obj_add_flag(g_lbl_pw_status, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_state(g_btn_connect, LV_STATE_DISABLED);
     lv_obj_add_flag(g_panel_wifi_popup, LV_OBJ_FLAG_HIDDEN);
@@ -398,6 +405,14 @@ static void build_wifi_popup(void) {
 
 // ── Password popup ────────────────────────────────────────────────────────────
 
+static void on_show_pw_cb(lv_event_t* e) {
+    (void)e;
+    g_pw_visible = ((!g_pw_visible) != 0);
+    lv_textarea_set_password_mode(g_ta_password, (!g_pw_visible) != 0);
+    lv_obj_t* lbl = lv_obj_get_child(g_btn_show_pw, 0);
+    lv_label_set_text(lbl, (int)g_pw_visible ? "Hide" : "Show");
+}
+
 static void build_password_popup(void) {
     // Keyboard is a SIBLING of the popup on lv_scr_act(), NOT a child.
     // lv_keyboard_create internally calls lv_obj_align(BOTTOM_MID) which stores an alignment
@@ -467,7 +482,7 @@ static void build_password_popup(void) {
 
     g_ta_password = lv_textarea_create(field);
     lv_obj_set_pos(g_ta_password, 16, 40);
-    lv_obj_set_size(g_ta_password, 430, 40);
+    lv_obj_set_size(g_ta_password, 376, 40);
     lv_textarea_set_placeholder_text(g_ta_password, "Enter password...");
     lv_textarea_set_password_mode(g_ta_password, true);
     lv_textarea_set_one_line(g_ta_password, true);
@@ -475,6 +490,18 @@ static void build_password_popup(void) {
     lv_obj_set_style_bg_opa(g_ta_password, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(g_ta_password, lv_color_hex(0x4A6FA5), 0);
     lv_obj_set_style_border_width(g_ta_password, 1, 0);
+
+    // Show/hide password toggle button
+    g_btn_show_pw = lv_button_create(field);
+    lv_obj_set_pos(g_btn_show_pw, 396, 36);
+    lv_obj_set_size(g_btn_show_pw, 48, 44);
+    lv_obj_set_style_bg_color(g_btn_show_pw, lv_color_hex(0x3A3A52), 0);
+    lv_obj_t* lbl_show = lv_label_create(g_btn_show_pw);
+    lv_label_set_text(lbl_show, "Show");
+    lv_obj_set_style_text_color(lbl_show, lv_color_hex(0xC0C0D8), 0);
+    lv_obj_set_style_text_font(lbl_show, &lv_font_montserrat_14, 0);
+    lv_obj_center(lbl_show);
+    lv_obj_add_event_cb(g_btn_show_pw, on_show_pw_cb, LV_EVENT_CLICKED, NULL);
 
     // Connect button
     g_btn_connect = lv_button_create(field);
