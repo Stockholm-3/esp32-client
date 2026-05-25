@@ -13,7 +13,7 @@ extern "C" {
 #define WS7B_I2C_NUM I2C_NUM_0
 #define WS7B_I2C_SDA 8
 #define WS7B_I2C_SCL 9
-#define WS7B_I2C_FREQ_HZ 400000
+#define WS7B_I2C_FREQ_HZ 100000  /* 100 kHz: reliable with shared bus + GT911 */
 
 /* ── IO expander (CH32V003) ───────────────────────────────────────────────── */
 #define WS7B_IOEXP_ADDR 0x24

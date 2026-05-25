@@ -94,7 +94,7 @@ static esp_err_t init_ioexp(void) {
     ioexp_set_pin(WS7B_IOEXP_TP_RST, 0);
     vTaskDelay(pdMS_TO_TICKS(10));
     ioexp_set_pin(WS7B_IOEXP_TP_RST, 1);
-    vTaskDelay(pdMS_TO_TICKS(50));
+    vTaskDelay(pdMS_TO_TICKS(100)); /* GT911 needs ≥55 ms; use 100 ms for margin */
 
     /* Reconfigure INT as input with pull-up for normal IRQ operation */
     io_cfg.mode       = GPIO_MODE_INPUT;
