@@ -18,6 +18,7 @@
 #include "esp_lcd_panel_rgb.h"
 #include "esp_lcd_touch_gt911.h"
 #include "esp_log.h"
+#include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "ws7b_config.h"
@@ -51,6 +52,62 @@ static void ioexp_set_pin(uint8_t pin, uint8_t level) {
         g_s_ioexp_out &= (uint8_t)(~(1U << pin));
     }
     ioexp_write(WS7B_IOEXP_REG_OUT, g_s_ioexp_out);
+}
+
+/*
+ * Bit-bang I2C bus recovery: clocks SCL nine times so any slave stuck
+ * mid-byte releases SDA, then issues a STOP condition.
+ * Must be called BEFORE i2c_new_master_bus() takes ownership of the pins.
+ */
+static void i2c_bus_recover(void) {
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << WS7B_I2C_SCL) | (1ULL << WS7B_I2C_SDA),
+        .mode         = GPIO_MODE_OUTPUT_OD, /* open-drain so pull-ups still work */
+        .pull_up_en   = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type    = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&io_conf);
+
+    gpio_set_level(WS7B_I2C_SDA, 1);
+    for (int i = 0; i < 9; i++) {
+        gpio_set_level(WS7B_I2C_SCL, 0);
+        esp_rom_delay_us(10);
+        gpio_set_level(WS7B_I2C_SCL, 1);
+        esp_rom_delay_us(10);
+        if (gpio_get_level(WS7B_I2C_SDA)) {
+            break; /* SDA released early — bus is free */
+        }
+    }
+
+    /* STOP condition: SDA low → SCL high → SDA high */
+    gpio_set_level(WS7B_I2C_SDA, 0);
+    esp_rom_delay_us(10);
+    gpio_set_level(WS7B_I2C_SCL, 1);
+    esp_rom_delay_us(10);
+    gpio_set_level(WS7B_I2C_SDA, 1);
+    esp_rom_delay_us(10);
+
+    ESP_LOGI(g_tag, "I2C bus recovery done (SDA=%d after recovery)", gpio_get_level(WS7B_I2C_SDA));
+}
+
+/*
+ * Scan the I2C bus and log every address that ACKs.
+ * Run this after the GT911 hardware reset so the result reflects the
+ * live state of the bus.  Helps diagnose missing/wrong-address devices.
+ */
+static void i2c_bus_scan(void) {
+    ESP_LOGI(g_tag, "I2C bus scan —");
+    bool found = false;
+    for (uint8_t addr = 0x08; addr < 0x78; addr++) {
+        if (i2c_master_probe(g_s_i2c_bus, addr, 50) == ESP_OK) {
+            ESP_LOGI(g_tag, "  0x%02X  ACK", addr);
+            found = true;
+        }
+    }
+    if (!found) {
+        ESP_LOGW(g_tag, "  no devices found — check wiring and pull-ups");
+    }
 }
 
 /*
@@ -219,6 +276,9 @@ static esp_err_t init_rgb_panel(void) {
 
 /* NOLINTNEXTLINE(readability-function-cognitive-complexity) */
 esp_err_t ws7b_board_init(void) {
+    /* Unstick any slave holding SDA low before the I2C driver claims the pins */
+    i2c_bus_recover();
+
     i2c_master_bus_config_t bus_cfg = {
         .i2c_port                     = WS7B_I2C_NUM,
         .sda_io_num                   = WS7B_I2C_SDA,
@@ -233,6 +293,8 @@ esp_err_t ws7b_board_init(void) {
     vTaskDelay(pdMS_TO_TICKS(50));
 
     ESP_RETURN_ON_ERROR(init_ioexp(), g_tag, "IO expander init failed");
+
+    i2c_bus_scan(); /* Log which addresses ACK after GT911 is out of reset */
 
     ESP_RETURN_ON_ERROR(init_touch(), g_tag, "Touch init failed");
 
