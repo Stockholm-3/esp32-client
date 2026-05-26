@@ -57,11 +57,34 @@ static void load_mock_elpris(void) {
     free(buf);
 }
 
+static void load_mock_weather(void) {
+    FILE* f = fopen("spiffs_image/weather.json", "rb");
+    if (!f) {
+        LV_LOG_WARN("ui_binder: weather.json not found");
+        return;
+    }
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    rewind(f);
+    char* buf = malloc((size_t)size + 1);
+    if (!buf) {
+        fclose(f);
+        return;
+    }
+    size_t bytes_read = fread(buf, 1, (size_t)size, f);
+    (void)bytes_read;
+    buf[size] = '\0';
+    fclose(f);
+    ui_tab_weather_handle_server_response(buf, (size_t)size);
+    free(buf);
+}
+
 void ui_binder_init(void) {
     lv_obj_add_event_cb(ui_ta_locationinput, on_location_defocused, LV_EVENT_DEFOCUSED, NULL);
     lv_obj_add_event_cb(ui_dd_price, on_price_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_dd_timeout, on_timeout_changed, LV_EVENT_VALUE_CHANGED, NULL);
     load_mock_elpris();
+    load_mock_weather();
 }
 
 void ui_binder_update_localtime(const struct tm* t) {

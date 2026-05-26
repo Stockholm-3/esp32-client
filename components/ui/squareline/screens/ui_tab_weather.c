@@ -1,7 +1,6 @@
 #include "../ui.h"
 #include "../ui_theme.h"
 #include "../images/weather/ui_images_weather.h"
-#include "display.h"
 #include "ui_binder.h"
 #include "cJSON.h"
 
@@ -320,11 +319,6 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len) {
                                  ui_img_day_icon4, ui_img_day_icon5, ui_img_day_icon6,
                                  ui_img_day_icon7};
 
-    if (!display_lvgl_lock(100)) {
-        cJSON_Delete(root);
-        return;
-    }
-
     // 7-day carousel
     for (int i = 0; i < 7; i++) {
         if (!days[i].valid) break;
@@ -364,7 +358,6 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len) {
         lv_label_set_text(ui_lbl_detail_lo, lo_buf);
     }
 
-    display_lvgl_unlock();
     cJSON_Delete(root);
 }
 
