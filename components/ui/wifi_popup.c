@@ -1,5 +1,6 @@
 #include "wifi_popup.h"
 
+#include "kb_swedish.h"
 #include "squareline/screens/ui_scr_home.h"
 
 #include <stdio.h>
@@ -528,6 +529,7 @@ static void build_password_popup(void) {
     lv_obj_set_size(g_pw_keyboard, 640, KB_H);
     lv_keyboard_set_mode(g_pw_keyboard, LV_KEYBOARD_MODE_TEXT_LOWER);
     lv_keyboard_set_textarea(g_pw_keyboard, g_ta_password);
+    kb_apply_swedish(g_pw_keyboard);
     lv_obj_add_flag(g_pw_keyboard, LV_OBJ_FLAG_HIDDEN);
 }
 
