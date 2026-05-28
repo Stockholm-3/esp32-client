@@ -192,7 +192,7 @@ lint-ci: lint-scrub
 	@SOURCE_FILES="$$($(call find_sources))"; \
 	if [ -z "$$SOURCE_FILES" ]; then echo "[SKIP] No source files found"; exit 0; fi; \
 	TMPFILE=$$(mktemp /tmp/lint.XXXXXX); \
-	set -e; set -o pipefail; \
+	set -o pipefail; \
 	echo "$$SOURCE_FILES" | tr '\n' '\0' | xargs -0 \
 		run-clang-tidy \
 			-clang-tidy-binary "$(CLANG_TIDY_EXE)" \

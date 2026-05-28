@@ -155,7 +155,7 @@ void wifi_manager_connect_to_saved_wifi(void) {
     esp_wifi_scan_get_ap_records(&ap_count, ap_info);
 
     int best_saved_index = -1;
-    int highest_rssi     = -100;
+    int8_t highest_rssi  = -100;
 
     for (int i = 0; i < ap_count; i++) {
         for (int j = 0; j < saved_count; j++) {
