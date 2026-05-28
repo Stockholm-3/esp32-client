@@ -1,6 +1,5 @@
 #include "../ui.h"
 #include "kb_swedish.h"
-#include "fonts_swedish.h"
 #include "../ui_theme.h"
 #include "../ui_events.h"
 #include "ui_scr_home.h"
@@ -181,7 +180,7 @@ void ui_tab_settings_init(void) {
     lv_obj_set_style_radius(ui_ta_locationinput, 8, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(ui_ta_locationinput, UI_COLOR_INK1,
                                 LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_ta_locationinput, &montserrat_14,
+    lv_obj_set_style_text_font(ui_ta_locationinput, &lv_font_montserrat_14,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_add_event_cb(ui_ta_locationinput, ui_event_ta_locationinput,
                         LV_EVENT_ALL, NULL);

@@ -151,8 +151,6 @@ static lv_font_fmt_txt_dsc_t font_dsc = {
  *  PUBLIC FONT
  *----------------*/
 
-extern const lv_font_t lv_font_montserrat_12;
-
 /*Initialize a public general font descriptor*/
 #    if LVGL_VERSION_MAJOR >= 8
 const lv_font_t montserrat_12 = {
@@ -170,10 +168,7 @@ lv_font_t montserrat_12 = {
     .underline_position  = -1,
     .underline_thickness = 1,
 #    endif
-    .dsc = &FONT_DSC, /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
-#    if LV_VERSION_CHECK(8, 2, 0) || LVGL_VERSION_MAJOR >= 9
-    .fallback = &lv_font_montserrat_12,
-#    endif
+    .dsc       = &FONT_DSC, /*The custom font data. Will be accessed by `get_glyph_bitmap/dsc` */
     .user_data = NULL,
 };
 

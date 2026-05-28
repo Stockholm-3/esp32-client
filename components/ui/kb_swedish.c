@@ -1,7 +1,5 @@
 #include "kb_swedish.h"
 
-#include "fonts_swedish.h"
-
 /* Shorthand: regular key with popover, given proportional width */
 #define KBN(w) (LV_BUTTONMATRIX_CTRL_POPOVER | (w))
 
@@ -153,5 +151,10 @@ static const char* const KB_MAP_UC_SE[] = {"1#",
 void kb_apply_swedish(lv_obj_t* kb) {
     lv_keyboard_set_map(kb, LV_KEYBOARD_MODE_TEXT_LOWER, KB_MAP_LC_SE, kb_ctrl_lc_se);
     lv_keyboard_set_map(kb, LV_KEYBOARD_MODE_TEXT_UPPER, KB_MAP_UC_SE, kb_ctrl_uc_se);
-    lv_obj_set_style_text_font(kb, &montserrat_14, LV_PART_ITEMS | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(kb, &lv_font_montserrat_14, LV_PART_ITEMS | LV_STATE_DEFAULT);
+
+    lv_obj_t* ta = lv_keyboard_get_textarea(kb);
+    if (ta) {
+        lv_obj_set_style_text_font(ta, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+    }
 }

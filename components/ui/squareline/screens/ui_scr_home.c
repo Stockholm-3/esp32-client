@@ -407,7 +407,7 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_pad_row(ui_panel_right, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_t* outdoor_title = lv_label_create(ui_panel_right);
-    lv_label_set_text(outdoor_title, "OUTDOOR | STOCKHOLM");
+    lv_label_set_text(outdoor_title, "OUTDOOR | ÖÅÄmalmöäå");
     lv_obj_set_style_text_color(outdoor_title, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(outdoor_title, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_bottom(outdoor_title, 10, LV_PART_MAIN | LV_STATE_DEFAULT);
