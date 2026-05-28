@@ -471,7 +471,7 @@ static void job_abort_in_flight(FetchJob* job) {
  * @param now_ms  Current system timestamp from the SMW scheduler.
  * @return        SMW task status; @c SMW_TASK_RUNNING always (jobs run forever).
  */
-static SmwTaskStatus job_poll(FetchJob* job, uint32_t now_ms) {
+static SmwTaskStatus job_poll(FetchJob* job, uint32_t now_ms) { // NOLINT(readability-function-size)
     /* ---- Global DNS gate --------------------------------------------- */
     bool dns = (bool)g_dns_ready;
 
