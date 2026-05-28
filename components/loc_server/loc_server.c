@@ -141,6 +141,7 @@ static void send_text(const char* text) {
     httpd_ws_send_frame_async(g_server, g_ws_fd, &frame);
 }
 
+// NOLINTBEGIN(readability-function-size,readability-function-cognitive-complexity)
 static void handle_ws_message(const char* json_str) {
     cJSON* root = cJSON_Parse(json_str);
     if (!root) {
@@ -249,6 +250,7 @@ static void handle_ws_message(const char* json_str) {
         }
     }
 }
+// NOLINTEND(readability-function-size,readability-function-cognitive-complexity)
 
 static void ws_push_timer_cb(TimerHandle_t timer) {
     xTimerDelete(timer, 0);
@@ -291,10 +293,16 @@ void loc_server_notify_wifi_state(WifiManagerState state) {
         return;
     }
 
-    const char* state_str = state == WIFI_MANAGER_STATE_CONNECTED    ? "connected"
-                            : state == WIFI_MANAGER_STATE_CONNECTING ? "connecting"
-                            : state == WIFI_MANAGER_STATE_FAILED     ? "failed"
-                                                                     : "disconnected";
+    const char* state_str;
+    if (state == WIFI_MANAGER_STATE_CONNECTED) {
+        state_str = "connected";
+    } else if (state == WIFI_MANAGER_STATE_CONNECTING) {
+        state_str = "connecting";
+    } else if (state == WIFI_MANAGER_STATE_FAILED) {
+        state_str = "failed";
+    } else {
+        state_str = "disconnected";
+    }
     char buf[64];
     snprintf(buf, sizeof(buf), "{\"type\":\"wifi_status\",\"state\":\"%s\"}", state_str);
 

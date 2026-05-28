@@ -229,7 +229,8 @@ static lv_obj_t* make_net_panel(lv_obj_t* parent, const char* name, const char* 
     lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(p, 0, 0);
     lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_user_data(p, (void*)((uintptr_t)(uint8_t)rssi << 8 | authmode));
+    lv_obj_set_user_data(
+        p, (void*)((uintptr_t)(uint8_t)rssi << 8 | authmode)); // NOLINT(performance-no-int-to-ptr)
 
     make_label(p, 36, 10, 240, 18, name, lv_color_hex(0xE0E0F0), &lv_font_montserrat_16);
     make_label(p, 36, 30, 240, 14, sub, lv_color_hex(0x8888AA), &lv_font_montserrat_14);
@@ -413,7 +414,7 @@ static void on_show_pw_cb(lv_event_t* e) {
     lv_label_set_text(lbl, (int)g_pw_visible ? "Hide" : "Show");
 }
 
-static void build_password_popup(void) {
+static void build_password_popup(void) { // NOLINT(readability-function-size)
     // Keyboard is a SIBLING of the popup on lv_scr_act(), NOT a child.
     // lv_keyboard_create internally calls lv_obj_align(BOTTOM_MID) which stores an alignment
     // that gets re-applied on every layout pass. Placing it as a sibling and overriding the
@@ -548,9 +549,14 @@ static void notify_result_async(void* user_data) {
         return;
     }
 
-    const char* msg = (result == WIFI_POPUP_RESULT_WRONG_PASSWORD) ? "Wrong password"
-                      : (result == WIFI_POPUP_RESULT_NO_AP)        ? "Network not found"
-                                                                   : "Connection failed";
+    const char* msg;
+    if (result == WIFI_POPUP_RESULT_WRONG_PASSWORD) {
+        msg = "Wrong password";
+    } else if (result == WIFI_POPUP_RESULT_NO_AP) {
+        msg = "Network not found";
+    } else {
+        msg = "Connection failed";
+    }
     if (pw_visible) {
         lv_label_set_text(g_lbl_pw_status, msg);
         lv_obj_set_style_text_color(g_lbl_pw_status, lv_color_hex(0xFF5555), 0);
@@ -565,7 +571,8 @@ static void notify_result_async(void* user_data) {
 }
 
 void wifi_popup_notify_result(WifiPopupConnectResult result) {
-    lv_async_call(notify_result_async, (void*)(uintptr_t)result);
+    lv_async_call(notify_result_async,
+                  (void*)(uintptr_t)result); // NOLINT(performance-no-int-to-ptr)
 }
 
 // ── Public init ───────────────────────────────────────────────────────────────
