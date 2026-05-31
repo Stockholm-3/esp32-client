@@ -256,3 +256,55 @@ docs-open:
 	@echo "Opening documentation..."
 	@xdg-open docs/html/index.html
 	@echo "Documentation opened in default browser."
+
+# --------------------------------------------------------------------------
+# SERIAL INTERFACE
+#
+#  USB port  (Espressif JTAG) — normal daily use:
+#    make flash    / idf.py flash
+#    make monitor  / idf.py monitor
+#    make fm       / idf.py flash monitor
+#
+#  UART port (WCH/CP210x bridge) — CLI when needed:
+#    make cli
+#
+#  Exit picocom: Ctrl-A then Ctrl-X
+# --------------------------------------------------------------------------
+
+BAUD_RATE ?= 115200
+
+LOG_PORT = $(shell ls /dev/serial/by-id/usb-Espressif_* 2>/dev/null \
+             | head -n 1)
+CLI_PORT = $(shell ls /dev/serial/by-id/usb-WCH.CN_* \
+                      /dev/serial/by-id/usb-Silicon_Labs_* \
+                      /dev/serial/by-id/usb-1a86_* \
+                      /dev/serial/by-id/usb-FTDI_* \
+                   2>/dev/null | head -n 1)
+
+# NixOS fallback
+ifeq ($(LOG_PORT),)
+  LOG_PORT = $(shell ls /dev/ttyACM0 /dev/ttyACM1 2>/dev/null | head -n 1)
+endif
+ifeq ($(CLI_PORT),)
+  CLI_PORT = $(shell ls /dev/ttyUSB0 /dev/ttyUSB1 2>/dev/null | head -n 1)
+endif
+
+.PHONY: cli check-cli-port
+
+check-cli-port:
+	@if [ -z "$(CLI_PORT)" ]; then \
+		echo ""; \
+		echo "  ERROR: UART port not found."; \
+		echo "         Plug in the USB-C cable labeled 'UART' for CLI access."; \
+		echo "         For logs/flashing, use the 'USB' port as normal."; \
+		echo ""; \
+		exit 1; \
+	fi
+
+## Interactive CLI on UART port (clean, no log noise)
+cli: check-cli-port
+	@echo ""
+	@echo "  CLI port : $(CLI_PORT)"
+	@echo "  Exit     : Ctrl-A then Ctrl-X"
+	@echo ""
+	@picocom -b $(BAUD_RATE) --nolock --omap crlf --imap lfcrlf $(CLI_PORT)
