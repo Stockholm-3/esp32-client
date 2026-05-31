@@ -1,3 +1,4 @@
+#include "bme280_sensor.h"
 #include "lvgl.h"
 #include "squareline/screens/ui_scr_home.h"
 #include "ui_binder.h"
@@ -79,10 +80,31 @@ static void load_mock_weather(void) {
     free(buf);
 }
 
+/* ── BME280 UI update via LVGL timer (same pattern as clock.c) ─────────── */
+
+static void bme280_ui_timer_cb(lv_timer_t* t) {
+    (void)t;
+    Bme280Reading r;
+    if (bme280_sensor_read(&r) != ESP_OK)
+        return;
+
+    char buf[10];
+    snprintf(buf, sizeof(buf), "%.1f", (double)r.temperature_c);
+    lv_label_set_text(ui_lbl_temp_val, buf);
+    lv_arc_set_value(ui_arc_temp, (int32_t)r.temperature_c);
+    snprintf(buf, sizeof(buf), "%.0f", (double)r.pressure_hpa);
+    lv_label_set_text(ui_lbl_press_val, buf);
+    lv_arc_set_value(ui_arc_pressure, (int32_t)r.pressure_hpa);
+    snprintf(buf, sizeof(buf), "%.0f", (double)r.humidity_pct);
+    lv_label_set_text(ui_lbl_hum_val, buf);
+    lv_arc_set_value(ui_arc_humidity, (int32_t)r.humidity_pct);
+}
+
 void ui_binder_init(void) {
     lv_obj_add_event_cb(ui_ta_locationinput, on_location_defocused, LV_EVENT_DEFOCUSED, NULL);
     lv_obj_add_event_cb(ui_dd_price, on_price_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_dd_timeout, on_timeout_changed, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_timer_create(bme280_ui_timer_cb, 500, NULL);
     load_mock_elpris();
     load_mock_weather();
 }
@@ -131,15 +153,4 @@ void ui_binder_update_weather(const char* json, size_t len) {
 }
 void ui_binder_update_local_ip(const char* ip) { (void)ip; }
 
-void ui_binder_update_bme280(const Bme280Reading* reading) {
-    char buf[10];
-    snprintf(buf, sizeof(buf), "%.1f", (double)reading->temperature_c);
-    lv_label_set_text(ui_lbl_temp_val, buf);
-    lv_arc_set_value(ui_arc_temp, (int32_t)reading->temperature_c);
-    snprintf(buf, sizeof(buf), "%.0f", (double)reading->pressure_hpa);
-    lv_label_set_text(ui_lbl_press_val, buf);
-    lv_arc_set_value(ui_arc_pressure, (int32_t)reading->pressure_hpa);
-    snprintf(buf, sizeof(buf), "%.0f", (double)reading->humidity_pct);
-    lv_label_set_text(ui_lbl_hum_val, buf);
-    lv_arc_set_value(ui_arc_humidity, (int32_t)reading->humidity_pct);
-}
+void ui_binder_update_bme280(const Bme280Reading* reading) { (void)reading; }

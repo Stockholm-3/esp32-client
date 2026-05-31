@@ -2,6 +2,7 @@
 #include "../ui_theme.h"
 #include "../images/weather/ui_images_weather.h"
 #include "ui_binder.h"
+#include "ui_scr_home.h"
 #include "cJSON.h"
 
 #include <math.h>
@@ -358,6 +359,51 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len) {
         lv_label_set_text(ui_lbl_detail_lo, lo_buf);
     }
 
+    // ── Home screen weather summary ──────────────────────────────────────────
+    if (ui_lbl_w_temp && hmax > 0) {
+        char tmp[12];
+        snprintf(tmp, sizeof(tmp), "%+d%s", (int)g_hour_data[METRIC_TEMP][0], current_unit);
+        lv_label_set_text(ui_lbl_w_temp, tmp);
+    }
+    if (ui_lbl_w_desc)
+        lv_label_set_text(ui_lbl_w_desc, current_desc ? current_desc : "--");
+    if (ui_lbl_w_loc && days[0].valid) {
+        char wday[8];
+        weather_date_to_weekday(days[0].date, wday, sizeof(wday));
+        lv_label_set_text(ui_lbl_w_loc, wday);
+    }
+    if (ui_lbl_w_temp_hi && days[0].valid) {
+        char hi_buf[16];
+        snprintf(hi_buf, sizeof(hi_buf), "Hi %+g%s", days[0].max_temp, current_unit);
+        lv_label_set_text(ui_lbl_w_temp_hi, hi_buf);
+    }
+    if (ui_lbl_w_temp_lo && days[0].valid) {
+        char lo_buf[16];
+        snprintf(lo_buf, sizeof(lo_buf), "Lo %+g%s", days[0].min_temp, current_unit);
+        lv_label_set_text(ui_lbl_w_temp_lo, lo_buf);
+    }
+    if (ui_labl_stat_wind_val && hmax > 0) {
+        char wbuf[12];
+        snprintf(wbuf, sizeof(wbuf), "%d m/s", (int)g_hour_data[METRIC_WIND][0]);
+        lv_label_set_text(ui_labl_stat_wind_val, wbuf);
+    }
+    {
+        lv_obj_t* htimes[] = {ui_lbl_home_htime1, ui_lbl_home_htime2, ui_lbl_home_htime3,
+                              ui_lbl_home_htime4, ui_lbl_home_htime5, ui_lbl_home_htime6};
+        lv_obj_t* htemps[] = {ui_lbl_home_htemp1, ui_lbl_home_htemp2, ui_lbl_home_htemp3,
+                              ui_lbl_home_htemp4, ui_lbl_home_htemp5, ui_lbl_home_htemp6};
+        for (int i = 0; i < 6 && i < hmax; i++) {
+            if (htimes[i] && g_hour_times[i][0])
+                lv_label_set_text(htimes[i], g_hour_times[i]);
+            if (htemps[i]) {
+                char tbuf[8];
+                snprintf(tbuf, sizeof(tbuf), "%+d%s",
+                         (int)g_hour_data[METRIC_TEMP][i], current_unit);
+                lv_label_set_text(htemps[i], tbuf);
+            }
+        }
+    }
+
     cJSON_Delete(root);
 }
 
@@ -490,13 +536,13 @@ void ui_tab_weather_init(void) {
                           LV_FLEX_ALIGN_CENTER);
 
     ui_lbl_detail_name = lv_label_create(detail_left);
-    lv_label_set_text(ui_lbl_detail_name, "Monday");
+    lv_label_set_text(ui_lbl_detail_name, "--");
     lv_obj_set_style_text_color(ui_lbl_detail_name, UI_COLOR_INK1, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_detail_name, &lv_font_montserrat_18,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_detail_desc = lv_label_create(detail_left);
-    lv_label_set_text(ui_lbl_detail_desc, "Partly cloudy");
+    lv_label_set_text(ui_lbl_detail_desc, "--");
     lv_obj_set_style_text_color(ui_lbl_detail_desc, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_detail_desc, &lv_font_montserrat_14,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -514,13 +560,13 @@ void ui_tab_weather_init(void) {
                           LV_FLEX_ALIGN_CENTER);
 
     ui_lbl_detail_hi = lv_label_create(detail_right);
-    lv_label_set_text(ui_lbl_detail_hi, "Max +15\xc2\xb0");
+    lv_label_set_text(ui_lbl_detail_hi, "--");
     lv_obj_set_style_text_color(ui_lbl_detail_hi, UI_COLOR_BAD, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_detail_hi, &lv_font_montserrat_14,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_detail_lo = lv_label_create(detail_right);
-    lv_label_set_text(ui_lbl_detail_lo, "Min +8\xc2\xb0");
+    lv_label_set_text(ui_lbl_detail_lo, "--");
     lv_obj_set_style_text_color(ui_lbl_detail_lo, UI_COLOR_HUM, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_detail_lo, &lv_font_montserrat_14,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -590,7 +636,7 @@ void ui_tab_weather_init(void) {
     lv_obj_add_event_cb(g_chart, on_chart_pressed, LV_EVENT_PRESSING, NULL);
 
     g_lbl_chart_info = lv_label_create(hourly_card);
-    lv_label_set_text(g_lbl_chart_info, "---");
+    lv_label_set_text(g_lbl_chart_info, "--");
     lv_obj_set_style_text_font(g_lbl_chart_info, &lv_font_montserrat_14,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(g_lbl_chart_info, UI_COLOR_INK1, LV_PART_MAIN | LV_STATE_DEFAULT);
