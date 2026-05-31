@@ -147,7 +147,9 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     }
     if (state == WIFI_MANAGER_STATE_CONNECTED_WITH_DNS) {
 
-        loc_server_start();
+        if (settings_manager_get_local_web_client_enabled()) {
+            loc_server_start();
+        }
 
         char ip_str[16] = "---";
 #ifndef CONFIG_IDF_TARGET_LINUX

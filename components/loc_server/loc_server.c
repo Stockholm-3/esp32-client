@@ -370,7 +370,17 @@ static void on_settings_changed_from_lvgl_int(int unused) {
     loc_server_push_settings();
 }
 
+static void on_lwc_setting_changed(bool enabled) {
+    settings_manager_save_local_web_client_enabled(enabled);
+    if (enabled) {
+        loc_server_start();
+    } else {
+        loc_server_stop();
+    }
+}
+
 void loc_server_init(void) {
+    ui_binder_on_local_web_client_changed(on_lwc_setting_changed);
     ui_binder_on_location_changed2(on_settings_changed_from_lvgl);
     ui_binder_on_price_changed2(on_settings_changed_from_lvgl_int);
     ui_binder_on_timeout_changed2(on_settings_changed_from_lvgl_int);
