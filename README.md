@@ -51,6 +51,57 @@ You can test logic and UI natively on your host machine:
 *   `make linux-run`: Builds and executes the simulator (`./simulator/build/simulator.elf`).
 *   `make linux-hardclean`: Removes simulator build artifacts.
 
+### GDB Debugging (Hardware)
+Requires the physical ESP32-S3-Touch-LCD-7B board connected via its native USB port (the JTAG/USB port, not the UART port).
+
+**One-time Windows setup:**
+1. Download [Zadig](https://zadig.akeo.ie/).
+2. In Zadig: **Options → List All Devices**, find `USB JTAG/serial debug unit (Interface 2)`.
+3. Set driver to **WinUSB** and click "Install Driver". Do not change Interface 0 or 1 (that is the serial/UART used by `make monitor`).
+
+> Linux/macOS users do not need Zadig. Linux may require a udev rule, which the ESP-IDF installer typically handles automatically.
+
+**Debugging workflow:**
+
+*Option A — Terminal (any OS):*
+```bash
+# Terminal 1
+make openocd
+
+# Terminal 2
+make gdb
+```
+
+*Option B — VS Code:*
+1. Install the [ESP-IDF extension](https://marketplace.visualstudio.com/items?itemName=espressif.esp-idf-extension).
+2. Start OpenOCD: `make openocd` (or use the extension's OpenOCD Manager in the status bar).
+3. Press **F5** — the `.vscode/launch.json` config will connect automatically.
+
+**Note:** The default build uses performance optimizations (`CONFIG_COMPILER_OPTIMIZATION_PERF`). For cleaner stepping and variable inspection, temporarily set `CONFIG_COMPILER_OPTIMIZATION_DEBUG=y` in `sdkconfig` before building.
+
+### GDB Debugging (Simulator)
+No hardware required. Runs natively on Linux/WSL.
+
+```bash
+make linux-build
+gdb ./simulator/build/simulator.elf
+```
+
+Common GDB commands:
+| Command | Action |
+| :--- | :--- |
+| `break app_main` | Set a breakpoint at `app_main` |
+| `run` | Start the program |
+| `next` | Step over one line |
+| `step` | Step into a function call |
+| `print my_variable` | Inspect a variable |
+| `backtrace` | Show the call stack |
+| `continue` | Resume until next breakpoint |
+| `list` | Show source code around current line |
+| `quit` | Exit GDB |
+
+Start with `break app_main` then `run` to stop at the entry point and step from there. Note that hardware-specific code (display, touch, GPIO) is stubbed out in the simulator.
+
 ### Quality Control
 | Command | Action |
 | :--- | :--- |

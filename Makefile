@@ -33,6 +33,7 @@ endef
 .PHONY: linux-build linux-run linux-clean linux-hardclean
 .PHONY: hardclean format-check format-fix format-ci
 .PHONY: lint lint-fix lint-ci lint-scrub lint-check-deps linux-reconfigure
+.PHONY: openocd gdb
 
 # ----------------------------------------
 # Build / Flash / Monitor
@@ -53,6 +54,20 @@ flash-monitor:
 	idf.py flash monitor
 
 fm: flash-monitor
+
+# ----------------------------------------
+# Debugging (requires hardware with USB JTAG)
+# ----------------------------------------
+# Terminal 1: make openocd   (start OpenOCD server)
+# Terminal 2: make gdb       (connect GDB)
+# Or use VS Code F5 with .vscode/launch.json (OpenOCD must be running first).
+# Note: install WinUSB driver for "USB JTAG/serial debug unit Interface 2"
+# via Zadig (https://zadig.akeo.ie/) before first use on Windows.
+openocd:
+	idf.py openocd
+
+gdb:
+	idf.py gdb
 
 ##Overides and updates the certs for the http_client.
 .PHONY: update-certs
