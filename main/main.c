@@ -10,6 +10,7 @@
 #include "cache.h"
 #include "cache_fs.h"
 #include "clock.h"
+#include "console_cli.h"
 #include "data_fetcher.h"
 #include "display.h"
 #include "esp_event.h"
@@ -313,6 +314,8 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     if (task_ret != pdPASS) {
         ESP_LOGE("MAIN", "Failed to create SMW background task!");
     }
+
+    console_cli_start();
 
     char* price_zone = settings_manager_get_price_zone_as_string();
     const char* city = settings_manager_get_location();

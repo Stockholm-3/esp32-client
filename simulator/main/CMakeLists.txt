@@ -20,4 +20,5 @@ idf_component_register(
     smw_http
     clock
     data_fetcher
+    console_cli
 )
