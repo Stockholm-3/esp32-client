@@ -40,11 +40,12 @@ static void on_location_defocused(lv_event_t* e) {
 }
 
 void ui_binder_update_wifi_status(WifiManagerState state) {
-    const char* text = state == WIFI_MANAGER_STATE_CONNECTED      ? "Connected"
-                       : state == WIFI_MANAGER_STATE_CONNECTING   ? "Connecting..."
-                       : state == WIFI_MANAGER_STATE_FAILED       ? "Failed"
-                       : state == WIFI_MANAGER_STATE_DISCONNECTED ? "Disconnected"
-                                                                  : "No internet";
+    const char* text = state == WIFI_MANAGER_STATE_CONNECTED_WITH_DNS ? "Online"
+                       : state == WIFI_MANAGER_STATE_CONNECTED        ? "Connected"
+                       : state == WIFI_MANAGER_STATE_CONNECTING       ? "Connecting..."
+                       : state == WIFI_MANAGER_STATE_FAILED           ? "Failed"
+                       : state == WIFI_MANAGER_STATE_DISCONNECTED     ? "Disconnected"
+                                                                      : "No internet";
     if (display_lvgl_lock(100)) {
         lv_label_set_text(ui_lbl_wifi_status, text);
         display_lvgl_unlock();

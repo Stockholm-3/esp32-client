@@ -55,6 +55,7 @@ idf_component_register(
         screen_timeout
         lvgl__lvgl
         wifi_manager
+        settings_manager
         espressif__cjson
         fonts
     PRIV_REQUIRES

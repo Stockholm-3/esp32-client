@@ -224,6 +224,37 @@ void settings_manager_save_wifi(const char* ssid, const char* password) {
     }
 }
 
+void settings_manager_remove_wifi(const char* ssid) {
+    if (ssid == NULL || ssid[0] == '\0') {
+        return;
+    }
+    int idx = -1;
+    for (int i = 0; i < g_wifi_count; i++) {
+        if (strcmp(g_wifi_list[i].ssid, ssid) == 0) {
+            idx = i;
+            break;
+        }
+    }
+    if (idx == -1) {
+        return;
+    }
+    for (int i = idx; i < g_wifi_count - 1; i++) {
+        g_wifi_list[i] = g_wifi_list[i + 1];
+    }
+    memset(&g_wifi_list[g_wifi_count - 1], 0, sizeof(SavedWifiNetwork));
+    g_wifi_count--;
+    ESP_LOGI(TAG, "Removed network '%s'. Profile usage: %d/%d", ssid, g_wifi_count,
+             MAX_SAVED_NETWORKS);
+
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
+        size_t blob_size = sizeof(g_wifi_list);
+        nvs_set_blob(h, "wifi_list", g_wifi_list, blob_size);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
 bool settings_manager_get_local_web_client_enabled(void) { return g_s_local_web_client_enabled; }
 const char* settings_manager_get_sta_static_ip(void) { return g_s_sta_static_ip; }
 const char* settings_manager_get_sta_gateway(void) { return g_s_sta_gateway; }
