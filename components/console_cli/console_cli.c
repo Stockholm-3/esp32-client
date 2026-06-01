@@ -148,7 +148,16 @@ static int cmd_status_handler(int argc, char** argv) {
 
 static int cmd_sensor_reading(int argc, char** argv) {
     Bme280Reading out;
-    bme280_sensor_get_last(&out);
+    esp_err_t err = bme280_sensor_get_last(&out);
+
+    if (err == ESP_ERR_INVALID_STATE) {
+        con_write("No reading available yet — sensor not connected or not polled.\r\n");
+        return 1;
+    }
+    if (err != ESP_OK) {
+        con_writef("Sensor error: %s\r\n", esp_err_to_name(err));
+        return 1;
+    }
 
     con_write("\r\n"
               "╔══════════════════════════════════════════════╗\r\n"
@@ -159,6 +168,19 @@ static int cmd_sensor_reading(int argc, char** argv) {
     con_writef("║  Pressure    : %.2f hPa\r\n", (double)out.pressure_hpa);
     con_write("╚══════════════════════════════════════════════╝\r\n\r\n");
 
+    return 0;
+}
+
+static int cmd_help_handler(int argc, char** argv) {
+    con_write("\r\n"
+              "╔══════════════════════════════════════════════╗\r\n"
+              "║               AVAILABLE COMMANDS             ║\r\n"
+              "╠══════════════════════════════════════════════╣\r\n"
+              "║  help    — show this message                 ║\r\n"
+              "║  status  — system telemetry                  ║\r\n"
+              "║  sensor  — BME280 temperature/humidity/press ║\r\n"
+              "║  restart — software reset                    ║\r\n"
+              "╚══════════════════════════════════════════════╝\r\n\r\n");
     return 0;
 }
 
@@ -248,6 +270,12 @@ void console_cli_start(void) {
     esp_console_register_help_command();
 
     const esp_console_cmd_t CMDS[] = {
+        {
+            .command = "help",
+            .help    = "List available commands",
+            .hint    = NULL,
+            .func    = cmd_help_handler,
+        },
         {
             .command = "status",
             .help    = "Show real-time system telemetry",
