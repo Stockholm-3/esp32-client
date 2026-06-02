@@ -15,6 +15,21 @@ if [ ! -x "$WEBSOCAT" ]; then
     exit 1
 fi
 
+# Connect to WS, wait for settings push (ESP32 sends after 100ms timer),
+# then let stdin close -> websocat sends proper WS CLOSE -> clean TCP shutdown.
+# Using a temp file avoids head-in-pipe (SIGPIPE -> RST) which causes socket
+# slot exhaustion on the ESP32 side.
+ws_recv_settings() {
+    local url="$1" err_file="$2"
+    local msgfile
+    msgfile=$(mktemp)
+    # sleep 0.3 keeps stdin open long enough for the 100ms push timer to fire,
+    # then EOF -> websocat sends WS CLOSE frame -> ESP32 frees socket cleanly.
+    (sleep 0.3; true) | timeout 5 "$WEBSOCAT" "$url" 2>"$err_file" > "$msgfile" || true
+    head -n1 "$msgfile"
+    rm -f "$msgfile"
+}
+
 # ── Optional serial log monitoring ───────────────────────────────────────────
 SERIAL_LOG=""
 SERIAL_PID=""
@@ -24,7 +39,7 @@ for port in /dev/ttyACM0 /dev/ttyUSB0 /dev/ttyACM1; do
         stty -F "$port" 115200 raw -echo 2>/dev/null
         cat "$port" >> "$SERIAL_LOG" &
         SERIAL_PID=$!
-        echo "Serial: $port → $SERIAL_LOG"
+        echo "Serial: $port -> $SERIAL_LOG"
         break
     fi
 done
@@ -49,45 +64,47 @@ else
         exit 1
     fi
     echo "  DNS: $HOST -> $IP"
+    WS_URL="ws://${IP}/ws"
 fi
 
 # Level 2: HTTP GET / (checks TCP connect + HTTP in one step)
 HTTP=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 8 \
-           -H "Connection: close" "http://$HOST/" 2>/dev/null || echo "000")
+           -H "Connection: close" "http://$IP/" 2>/dev/null)
+HTTP="${HTTP:-000}"
 if [ "$HTTP" = "000" ]; then
-    echo "  FAIL: HTTP http://$HOST/ not reachable (connection refused or timeout)"
+    echo "  FAIL: HTTP http://$IP/ not reachable"
     echo "  Is loc_server_start() called on ESP32?"
     exit 1
 fi
 echo "  HTTP: $HTTP"
 
-# Level 4: WebSocket
+# Level 3: WebSocket (clean close via ws_recv_settings)
 ERR_LOG=$(mktemp)
-TEST_MSG=$(echo | timeout 8 "$WEBSOCAT" "$WS_URL" 2>"$ERR_LOG" | head -n1)
+TEST_MSG=$(ws_recv_settings "$WS_URL" "$ERR_LOG")
 if ! echo "$TEST_MSG" | grep -q '"type"'; then
     echo "  FAIL: WebSocket $WS_URL"
     echo "  websocat: $(cat "$ERR_LOG")"
     exit 1
 fi
-echo "  WS: OK (got type=$(echo "$TEST_MSG" | grep -o '"type":"[^"]*"'))"
+echo "  WS: OK (got $(echo "$TEST_MSG" | grep -o '"type":"[^"]*"'))"
 echo ""
 
 # ── Main reconnect loop ───────────────────────────────────────────────────────
-echo "Testing $N reconnections → $WS_URL"
+echo "Testing $N reconnections -> $WS_URL"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 ERR=$(mktemp)
 for i in $(seq 1 "$N"); do
-    MSG=$(echo | timeout 5 "$WEBSOCAT" "$WS_URL" 2>"$ERR" | head -n1)
+    MSG=$(ws_recv_settings "$WS_URL" "$ERR")
     if echo "$MSG" | grep -q '"type":"settings"'; then
         PASS=$((PASS + 1))
         printf "\r[%d/%d] pass=%d fail=%d" "$i" "$N" "$PASS" "$FAIL"
     else
         FAIL=$((FAIL + 1))
         echo ""
-        echo "  X iter $i: $(cat "$ERR" | head -1)"
+        echo "  X iter $i: $(head -1 "$ERR")"
     fi
-    sleep 0.3
+    sleep 0.2
 done
 
 echo ""
@@ -101,7 +118,7 @@ if [ -n "$SERIAL_LOG" ] && [ -f "$SERIAL_LOG" ]; then
         grep -A5 "Guru Meditation\|LoadProhibited\|abort()" "$SERIAL_LOG"
         exit 1
     fi
-    echo "Serial log: no crash "
+    echo "Serial log: no crash"
 fi
 
 [ "$FAIL" -eq 0 ]
