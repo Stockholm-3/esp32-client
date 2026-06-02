@@ -164,10 +164,14 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
         ui_binder_update_local_ip(ip_str);
     } else if (state == WIFI_MANAGER_STATE_FAILED) {
         wifi_popup_set_connected_ssid("");
-        WifiPopupConnectResult r =
-            (reason == WIFI_MANAGER_FAIL_REASON_AUTH)    ? WIFI_POPUP_RESULT_WRONG_PASSWORD
-            : (reason == WIFI_MANAGER_FAIL_REASON_NO_AP) ? WIFI_POPUP_RESULT_NO_AP
-                                                         : WIFI_POPUP_RESULT_FAILED;
+        WifiPopupConnectResult r;
+        if (reason == WIFI_MANAGER_FAIL_REASON_AUTH) {
+            r = WIFI_POPUP_RESULT_WRONG_PASSWORD;
+        } else if (reason == WIFI_MANAGER_FAIL_REASON_NO_AP) {
+            r = WIFI_POPUP_RESULT_NO_AP;
+        } else {
+            r = WIFI_POPUP_RESULT_FAILED;
+        }
         wifi_popup_notify_result(r);
     } else if (state == WIFI_MANAGER_STATE_DISCONNECTED) {
         wifi_popup_set_connected_ssid("");
@@ -215,7 +219,7 @@ static void on_data_cached(DataFetcherKind kind, const char* cache_key, void* us
  *  8. SMW scheduler
  *  9. Main loop (1 s tick: SMW processing, clock update, BME280 UI refresh)
  */
-void app_main(void) {
+void app_main(void) { // NOLINT(readability-function-size,readability-function-cognitive-complexity)
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
