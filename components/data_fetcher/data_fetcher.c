@@ -99,7 +99,7 @@ static bool job_is_due(const FetchJob* job, bool first_run, uint32_t last_fetch_
                        int last_trigger_day, uint32_t dns_ready_at_ms) {
     const FetchDescriptor* d = job->desc;
 
-    if (first_run && d->fetch_on_startup) {
+    if ((int)first_run && (int)d->fetch_on_startup) {
         return (now_ms() - dns_ready_at_ms) >= d->startup_delay_ms;
     }
 
@@ -115,7 +115,8 @@ static bool job_is_due(const FetchJob* job, bool first_run, uint32_t last_fetch_
         struct tm tm;
         time_t t = time(NULL);
         localtime_r(&t, &tm);
-        return (tm.tm_hour == (int)d->schedule.daily_hour) && (tm.tm_yday != last_trigger_day);
+        return ((tm.tm_hour == (int)d->schedule.daily_hour) && (tm.tm_yday != last_trigger_day)) !=
+               0;
     }
 
     return false;
@@ -268,7 +269,7 @@ static void fetch_task(void* arg) {
         /* For interval jobs: sleep until the next window is roughly due rather
          * than spinning immediately.  SCHEDULE_POLL_MS polling in the outer
          * loop handles the exact wake-up. */
-        if (d->schedule.type == FETCH_SCHEDULE_INTERVAL && success) {
+        if (d->schedule.type == FETCH_SCHEDULE_INTERVAL && (int)success) {
             uint32_t sleep_target = (d->schedule.interval_sec * 1000U);
             /* Sleep in chunks so DNS loss is detected promptly. */
             uint32_t slept = 0;
@@ -344,7 +345,7 @@ int data_fetcher_init(const DataFetcherConfig* config) {
         char task_name[16];
         snprintf(task_name, sizeof(task_name), "df_%s", desc->id);
 
-        BaseType_t rc = xTaskCreate(fetch_task, task_name, (uint32_t)g_cfg.task_stack_size, job,
+        BaseType_t rc = xTaskCreate(fetch_task, task_name, g_cfg.task_stack_size, job,
                                     g_cfg.task_priority, NULL);
         if (rc != pdPASS) {
             ESP_LOGE(g_tag, "[%s] xTaskCreate failed", desc->id);
@@ -378,9 +379,9 @@ void data_fetcher_notify_wifi_state(WifiManagerState state) {
 
     g_dns_ready = now_ready;
 
-    if (!was_ready && now_ready) {
+    if (!was_ready && (int)now_ready) {
         ESP_LOGI(g_tag, "DNS available — %zu fetch task(s) unblocked", g_job_count);
-    } else if (was_ready && !now_ready) {
+    } else if ((int)was_ready && !now_ready) {
         ESP_LOGW(g_tag, "DNS lost — fetch tasks will suspend after current attempt");
     }
 }
