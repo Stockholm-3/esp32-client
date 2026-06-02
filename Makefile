@@ -85,6 +85,13 @@ linux-hardclean:
 	rm -rf ./simulator/managed_components ./simulator/build ./simulator/sdkconfig
 
 # ----------------------------------------
+# Integration tests
+# ----------------------------------------
+.PHONY: ws-test
+ws-test:
+	bash scripts/test_ws_reconnect.sh
+
+# ----------------------------------------
 # Formatting
 # ----------------------------------------
 format-check:
