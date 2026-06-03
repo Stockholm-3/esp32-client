@@ -19,8 +19,6 @@
 
 #include "bme280_sensor.h"
 #include "display.h"
-#include "screen_timeout.h"
-#include "ws7b_board.h"
 #include "driver/uart.h"
 #include "esp_chip_info.h"
 #include "esp_console.h"
@@ -31,6 +29,8 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "screen_timeout.h"
+#include "ws7b_board.h"
 
 #include <inttypes.h>
 #include <stdarg.h>
@@ -200,7 +200,8 @@ static int cmd_test_backlight_handler(int argc, char** argv) {
         }
     }
 
-    int passed = 0, total = 0;
+    int passed = 0;
+    int total  = 0;
 
     // TC-1: backlight on/off returns ESP_OK
     total++;
@@ -209,9 +210,11 @@ static int cmd_test_backlight_handler(int argc, char** argv) {
         esp_err_t r2 = ws7b_board_set_backlight(255);
         esp_err_t r3 = ws7b_board_set_backlight(0);
         ws7b_board_set_backlight(255);
-        bool ok = (r1 == ESP_OK && r2 == ESP_OK && r3 == ESP_OK);
-        con_writef("[TC-1] backlight on/off ... %s\r\n", ok ? "PASS" : "FAIL");
-        if (ok) passed++;
+        bool ok = (r1 == ESP_OK && r2 == ESP_OK && r3 == ESP_OK) != 0;
+        con_writef("[TC-1] backlight on/off ... %s\r\n", (int)ok ? "PASS" : "FAIL");
+        if (ok) {
+            passed++;
+        }
     }
 
     // TC-2: simulate_touch when screen active → woke=0
@@ -222,9 +225,11 @@ static int cmd_test_backlight_handler(int argc, char** argv) {
             woke = screen_timeout_record_activity();
             display_lvgl_unlock();
         }
-        bool ok = !woke;
-        con_writef("[TC-2] simulate_touch (active) ... %s\r\n", ok ? "PASS" : "FAIL");
-        if (ok) passed++;
+        bool ok = (!woke) != 0;
+        con_writef("[TC-2] simulate_touch (active) ... %s\r\n", (int)ok ? "PASS" : "FAIL");
+        if (ok) {
+            passed++;
+        }
     }
 
     // TC-3: timeout wake cycle, repeated `iterations` times
@@ -245,7 +250,8 @@ static int cmd_test_backlight_handler(int argc, char** argv) {
         con_writef("[TC-3 iter %d/%d] waiting 5s ...", i + 1, iterations);
         vTaskDelay(pdMS_TO_TICKS(5000));
 
-        bool woke1 = false, woke2 = true;
+        bool woke1 = false;
+        bool woke2 = true;
         if (display_lvgl_lock(200)) {
             woke1 = screen_timeout_record_activity();
             display_lvgl_unlock();
@@ -255,9 +261,12 @@ static int cmd_test_backlight_handler(int argc, char** argv) {
             display_lvgl_unlock();
         }
 
-        bool ok = woke1 && !woke2;
-        con_writef(" %s (woke1=%d woke2=%d)\r\n", ok ? "PASS" : "FAIL", (int)woke1, (int)woke2);
-        if (ok) passed++;
+        bool ok = ((int)woke1 && !woke2) != 0;
+        con_writef(" %s (woke1=%d woke2=%d)\r\n", (int)ok ? "PASS" : "FAIL", (int)woke1,
+                   (int)woke2);
+        if (ok) {
+            passed++;
+        }
     }
 
     if (display_lvgl_lock(200)) {
@@ -277,7 +286,7 @@ static int cmd_simulate_touch_handler(int argc, char** argv) {
         woke = screen_timeout_record_activity();
         display_lvgl_unlock();
     }
-    con_writef("simulate_touch: woke=%d\r\n", woke ? 1 : 0);
+    con_writef("simulate_touch: woke=%d\r\n", (int)woke ? 1 : 0);
     return 0;
 }
 

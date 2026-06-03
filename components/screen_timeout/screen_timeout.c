@@ -19,10 +19,10 @@ typedef enum {
 
 // ── State
 // ────────────────────────────────────────────────────────────────────
-static lv_timer_t* g_s_timer          = NULL;
-static uint32_t g_s_last_activity_ms  = 0;
-static ScreenTimeoutStage g_s_stage   = SCREEN_TIMEOUT_STAGE_ACTIVE;
-static lv_obj_t* g_s_dim_overlay      = NULL;
+static lv_timer_t* g_s_timer         = NULL;
+static uint32_t g_s_last_activity_ms = 0;
+static ScreenTimeoutStage g_s_stage  = SCREEN_TIMEOUT_STAGE_ACTIVE;
+static lv_obj_t* g_s_dim_overlay     = NULL;
 
 static ScreenTimeoutConfig g_s_config = {0};
 

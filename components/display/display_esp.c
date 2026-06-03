@@ -85,10 +85,10 @@ static void lvgl_touch_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     esp_lcd_touch_get_data(tp, points, &cnt, 1);
 
     if (cnt > 0) {
-        data->point.x = (int32_t)points[0].x;
-        data->point.y = (int32_t)points[0].y;
-        bool just_woke = g_s_activity_cb ? g_s_activity_cb() : false;
-        data->state   = just_woke ? LV_INDEV_STATE_RELEASED : LV_INDEV_STATE_PRESSED;
+        data->point.x  = (int32_t)points[0].x;
+        data->point.y  = (int32_t)points[0].y;
+        bool just_woke = (g_s_activity_cb ? (int)g_s_activity_cb() : 0) != 0;
+        data->state    = (int)just_woke ? LV_INDEV_STATE_RELEASED : LV_INDEV_STATE_PRESSED;
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
     }

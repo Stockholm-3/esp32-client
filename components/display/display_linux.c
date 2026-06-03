@@ -75,7 +75,8 @@ static void lvgl_mouse_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     }
     data->point.x = s_mouse_x;
     data->point.y = s_mouse_y;
-    data->state   = (s_mouse_pressed && !just_woke) ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+    data->state =
+        (s_mouse_pressed && !just_woke) ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
 }
 
 static void* simulation_thread(void* arg) {
