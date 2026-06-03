@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -37,29 +37,26 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - name: Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v13
+        uses: DeterminateSystems/magic-nix-cache-action@v14
 
       - name: Cache Espressif Toolchains
         id: cache-espressif-tools
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /home/runner/.espressif
-          # We can share the toolchain cache with the main build
           key: espressif-tools-${{ hashFiles('flake.lock') }}
 
       - name: Cache Managed Components
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: managed_components
-          # Prepended 'test-' to avoid collisions with the main app cache
           key: test-managed-components-${{ hashFiles('**/idf_component.yml') }}
           restore-keys: test-managed-components-
 
       - name: Cache Build Objects
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: build
-          # Prepended 'test-' to avoid collisions with the main app cache
           key: test-build-esp32s3-${{ hashFiles('main/**', 'components/**', '**/CMakeLists.txt', 'sdkconfig.defaults', 'scripts/run_tests.py') }}
           restore-keys: test-build-esp32s3-
 
