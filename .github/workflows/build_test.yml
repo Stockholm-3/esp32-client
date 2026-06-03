@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   build-tests:
-    name: Test App Firmware (esp32s3)
+    name: Build Test App Firmware (esp32s3)
     runs-on: ubuntu-24.04
 
     steps:
