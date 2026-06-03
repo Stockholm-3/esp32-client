@@ -1,0 +1,75 @@
+name: Build Tests
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore:
+      - "**.md"
+      - ".gitignore"
+      - "LICENSE"
+      - "docs/**"
+  pull_request:
+    branches: ["**"]
+    paths-ignore:
+      - "**.md"
+      - ".gitignore"
+      - "LICENSE"
+      - "docs/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-tests:
+    name: Build Test App Firmware (esp32s3)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v14
+
+      - name: Cache Espressif Toolchains
+        id: cache-espressif-tools
+        uses: actions/cache@v5
+        with:
+          path: /home/runner/.espressif
+          key: espressif-tools-${{ hashFiles('flake.lock') }}
+
+      - name: Cache Managed Components
+        uses: actions/cache@v5
+        with:
+          path: managed_components
+          key: test-managed-components-${{ hashFiles('**/idf_component.yml') }}
+          restore-keys: test-managed-components-
+
+      - name: Cache Build Objects
+        uses: actions/cache@v5
+        with:
+          path: build
+          key: test-build-esp32s3-${{ hashFiles('main/**', 'components/**', '**/CMakeLists.txt', 'sdkconfig.defaults', 'scripts/run_tests.py') }}
+          restore-keys: test-build-esp32s3-
+
+      - name: Build Tests
+        run: |
+          nix develop . --command bash -c "make test"
+
+      - name: Upload Build Logs on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-build-logs-${{ github.sha }}
+          path: |
+            build/CMakeFiles/**/*.log
+            build/**/*.log
+          retention-days: 7
