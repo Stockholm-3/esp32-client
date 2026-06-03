@@ -19,10 +19,10 @@ typedef enum {
 
 // ── State
 // ────────────────────────────────────────────────────────────────────
-static lv_timer_t* g_s_timer         = NULL;
-static uint32_t g_s_last_activity_ms = 0;
-static ScreenTimeoutStage g_s_stage  = SCREEN_TIMEOUT_STAGE_ACTIVE;
-static lv_obj_t* g_s_dim_overlay     = NULL;
+static lv_timer_t* g_s_timer          = NULL;
+static uint32_t g_s_last_activity_ms  = 0;
+static ScreenTimeoutStage g_s_stage   = SCREEN_TIMEOUT_STAGE_ACTIVE;
+static lv_obj_t* g_s_dim_overlay      = NULL;
 
 static ScreenTimeoutConfig g_s_config = {0};
 
@@ -144,7 +144,9 @@ void screen_timeout_init(const ScreenTimeoutConfig* config) {
     lv_obj_set_style_bg_color(g_s_dim_overlay, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(g_s_dim_overlay, LV_OPA_70, 0);
     lv_obj_set_style_border_width(g_s_dim_overlay, 0, 0);
+    lv_obj_set_style_pad_all(g_s_dim_overlay, 0, 0);
     lv_obj_remove_flag(g_s_dim_overlay, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(g_s_dim_overlay, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(g_s_dim_overlay, LV_OBJ_FLAG_HIDDEN);
 
     // Initialize screensaver
@@ -154,7 +156,12 @@ void screen_timeout_init(const ScreenTimeoutConfig* config) {
     g_s_timer = lv_timer_create(timeout_timer_cb, 1000U, NULL);
 }
 
-void screen_timeout_record_activity(void) {
+static void backlight_on_cb(lv_timer_t* t) {
+    lv_timer_delete(t);
+    display_set_backlight(255);
+}
+
+bool screen_timeout_record_activity(void) {
     g_s_last_activity_ms = lv_tick_get();
 
     // Only do something if we're not already in active state
@@ -167,9 +174,12 @@ void screen_timeout_record_activity(void) {
         }
         screensaver_hide();
 
-        // Restore full brightness
-        display_set_backlight(255);
+        // Delay backlight until after LVGL renders the waking frame, preventing
+        // a white flash from stale framebuffer content being visible briefly.
+        lv_timer_create(backlight_on_cb, 30U, NULL);
+        return true;
     }
+    return false;
 }
 
 void screen_timeout_set_config(const ScreenTimeoutConfig* config) {

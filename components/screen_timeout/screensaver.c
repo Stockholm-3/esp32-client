@@ -98,7 +98,9 @@ void screensaver_init(uint16_t scale) {
     lv_obj_set_style_bg_color(g_ss_bg_rect, SCREENSAVER_BG_COLOR, 0);
     lv_obj_set_style_bg_opa(g_ss_bg_rect, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(g_ss_bg_rect, 0, 0);
+    lv_obj_set_style_pad_all(g_ss_bg_rect, 0, 0);
     lv_obj_remove_flag(g_ss_bg_rect, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(g_ss_bg_rect, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(g_ss_bg_rect, LV_OBJ_FLAG_HIDDEN);
 
     // Image object
