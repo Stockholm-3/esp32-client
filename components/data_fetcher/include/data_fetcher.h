@@ -1,227 +1,207 @@
 /**
  * @file data_fetcher.h
- * @brief Scheduled data-fetcher for elpris and weather endpoints.
+ * @brief Generic scheduled HTTP data fetcher with LittleFS-backed caching.
  *
- * @details
- * Two independent fetch schedules are managed by a single module:
+ * Each registered @ref FetchDescriptor spawns one FreeRTOS task that loops
+ * independently, sleeping between fetches.  There is no shared scheduler —
+ * jobs cannot block each other.
  *
- *   - **Elpris**  — fires once per day at a configurable wall-clock hour
- *                   (default 14:00 local time).
- *   - **Weather** — fires on a fixed interval (default every 15 minutes).
+ * Two schedule modes are supported:
+ *   - @c FETCH_SCHEDULE_INTERVAL — re-fetches every N seconds after the last
+ *                                  successful fetch.
+ *   - @c FETCH_SCHEDULE_DAILY    — fires once per calendar day at a
+ *                                  configurable wall-clock hour.
  *
- * Both fetches are driven from the SMW (State Machine Worker) scheduler so
- * no additional FreeRTOS tasks are created.  The module tracks Wi-Fi / DNS
- * readiness internally; all network activity is suppressed until
- * @ref data_fetcher_notify_wifi_state is called with a connected-with-DNS
- * state, and suspended again on any disconnect.
+ * Network activity is gated on DNS availability.  Call
+ * @ref data_fetcher_notify_wifi_state from your Wi-Fi manager callback.
+ * Individual jobs can also be triggered immediately via
+ * @ref data_fetcher_request_now.
  *
- * On a successful fetch the raw response body is written to the LittleFS-
- * backed cache via the global @c cache_*() API using the keys defined by
- * @ref DATA_FETCHER_CACHE_KEY_ELPRIS and @ref DATA_FETCHER_CACHE_KEY_WEATHER.
- *
- * On failure the fetch is retried up to @c max_retries times with
- * exponential back-off before the next scheduled window is awaited.
- *
- * @par Typical usage
+ * @par Minimal usage
  * @code
- *   DataFetcherConfig cfg = data_fetcher_default_config();
- *   cfg.elpris_url  = "https://example.com/v1/elpris?city=stockholm";
- *   cfg.weather_url = "https://example.com/v1/weather?lat=59.33&lon=18.06";
+ *   static const FetchDescriptor descs[] = {
+ *       {
+ *           .id                    = "weather",
+ *           .url                   = "https://api.example.com/weather",
+ *           .cache_key             = "fetch:weather",
+ *           .cache_ttl_sec         = 30 * 60,
+ *           .schedule.type         = FETCH_SCHEDULE_INTERVAL,
+ *           .schedule.interval_sec = 15 * 60,
+ *           .fetch_on_startup      = true,
+ *       },
+ *   };
  *
- *   data_fetcher_init(&cfg, &g_smw_worker);
+ *   DataFetcherConfig cfg  = data_fetcher_default_config();
+ *   cfg.descriptors        = descs;
+ *   cfg.descriptor_count   = ARRAY_SIZE(descs);
+ *   cfg.on_cached          = my_on_cached_cb;
+ *   data_fetcher_init(&cfg);
  * @endcode
- *
- * After initialisation call @ref data_fetcher_notify_wifi_state whenever the
- * Wi-Fi manager state changes (mirrors the pattern used by @c loc_server and
- * @c ui_binder in this project).
  */
 
 #ifndef DATA_FETCHER_H
 #define DATA_FETCHER_H
 
-#include "smw.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "wifi_manager.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* =========================================================================
- * Cache keys
- * ====================================================================== */
+/* ---------------------------------------------------------------------------
+ * Schedule descriptor
+ * ------------------------------------------------------------------------- */
 
-/** @brief Cache key used to store the most recent elpris payload. */
-#define DATA_FETCHER_CACHE_KEY_ELPRIS "data_fetcher:elpris"
-
-/** @brief Cache key used to store the most recent weather payload. */
-#define DATA_FETCHER_CACHE_KEY_WEATHER "data_fetcher:weather"
-
-/** @brief Identifies which data source produced a fresh cache entry. */
 typedef enum {
-    DATA_FETCHER_KIND_ELPRIS  = 0,
-    DATA_FETCHER_KIND_WEATHER = 1,
-} DataFetcherKind;
+    FETCH_SCHEDULE_INTERVAL = 0,
+    FETCH_SCHEDULE_DAILY,
+} FetchScheduleType;
+
+typedef struct {
+    FetchScheduleType type;
+    uint32_t interval_sec; /**< Used when type == FETCH_SCHEDULE_INTERVAL. */
+    uint8_t daily_hour;    /**< Local hour (0–23), used when type == FETCH_SCHEDULE_DAILY. */
+} FetchSchedule;
+
+/* ---------------------------------------------------------------------------
+ * Per-endpoint descriptor
+ * ------------------------------------------------------------------------- */
 
 /**
- * @brief Invoked from the SMW worker context after a payload has been
- *        successfully written to the cache.
- *
- * @param kind      Which fetcher produced the data.
- * @param cache_key Cache key the payload is stored under (use cache_get_alloc
- *                  to read it, cache_free to release).
- * @param user_ctx  User-supplied context pointer from @ref DataFetcherConfig.
- */
-typedef void (*DataFetcherOnCachedCb)(DataFetcherKind kind, const char* cache_key, void* user_ctx);
-
-/* =========================================================================
- * Default tunables
- * ====================================================================== */
-
-/** @brief Default hour of day (0–23, local time) at which elpris is fetched. */
-#define DATA_FETCHER_ELPRIS_HOUR_DEFAULT 14
-
-/** @brief Default weather poll interval in seconds. */
-#define DATA_FETCHER_WEATHER_INTERVAL_SEC_DEFAULT (15U * 60U)
-
-/** @brief Default maximum number of consecutive retry attempts per fetch. */
-#define DATA_FETCHER_MAX_RETRIES_DEFAULT 5U
-
-/** @brief Initial retry back-off delay in milliseconds. */
-#define DATA_FETCHER_RETRY_BASE_MS_DEFAULT 5000U
-
-/** @brief Maximum retry back-off delay in milliseconds (caps the exponential growth). */
-#define DATA_FETCHER_RETRY_MAX_MS_DEFAULT (5U * 60U * 1000U)
-
-/** @brief TTL (seconds) written to the cache for elpris entries (24 h). */
-#define DATA_FETCHER_ELPRIS_CACHE_TTL_SEC (24U * 3600U)
-
-/** @brief TTL (seconds) written to the cache for weather entries (30 min). */
-#define DATA_FETCHER_WEATHER_CACHE_TTL_SEC (30U * 60U)
-
-/* =========================================================================
- * Configuration
- * ====================================================================== */
-
-/**
- * @brief Compile-time configuration for the data fetcher.
- *
- * Populate the URL fields before passing this structure to
- * @ref data_fetcher_init.  All other fields have sensible defaults provided
- * by @ref data_fetcher_default_config.
+ * Describes a single HTTP endpoint to fetch and cache.
+ * All pointer fields must remain valid for the lifetime of the module.
  */
 typedef struct {
     /**
-     * @brief Fully-qualified URL for the elpris endpoint.
-     *
-     * Must remain valid for the lifetime of the module (i.e. point to a
-     * string literal or a buffer that outlives the application).
-     * Set to NULL to disable elpris fetching entirely.
+     * Short identifier used in log messages (e.g. "weather").
+     * Must be unique across all descriptors passed to @ref data_fetcher_init.
      */
-    const char* elpris_url;
+    const char* id;
+
+    const char* url;       /**< Fully-qualified HTTP/HTTPS URL. */
+    const char* cache_key; /**< Key passed to cache_put() on success. */
+    uint32_t cache_ttl_sec;
+
+    FetchSchedule schedule;
 
     /**
-     * @brief Fully-qualified URL for the weather endpoint.
-     *
-     * Must remain valid for the lifetime of the module.
-     * Set to NULL to disable weather fetching entirely.
+     * If true, fetch as soon as DNS is available after boot regardless of the
+     * normal schedule.
      */
-    const char* weather_url;
+    bool fetch_on_startup;
 
     /**
-     * @brief Hour of day (0–23, local/wall-clock time) at which the daily
-     *        elpris fetch is triggered.
+     * Milliseconds to wait after DNS becomes available before the startup
+     * fetch.  Lets multiple descriptors stagger their initial requests.
+     * Ignored when fetch_on_startup is false.
      */
-    uint8_t elpris_trigger_hour;
+    uint32_t startup_delay_ms;
+} FetchDescriptor;
 
-    /**
-     * @brief Weather poll period in seconds.
-     *
-     * The first fetch is issued immediately once DNS becomes available;
-     * subsequent fetches fire every @c weather_interval_sec seconds.
-     */
-    uint32_t weather_interval_sec;
-
-    /**
-     * @brief Maximum number of consecutive retry attempts before the module
-     *        gives up and waits for the next scheduled window.
-     */
-    uint32_t max_retries;
-
-    /**
-     * @brief Initial retry delay in milliseconds (doubles on each attempt,
-     *        capped at @c retry_max_ms).
-     */
-    uint32_t retry_base_ms;
-
-    /**
-     * @brief Maximum retry delay in milliseconds.
-     */
-    uint32_t retry_max_ms;
-
-    /** @brief Called after each successful cache write. NULL = no notification. */
-    DataFetcherOnCachedCb on_cached;
-
-    /** @brief Passed through unchanged to @c on_cached. */
-    void* on_cached_ctx;
-
-} DataFetcherConfig;
-
-/* =========================================================================
- * Public API
- * ====================================================================== */
+/* ---------------------------------------------------------------------------
+ * Callbacks
+ * ------------------------------------------------------------------------- */
 
 /**
- * @brief Returns a @ref DataFetcherConfig populated with all default values.
+ * Called after a successful fetch, before the data is written to the cache.
  *
- * URL fields are left NULL; the caller must supply them before calling
+ * The implementation may inspect or rewrite the payload.  To replace the
+ * buffer, free *buf, allocate a new one, and update both *buf and *len.
+ * The module will free *buf after cache_put() returns, so the returned
+ * pointer must be heap-allocated.
+ *
+ * Return true to proceed with caching, false to discard the response
+ * (the fetch is still considered successful and the retry counter resets).
+ *
+ * @param desc      Descriptor whose fetch just completed.
+ * @param buf       Pointer to the response buffer pointer (may be replaced).
+ * @param len       Pointer to the buffer length (must be updated if replaced).
+ * @param user_ctx  The on_transform_ctx value from @ref DataFetcherConfig.
+ */
+typedef bool (*DataFetcherTransformCb)(const FetchDescriptor* desc, uint8_t** buf, size_t* len,
+                                       void* user_ctx);
+
+/**
+ * Called after the payload has been written to the cache.
+ *
+ * @param desc      Descriptor whose fetch just completed.
+ * @param user_ctx  The on_cached_ctx value from @ref DataFetcherConfig.
+ */
+typedef void (*DataFetcherOnCachedCb)(const FetchDescriptor* desc, void* user_ctx);
+
+/* ---------------------------------------------------------------------------
+ * Module configuration
+ * ------------------------------------------------------------------------- */
+
+#define DATA_FETCHER_MAX_RETRIES_DEFAULT 5U
+#define DATA_FETCHER_RETRY_BASE_MS_DEFAULT 5000U
+#define DATA_FETCHER_RETRY_MAX_MS_DEFAULT (5U * 60U * 1000U)
+
+/** Stack size (bytes) allocated for each fetch task. */
+#define DATA_FETCHER_TASK_STACK_DEFAULT 4096U
+
+/** FreeRTOS priority for fetch tasks. */
+#define DATA_FETCHER_TASK_PRIORITY_DEFAULT 5U
+
+typedef struct {
+    const FetchDescriptor* descriptors;
+    size_t descriptor_count;
+
+    uint32_t max_retries;
+    uint32_t retry_base_ms;
+    uint32_t retry_max_ms;
+
+    uint32_t task_stack_size;  /**< Per-task stack in bytes. 0 = use default. */
+    UBaseType_t task_priority; /**< FreeRTOS task priority. 0 = use default. */
+
+    /** Optional: called before caching to inspect or rewrite the payload. */
+    DataFetcherTransformCb on_transform;
+    void* on_transform_ctx;
+
+    /** Optional: called after each successful cache write. */
+    DataFetcherOnCachedCb on_cached;
+    void* on_cached_ctx;
+} DataFetcherConfig;
+
+/* ---------------------------------------------------------------------------
+ * Public API
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Returns a @ref DataFetcherConfig with all fields set to their defaults.
+ * Populate descriptors and descriptor_count before calling
  * @ref data_fetcher_init.
- *
- * @return Default configuration structure.
  */
 DataFetcherConfig data_fetcher_default_config(void);
 
 /**
- * @brief Initialises the data fetcher and registers SMW tasks.
+ * Initialises the module and spawns one FreeRTOS task per descriptor.
+ * May only be called once.
  *
- * @param config  Pointer to a fully populated configuration structure.
- *                The contents are copied; the caller may free or reuse the
- *                structure after this call returns.
- * @param worker  SMW worker instance that will drive the fetch tasks.
- *
- * @return  0 on success, -1 on failure (e.g. NULL pointer, SMW queue full).
+ * @param config  Fully populated configuration.  The descriptors array must
+ *                remain valid for the lifetime of the module.
+ * @return 0 on success, -1 on invalid arguments or task creation failure.
  */
-int data_fetcher_init(const DataFetcherConfig* config, SmwWorker* worker);
+int data_fetcher_init(const DataFetcherConfig* config);
 
 /**
- * @brief Notifies the data fetcher of a Wi-Fi manager state change.
- *
- * Must be called from the same Wi-Fi manager callback registered in main.c.
- * Fetching is enabled only while the state is
- * @c WIFI_MANAGER_STATE_CONNECTED_WITH_DNS and suspended for all other
- * states.
- *
- * @param state  New Wi-Fi manager state.
+ * Notifies the module of a Wi-Fi manager state change.
+ * Fetching is enabled only while state is WIFI_MANAGER_STATE_CONNECTED_WITH_DNS.
  */
 void data_fetcher_notify_wifi_state(WifiManagerState state);
 
 /**
- * @brief Triggers an immediate out-of-schedule weather fetch.
- *
- * Useful after a manual user action (e.g. pressing a "refresh" button on the
- * UI).  Has no effect if Wi-Fi / DNS is not available, or if a fetch is
- * already in progress.
+ * Triggers an immediate out-of-schedule fetch for the descriptor whose id
+ * matches descriptor_id.  Has no effect if the job is already fetching or
+ * DNS is unavailable.
  */
-void data_fetcher_request_weather_now(void);
-
-/**
- * @brief Triggers an immediate out-of-schedule elpris fetch.
- *
- * @see data_fetcher_request_weather_now
- */
-void data_fetcher_request_elpris_now(void);
+void data_fetcher_request_now(const char* descriptor_id);
 
 #ifdef __cplusplus
 }

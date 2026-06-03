@@ -187,17 +187,17 @@ static void on_ap_toggled(bool enabled) {
     }
 }
 
-static void on_data_cached(DataFetcherKind kind, const char* cache_key, void* user_ctx) {
+static void on_data_cached(const FetchDescriptor* desc, void* user_ctx) {
     (void)user_ctx;
+
     void* data = NULL;
     size_t len = 0;
-    if (cache_get_alloc(cache_key, &data, &len) != CACHE_OK) {
+    if (cache_get_alloc(desc->cache_key, &data, &len) != CACHE_OK) {
         return;
     }
 
-    const char* kind_str = (kind == DATA_FETCHER_KIND_ELPRIS) ? "elpris" : "weather";
-    ESP_LOGI(g_tag, "[%s] Fresh data ready — %zu bytes in cache", kind_str, len);
-    ESP_LOGI(g_tag, "[%s] Preview: %.200s%s", kind_str, (const char*)data, len > 200U ? "…" : "");
+    ESP_LOGI(g_tag, "[%s] Fresh data ready — %zu bytes", desc->id, len);
+    ESP_LOGI(g_tag, "[%s] Preview: %.200s%s", desc->id, (const char*)data, len > 200U ? "…" : "");
 
     if (kind == DATA_FETCHER_KIND_WEATHER) {
         ui_binder_update_weather((const char*)data, len);
@@ -263,9 +263,9 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     }
     ui_build(disp);
     ScreenTimeoutConfig timeout_cfg = {
-        .dim_timeout_seconds           = 1 * 60,
-        .screensaver_timeout_seconds   = 2 * 60,
-        .backlight_off_timeout_seconds = 5 * 60,
+        .dim_timeout_seconds           = (5 * 60 * 50U) / 100U, // 150s — matches UI minimum (5 min)
+        .screensaver_timeout_seconds   = (5 * 60 * 75U) / 100U, // 225s
+        .backlight_off_timeout_seconds = 5 * 60,                // 300s
     };
     screen_timeout_init(&timeout_cfg);
     display_set_activity_callback(screen_timeout_record_activity);
@@ -323,32 +323,77 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
 
     console_cli_start();
 
-    char* price_zone = settings_manager_get_price_zone_as_string();
-    const char* city = settings_manager_get_location();
+    char s_elpris_url[256];
+    char s_weather_min_url[256];
+    char s_weather_hr_url[256];
+    char s_energy_plan_url[256];
 
-    char elpris_url[256];
+    FetchDescriptor s_fetch_descs[4];
 
-    char weather_url[256];
+    const char* price_zone = settings_manager_get_price_zone_as_string();
+    const char* city       = settings_manager_get_location();
 
-    int result = snprintf(elpris_url, sizeof(elpris_url),
-                          "https://just-dev.freeduck.dev/v1/elpris?price=%s", price_zone);
-    if (result < 0) {
-        ESP_LOGE(g_tag, "Failed to write elpris_url");
-    }
+    snprintf(s_elpris_url, sizeof(s_elpris_url), "https://just-dev.freeduck.dev/v1/elpris?price=%s",
+             price_zone);
+    snprintf(s_weather_min_url, sizeof(s_weather_min_url),
+             "https://just-dev.freeduck.dev/v1/minutely?city=%s", city);
 
-    result = snprintf(weather_url, sizeof(weather_url),
-                      "https://just-dev.freeduck.dev/v1/hourly?city=%s&hours=168", city);
+    snprintf(s_weather_hr_url, sizeof(s_weather_min_url),
+             "https://just-dev.freeduck.dev/v1/hourly?city=%s", city);
 
-    if (result < 0) {
-        ESP_LOGE(g_tag, "Failed to write weather_url");
-    }
+    snprintf(s_energy_plan_url, sizeof(s_energy_plan_url),
+             "https://just-dev.freeduck.dev/v1/get_plan?price=%s&city=%s", price_zone, city);
+
+    s_fetch_descs[0] = (FetchDescriptor){
+        .id                  = "elpris",
+        .url                 = s_elpris_url,
+        .cache_key           = "fetch:elpris",
+        .cache_ttl_sec       = 24U * 3600U,
+        .schedule.type       = FETCH_SCHEDULE_DAILY,
+        .schedule.daily_hour = 14,
+        .fetch_on_startup    = true,
+        .startup_delay_ms    = 0U,
+    };
+
+    s_fetch_descs[1] = (FetchDescriptor){
+        .id                    = "weather_min",
+        .url                   = s_weather_min_url,
+        .cache_key             = "fetch:weather_min",
+        .cache_ttl_sec         = 30U * 60U,
+        .schedule.type         = FETCH_SCHEDULE_INTERVAL,
+        .schedule.interval_sec = 15U * 60U,
+        .fetch_on_startup      = true,
+        .startup_delay_ms      = 0U,
+    };
+
+    s_fetch_descs[2] = (FetchDescriptor){
+        .id                    = "weather_hr",
+        .url                   = s_weather_hr_url,
+        .cache_key             = "fetch:weather_hr",
+        .cache_ttl_sec         = 30U * 60U,
+        .schedule.type         = FETCH_SCHEDULE_INTERVAL,
+        .schedule.interval_sec = 15U * 60U,
+        .fetch_on_startup      = true,
+        .startup_delay_ms      = 0U,
+    };
+
+    s_fetch_descs[3] = (FetchDescriptor){
+        .id                    = "energy_plan",
+        .url                   = s_energy_plan_url,
+        .cache_key             = "fetch:energy_plan",
+        .cache_ttl_sec         = 24U * 3600U,
+        .schedule.type         = FETCH_SCHEDULE_INTERVAL,
+        .schedule.interval_sec = 15U * 60U,
+        .fetch_on_startup      = true,
+        .startup_delay_ms      = 0U,
+    };
 
     DataFetcherConfig df_cfg = data_fetcher_default_config();
-    df_cfg.elpris_url        = elpris_url;
-    df_cfg.weather_url       = weather_url;
+    df_cfg.descriptors       = s_fetch_descs;
+    df_cfg.descriptor_count  = 4;
     df_cfg.on_cached         = on_data_cached;
-    df_cfg.on_cached_ctx     = NULL;
-    data_fetcher_init(&df_cfg, &g_smw_worker);
+
+    data_fetcher_init(&df_cfg);
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));

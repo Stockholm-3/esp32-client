@@ -49,7 +49,10 @@ typedef struct {
  */
 typedef struct {
     HttpClientTlsConfig tls;
-    int default_timeout_ms; /* 0 = built-in default (10 s) */
+    int default_timeout_ms;      /* 0 = built-in default (10 s)                         */
+    int max_concurrent_requests; /* 0 = built-in default (1). Caps simultaneous TLS
+                                  * sessions to prevent mbedTLS heap exhaustion on
+                                  * memory-constrained targets.                          */
 } HttpClientConfig;
 
 /*
@@ -127,6 +130,12 @@ typedef struct HttpClientAsyncHandle HttpClientAsyncHandle;
  * On the Linux stub this calls curl_global_init(). On ESP it stores
  * the config for use in subsequent requests.
  *
+ * A counting semaphore with max_concurrent_requests slots is created here.
+ * Every call to http_client_perform() and http_client_async_begin() will
+ * block on this semaphore, ensuring at most N TLS sessions are alive at
+ * once and preventing mbedTLS heap exhaustion when multiple tasks fetch
+ * simultaneously.
+ *
  * @param config  Optional global config. NULL uses built-in defaults.
  * @return 0 on success, -1 on failure.
  */
@@ -157,6 +166,10 @@ void http_client_headers_free(HttpClientHeader* head);
 /**
  * @brief Perform a synchronous HTTP request. Blocks until complete.
  *
+ * Acquires a concurrency slot before opening the connection and releases it
+ * unconditionally on return. If all slots are occupied the call blocks
+ * (portMAX_DELAY) until one becomes free.
+ *
  * On success, resp->buffer is heap-allocated and must be freed by the caller.
  *
  * @return 0 on success, -1 on failure.
@@ -165,6 +178,11 @@ int http_client_perform(const HttpClientRequest* req, HttpClientResponse* resp);
 
 /**
  * @brief Begin an asynchronous HTTP request.
+ *
+ * Acquires a concurrency slot before returning the handle. If all slots are
+ * occupied the call blocks (portMAX_DELAY) until one becomes free. The slot
+ * is released inside the http_client_async_poll() call that returns
+ * HTTP_CLIENT_POLL_DONE — the caller must not release it manually.
  *
  * Returns immediately with a handle that the caller drives by calling
  * http_client_async_poll() repeatedly from its own scheduler. The module
@@ -190,8 +208,8 @@ HttpClientAsyncHandle* http_client_async_begin(const HttpClientRequest* req, Htt
  *
  * Returns HTTP_CLIENT_POLL_BUSY while the request is in progress.
  * Returns HTTP_CLIENT_POLL_DONE when the request has finished; on this call
- * the completion callback has already been invoked and the caller must
- * subsequently call http_client_async_free().
+ * the completion callback has already been invoked, the concurrency slot has
+ * been released, and the caller must subsequently call http_client_async_free().
  *
  * Each call does only as much work as is available without blocking and
  * returns immediately if the socket would block.

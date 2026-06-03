@@ -64,9 +64,12 @@ esp_lcd_touch_handle_t ws7b_board_get_touch(void);
  * @param brightness  0 = off, 255 = full brightness.
  */
 #ifdef CONFIG_IDF_TARGET_LINUX
-static inline void ws7b_board_set_backlight(uint8_t brightness) { (void)brightness; }
+static inline esp_err_t ws7b_board_set_backlight(uint8_t brightness) {
+    (void)brightness;
+    return ESP_OK;
+}
 #else
-void ws7b_board_set_backlight(uint8_t brightness);
+esp_err_t ws7b_board_set_backlight(uint8_t brightness);
 #endif
 
 /**
@@ -78,6 +81,20 @@ void ws7b_board_set_backlight(uint8_t brightness);
 static inline i2c_master_bus_handle_t ws7b_board_get_i2c_bus(void) { return (void*)0; }
 #else
 i2c_master_bus_handle_t ws7b_board_get_i2c_bus(void);
+#endif
+
+/**
+ * @brief Attempt to recover the I2C bus after a GT911 communication failure.
+ *
+ * Sends 9 clock pulses to release a stuck SDA line, then a STOP condition.
+ * Call this when esp_lcd_touch_read_data() returns an error.
+ *
+ * @return ESP_OK on success, or an I2C error code.
+ */
+#ifdef CONFIG_IDF_TARGET_LINUX
+static inline esp_err_t ws7b_board_recover_touch(void) { return ESP_OK; }
+#else
+esp_err_t ws7b_board_recover_touch(void);
 #endif
 
 #ifdef __cplusplus

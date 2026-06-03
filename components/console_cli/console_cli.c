@@ -18,6 +18,7 @@
 #include "console_cli.h"
 
 #include "bme280_sensor.h"
+#include "display.h"
 #include "driver/uart.h"
 #include "esp_chip_info.h"
 #include "esp_console.h"
@@ -28,6 +29,8 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "screen_timeout.h"
+#include "ws7b_board.h"
 
 #include <inttypes.h>
 #include <stdarg.h>
@@ -176,11 +179,133 @@ static int cmd_help_handler(int argc, char** argv) {
               "╔══════════════════════════════════════════════╗\r\n"
               "║               AVAILABLE COMMANDS             ║\r\n"
               "╠══════════════════════════════════════════════╣\r\n"
-              "║  help    — show this message                 ║\r\n"
-              "║  status  — system telemetry                  ║\r\n"
-              "║  sensor  — BME280 temperature/humidity/press ║\r\n"
-              "║  restart — software reset                    ║\r\n"
+              "║  help            — show this message         ║\r\n"
+              "║  status          — system telemetry          ║\r\n"
+              "║  sensor          — BME280 reading            ║\r\n"
+              "║  backlight       — set backlight 0-255       ║\r\n"
+              "║  simulate_touch  — simulate touch event      ║\r\n"
+              "║  test_backlight  — run backlight test (~5s)  ║\r\n"
+              "║  restart         — software reset            ║\r\n"
               "╚══════════════════════════════════════════════╝\r\n\r\n");
+    return 0;
+}
+
+static int cmd_test_backlight_handler(int argc, char** argv) {
+    int iterations = 10;
+    if (argc >= 2) {
+        iterations = atoi(argv[1]);
+        if (iterations <= 0) {
+            con_write("Usage: test_backlight [count]  (default 10)\r\n");
+            return 1;
+        }
+    }
+
+    int passed = 0;
+    int total  = 0;
+
+    // TC-1: backlight on/off returns ESP_OK
+    total++;
+    {
+        esp_err_t r1 = ws7b_board_set_backlight(0);
+        esp_err_t r2 = ws7b_board_set_backlight(255);
+        esp_err_t r3 = ws7b_board_set_backlight(0);
+        ws7b_board_set_backlight(255);
+        bool ok = (r1 == ESP_OK && r2 == ESP_OK && r3 == ESP_OK) != 0;
+        con_writef("[TC-1] backlight on/off ... %s\r\n", (int)ok ? "PASS" : "FAIL");
+        if (ok) {
+            passed++;
+        }
+    }
+
+    // TC-2: simulate_touch when screen active → woke=0
+    total++;
+    {
+        bool woke = false;
+        if (display_lvgl_lock(200)) {
+            woke = screen_timeout_record_activity();
+            display_lvgl_unlock();
+        }
+        bool ok = (!woke) != 0;
+        con_writef("[TC-2] simulate_touch (active) ... %s\r\n", (int)ok ? "PASS" : "FAIL");
+        if (ok) {
+            passed++;
+        }
+    }
+
+    // TC-3: timeout wake cycle, repeated `iterations` times
+    ScreenTimeoutConfig saved;
+    ScreenTimeoutConfig test_cfg = {
+        .dim_timeout_seconds           = 1,
+        .screensaver_timeout_seconds   = 2,
+        .backlight_off_timeout_seconds = 3,
+    };
+    if (display_lvgl_lock(200)) {
+        screen_timeout_get_config(&saved);
+        screen_timeout_set_config(&test_cfg);
+        display_lvgl_unlock();
+    }
+
+    for (int i = 0; i < iterations; i++) {
+        total++;
+        con_writef("[TC-3 iter %d/%d] waiting 5s ...", i + 1, iterations);
+        vTaskDelay(pdMS_TO_TICKS(5000));
+
+        bool woke1 = false;
+        bool woke2 = true;
+        if (display_lvgl_lock(200)) {
+            woke1 = screen_timeout_record_activity();
+            display_lvgl_unlock();
+        }
+        if (display_lvgl_lock(200)) {
+            woke2 = screen_timeout_record_activity();
+            display_lvgl_unlock();
+        }
+
+        bool ok = ((int)woke1 && !woke2) != 0;
+        con_writef(" %s (woke1=%d woke2=%d)\r\n", (int)ok ? "PASS" : "FAIL", (int)woke1,
+                   (int)woke2);
+        if (ok) {
+            passed++;
+        }
+    }
+
+    if (display_lvgl_lock(200)) {
+        screen_timeout_set_config(&saved);
+        display_lvgl_unlock();
+    }
+
+    con_writef("\r\nResult: %d/%d passed\r\n", passed, total);
+    return (passed == total) ? 0 : 1;
+}
+
+static int cmd_simulate_touch_handler(int argc, char** argv) {
+    (void)argc;
+    (void)argv;
+    bool woke = false;
+    if (display_lvgl_lock(100)) {
+        woke = screen_timeout_record_activity();
+        display_lvgl_unlock();
+    }
+    con_writef("simulate_touch: woke=%d\r\n", (int)woke ? 1 : 0);
+    return 0;
+}
+
+static int cmd_backlight_handler(int argc, char** argv) {
+    if (argc != 2) {
+        con_write("Usage: backlight <0-255>\r\n");
+        return 1;
+    }
+    int val = atoi(argv[1]);
+    if (val < 0 || val > 255) {
+        con_write("Error: value must be 0-255\r\n");
+        return 1;
+    }
+    esp_err_t err = ws7b_board_set_backlight((uint8_t)val);
+    if (err == ESP_OK) {
+        con_writef("backlight(%d): OK\r\n", val);
+    } else {
+        con_writef("backlight(%d): FAILED err=%d (%s)\r\n", val, err, esp_err_to_name(err));
+    }
     return 0;
 }
 
@@ -293,6 +418,24 @@ void console_cli_start(void) {
             .help    = "Software-reset the microcontroller",
             .hint    = NULL,
             .func    = cmd_restart_handler,
+        },
+        {
+            .command = "backlight",
+            .help    = "Set backlight brightness (0-255)",
+            .hint    = "<0-255>",
+            .func    = cmd_backlight_handler,
+        },
+        {
+            .command = "simulate_touch",
+            .help    = "Simulate a touch event (for automated testing)",
+            .hint    = NULL,
+            .func    = cmd_simulate_touch_handler,
+        },
+        {
+            .command = "test_backlight",
+            .help    = "Run backlight test suite (default 10 cycles)",
+            .hint    = "[count]",
+            .func    = cmd_test_backlight_handler,
         },
     };
     for (size_t i = 0; i < sizeof(CMDS) / sizeof(CMDS[0]); i++) {

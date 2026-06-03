@@ -26,9 +26,9 @@ static const char* g_tag = "display";
 static SemaphoreHandle_t g_s_lvgl_mux = NULL;
 static SemaphoreHandle_t g_s_vsync    = NULL;
 
-static void (*g_s_activity_cb)(void) = NULL;
+static bool (*g_s_activity_cb)(void) = NULL;
 
-void display_set_activity_callback(void (*cb)(void)) { g_s_activity_cb = cb; }
+void display_set_activity_callback(bool (*cb)(void)) { g_s_activity_cb = cb; }
 
 /*
  * Called from ISR context by the RGB panel driver at the end of every frame.
@@ -75,16 +75,20 @@ static void lvgl_touch_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     uint8_t cnt                          = 0;
     esp_lcd_touch_point_data_t points[1] = {0};
 
-    esp_lcd_touch_read_data(tp);
+    if (esp_lcd_touch_read_data(tp) != ESP_OK) {
+        ESP_LOGW(g_tag, "touch: read_data error → recover");
+        ws7b_board_recover_touch();
+        data->state = LV_INDEV_STATE_RELEASED;
+        return;
+    }
+
     esp_lcd_touch_get_data(tp, points, &cnt, 1);
 
     if (cnt > 0) {
-        if (g_s_activity_cb) {
-            g_s_activity_cb();
-        }
-        data->point.x = (int32_t)points[0].x;
-        data->point.y = (int32_t)points[0].y;
-        data->state   = LV_INDEV_STATE_PRESSED;
+        data->point.x  = (int32_t)points[0].x;
+        data->point.y  = (int32_t)points[0].y;
+        bool just_woke = (g_s_activity_cb ? (int)g_s_activity_cb() : 0) != 0;
+        data->state    = (int)just_woke ? LV_INDEV_STATE_RELEASED : LV_INDEV_STATE_PRESSED;
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
     }
@@ -207,7 +211,7 @@ esp_err_t display_init(lv_display_t** disp_out, lv_indev_t** touch_out) {
     return ESP_OK;
 }
 
-void display_set_backlight(uint8_t brightness) { ws7b_board_set_backlight(brightness); }
+void display_set_backlight(uint8_t brightness) { (void)ws7b_board_set_backlight(brightness); }
 
 bool display_lvgl_lock(int timeout_ms) {
     assert(g_s_lvgl_mux);

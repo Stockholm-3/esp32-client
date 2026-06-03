@@ -246,9 +246,24 @@ esp_lcd_panel_handle_t ws7b_board_get_panel(void) { return g_s_panel; }
 
 esp_lcd_touch_handle_t ws7b_board_get_touch(void) { return g_s_touch; }
 
-void ws7b_board_set_backlight(uint8_t brightness) {
-    ioexp_write(WS7B_IOEXP_REG_PWM, brightness);
-    ioexp_set_pin(WS7B_IOEXP_LCD_BL, brightness > 0 ? 1 : 0);
+esp_err_t ws7b_board_set_backlight(uint8_t brightness) {
+    // LCD_BL is kept HIGH permanently (set once in init_ioexp via g_s_ioexp_out = 0xFF).
+    // Toggling LCD_BL LOW→HIGH causes an electrical glitch on the shared I2C bus.
+    // CH32V003 PWM register is active-low: 0 = full brightness (on), 255 = off.
+    uint8_t pwm_val = brightness > 0 ? 0U : 255U;
+    return ioexp_write(WS7B_IOEXP_REG_PWM, pwm_val);
 }
 
 i2c_master_bus_handle_t ws7b_board_get_i2c_bus(void) { return g_s_i2c_bus; }
+
+esp_err_t ws7b_board_recover_touch(void) {
+    esp_err_t ret = i2c_master_bus_reset(g_s_i2c_bus);
+    // Bus reset sends 9 SCL pulses that CH32V003 may interpret as a transaction,
+    // clearing its output register to 0x00 (LCD_BL=0, TP_RST=0).
+    // Wait for CH32V003 to finish its internal reset before writing, otherwise
+    // the I2C write arrives before the device is ready and fails silently.
+    vTaskDelay(pdMS_TO_TICKS(10));
+    ioexp_write(WS7B_IOEXP_REG_MODE, 0xFF);
+    ioexp_write(WS7B_IOEXP_REG_OUT, g_s_ioexp_out);
+    return ret;
+}

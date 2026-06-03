@@ -1,20 +1,24 @@
 #include "esp_crt_bundle.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "http_client.h"
 
 #include <stdlib.h>
 #include <string.h>
 
 #define HTTP_CLIENT_DEFAULT_TIMEOUT_MS 10000
+#define HTTP_CLIENT_DEFAULT_MAX_CONC 1 /* safe default for ESP32 heap */
 #define HTTP_CLIENT_INITIAL_BUF_SIZE 1024
 #define HTTP_CLIENT_MAX_BUF_SIZE (128 * 1024)
 
 static const char* g_tag = "http_client";
 
-static bool g_initialized        = false;
-static int g_default_timeout     = HTTP_CLIENT_DEFAULT_TIMEOUT_MS;
-static HttpClientTlsConfig g_tls = {0};
+static bool g_initialized                  = false;
+static int g_default_timeout               = HTTP_CLIENT_DEFAULT_TIMEOUT_MS;
+static HttpClientTlsConfig g_tls           = {0};
+static SemaphoreHandle_t g_concurrency_sem = NULL;
 
 static const esp_http_client_method_t K_METHOD_MAP[] = {
     [HTTP_CLIENT_METHOD_GET]    = HTTP_METHOD_GET,
@@ -41,8 +45,6 @@ typedef struct {
 /*
  * The public header forward-declares HttpClientAsyncHandle as an incomplete
  * type. The full layout is only ever seen by this translation unit.
- * The embedded RxBuf lets the event handler write body data directly into the
- * handle without a separate allocation.
  */
 struct HttpClientAsyncHandle {
     char* url_copy;
@@ -57,19 +59,47 @@ struct HttpClientAsyncHandle {
     RxBuf rx;
 };
 
+/* ---------------------------------------------------------------------------
+ * Concurrency helpers
+ * ------------------------------------------------------------------------- */
+
+/** Acquire one slot. Blocks until a slot is available. */
+static void concurrency_acquire(void) { xSemaphoreTake(g_concurrency_sem, portMAX_DELAY); }
+
+/** Release one slot. Always safe to call after a matching acquire. */
+static void concurrency_release(void) { xSemaphoreGive(g_concurrency_sem); }
+
+/* ---------------------------------------------------------------------------
+ * Module lifecycle
+ * ------------------------------------------------------------------------- */
+
 int http_client_init(const HttpClientConfig* config) {
     if (g_initialized) {
         ESP_LOGW(g_tag, "Already initialized");
         return 0;
     }
+
+    int slots = HTTP_CLIENT_DEFAULT_MAX_CONC;
+
     if (config) {
         if (config->default_timeout_ms > 0) {
             g_default_timeout = config->default_timeout_ms;
         }
         g_tls = config->tls;
+        if (config->max_concurrent_requests > 0) {
+            slots = config->max_concurrent_requests;
+        }
     }
+
+    g_concurrency_sem = xSemaphoreCreateCounting(slots, slots);
+    if (!g_concurrency_sem) {
+        ESP_LOGE(g_tag, "Failed to create concurrency semaphore");
+        return -1;
+    }
+
     g_initialized = true;
-    ESP_LOGI(g_tag, "Initialized (TLS verify: %s)", g_tls.skip_verify ? "disabled" : "enabled");
+    ESP_LOGI(g_tag, "Initialized (TLS verify: %s, max concurrent: %d)",
+             g_tls.skip_verify ? "disabled" : "enabled", slots);
     return 0;
 }
 
@@ -77,7 +107,15 @@ void http_client_deinit(void) {
     g_initialized     = false;
     g_default_timeout = HTTP_CLIENT_DEFAULT_TIMEOUT_MS;
     memset(&g_tls, 0, sizeof(g_tls));
+    if (g_concurrency_sem) {
+        vSemaphoreDelete(g_concurrency_sem);
+        g_concurrency_sem = NULL;
+    }
 }
+
+/* ---------------------------------------------------------------------------
+ * Header helpers
+ * ------------------------------------------------------------------------- */
 
 int http_client_header_append(HttpClientHeader** head, const char* key, const char* value) {
     HttpClientHeader* h = malloc(sizeof(HttpClientHeader));
@@ -108,6 +146,10 @@ void http_client_headers_free(HttpClientHeader* head) {
     }
 }
 
+/* ---------------------------------------------------------------------------
+ * TLS resolution
+ * ------------------------------------------------------------------------- */
+
 static HttpClientTlsConfig resolve_tls(const HttpClientTlsConfig* req_tls) {
     HttpClientTlsConfig tls = g_tls;
     if (req_tls->ca_cert) {
@@ -124,6 +166,10 @@ static HttpClientTlsConfig resolve_tls(const HttpClientTlsConfig* req_tls) {
     }
     return tls;
 }
+
+/* ---------------------------------------------------------------------------
+ * RX buffer
+ * ------------------------------------------------------------------------- */
 
 static bool rxbuf_append(RxBuf* buf, const void* src, size_t n) {
     if (buf->oom) {
@@ -153,6 +199,10 @@ static bool rxbuf_append(RxBuf* buf, const void* src, size_t n) {
     return true;
 }
 
+/* ---------------------------------------------------------------------------
+ * Event handlers
+ * ------------------------------------------------------------------------- */
+
 static esp_err_t sync_event_handler(esp_http_client_event_t* evt) {
     RxBuf* rx = (RxBuf*)evt->user_data;
     if (evt->event_id == HTTP_EVENT_ON_DATA && !esp_http_client_is_chunked_response(evt->client)) {
@@ -169,6 +219,10 @@ static esp_err_t async_event_handler(esp_http_client_event_t* evt) {
     return ESP_OK;
 }
 
+/* ---------------------------------------------------------------------------
+ * Client builder
+ * ------------------------------------------------------------------------- */
+
 /* Concatenated root CAs — GTS R1, ISRG Root X1 (Let's Encrypt),
  * Amazon Root CA1, DigiCert Global Root CA.
  * mbedTLS tries each in order; add more roots to certs/roots.pem as needed.
@@ -184,20 +238,6 @@ extern const uint8_t G_ROOTS_END[] asm("_binary_roots_pem_end");
  *   2. tls->ca_cert != NULL → caller-supplied PEM; used as sole trust anchor
  *   3. default              → pinned GTS Root R1 (covers *.freeduck.dev and
  *                             all Google Trust Services signed certs)
- *
- * Note: esp_crt_bundle_attach and cert_pem do not fall back to each other
- * in mbedTLS — only one trust path is active at a time. The Nix IDF bundle
- * is omitted here because its 1970 snapshot predates GTS Root R1.
- * Add additional root PEMs via EMBED_TXTFILES if other CAs are needed.
- *
- * Mutual TLS is orthogonal to the above: populate client_cert + client_key.
- *
- * @param req           Fully populated request descriptor.
- * @param tls           Resolved TLS config (global merged with per-request).
- * @param is_async      Pass true for non-blocking / polled operation.
- * @param event_handler ESP HTTP client event callback.
- * @param user_data     Passed through to event_handler unchanged.
- * @return              Initialised client handle, or NULL on failure.
  */
 static esp_http_client_handle_t build_client(const HttpClientRequest* req,
                                              const HttpClientTlsConfig* tls, bool is_async,
@@ -214,21 +254,11 @@ static esp_http_client_handle_t build_client(const HttpClientRequest* req,
     };
 
     if (tls->skip_verify) {
-        /* Development override — disables all certificate verification.
-         * skip_cert_common_name_check suppresses the hostname check;
-         * without a trust anchor the full chain is also skipped. */
         ESP_LOGW(g_tag, "TLS verification DISABLED for %s — not for production", req->url);
         cfg.skip_cert_common_name_check = true;
-
     } else if (tls->ca_cert) {
-        /* Caller-supplied trust anchor — used verbatim.
-         * Intended for private CAs, self-signed certs, or explicit pinning. */
         cfg.cert_pem = tls->ca_cert;
-
     } else {
-        /* Default: pinned GTS Root R1.
-         * Extend by embedding additional roots and chaining them in a
-         * single PEM buffer if broader CA coverage is required. */
         cfg.cert_pem = (const char*)G_ROOTS_START;
     }
 
@@ -250,6 +280,10 @@ static esp_http_client_handle_t build_client(const HttpClientRequest* req,
     return client;
 }
 
+/* ---------------------------------------------------------------------------
+ * Synchronous API
+ * ------------------------------------------------------------------------- */
+
 int http_client_perform(const HttpClientRequest* req, HttpClientResponse* resp) {
     if (!g_initialized) {
         ESP_LOGE(g_tag, "Not initialized");
@@ -261,15 +295,15 @@ int http_client_perform(const HttpClientRequest* req, HttpClientResponse* resp) 
     memset(resp, 0, sizeof(*resp));
 
     HttpClientTlsConfig tls = resolve_tls(&req->tls);
-    if (tls.skip_verify) {
-        ESP_LOGW(g_tag, "TLS server verification disabled for %s", req->url);
-    }
 
-    RxBuf rx = {0};
-    esp_http_client_handle_t client =
-        build_client(req, &tls, /*is_async=*/false, sync_event_handler, &rx);
+    // Acquire FIRST — before any TLS allocation
+    concurrency_acquire();
+
+    RxBuf rx                        = {0};
+    esp_http_client_handle_t client = build_client(req, &tls, false, sync_event_handler, &rx);
     if (!client) {
         ESP_LOGE(g_tag, "Failed to init HTTP client");
+        concurrency_release(); // must release on this error path too
         return -1;
     }
 
@@ -290,8 +324,13 @@ int http_client_perform(const HttpClientRequest* req, HttpClientResponse* resp) 
     }
 
     esp_http_client_cleanup(client);
+    concurrency_release();
     return ret;
 }
+
+/* ---------------------------------------------------------------------------
+ * Async API
+ * ------------------------------------------------------------------------- */
 
 static HttpClientHeader* headers_clone(const HttpClientHeader* src) {
     HttpClientHeader* head = NULL;
@@ -357,13 +396,13 @@ HttpClientAsyncHandle* http_client_async_begin(const HttpClientRequest* req, Htt
     h->user_ctx         = user_ctx;
 
     HttpClientTlsConfig tls = resolve_tls(&req->tls);
-    if (tls.skip_verify) {
-        ESP_LOGW(g_tag, "TLS server verification disabled for %s", req->url);
-    }
 
-    h->client = build_client(&h->req_copy, &tls, /*is_async=*/true, async_event_handler, h);
+    concurrency_acquire();
+
+    h->client = build_client(&h->req_copy, &tls, true, async_event_handler, h);
     if (!h->client) {
         ESP_LOGE(g_tag, "Failed to init HTTP client");
+        concurrency_release();
         goto err;
     }
 
@@ -385,12 +424,13 @@ HttpClientPollResult http_client_async_poll(HttpClientAsyncHandle* h) {
         return HTTP_CLIENT_POLL_BUSY;
     }
 
-    // Mark done before firing the callback to prevent double-processing re-entry
+    /* Mark done before firing the callback to prevent double-processing. */
     h->done = true;
 
     if (err == ESP_OK) {
         HttpClientResponse* resp = calloc(1, sizeof(HttpClientResponse));
         if (!resp) {
+            concurrency_release();
             h->cb(NULL, -1, h->user_ctx);
             return HTTP_CLIENT_POLL_DONE;
         }
@@ -403,13 +443,13 @@ HttpClientPollResult http_client_async_poll(HttpClientAsyncHandle* h) {
         ESP_LOGI(g_tag, "%s %s -> %d (%zu bytes)", g_k_method_str[h->req_copy.method], h->url_copy,
                  resp->status, resp->length);
 
+        concurrency_release();
         h->cb(resp, 0, h->user_ctx);
     } else {
         ESP_LOGE(g_tag, "%s %s connection failed: %s", g_k_method_str[h->req_copy.method],
                  h->url_copy, esp_err_to_name(err));
 
-        // Pass NULL for the response context because no connection happened.
-        // This stops higher-level parsing loops from attempting to read invalid response fields.
+        concurrency_release();
         h->cb(NULL, -1, h->user_ctx);
     }
 

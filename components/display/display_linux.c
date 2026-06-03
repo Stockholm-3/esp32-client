@@ -41,9 +41,9 @@ static volatile bool s_mouse_pressed = false;
 static pthread_mutex_t s_lvgl_mux = PTHREAD_MUTEX_INITIALIZER;
 static volatile bool s_setup_done = false;
 
-static void (*g_s_activity_cb)(void) = NULL;
+static bool (*g_s_activity_cb)(void) = NULL;
 
-void display_set_activity_callback(void (*cb)(void)) { g_s_activity_cb = cb; }
+void display_set_activity_callback(bool (*cb)(void)) { g_s_activity_cb = cb; }
 
 static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
     const int32_t bpp        = 2; /* RGB565 — 2 bytes per pixel */
@@ -69,14 +69,14 @@ static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px
 
 static void lvgl_mouse_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     (void)indev;
+    bool just_woke = false;
     if (s_mouse_pressed) {
-        if (g_s_activity_cb) {
-            g_s_activity_cb();
-        }
+        just_woke = g_s_activity_cb ? g_s_activity_cb() : false;
     }
     data->point.x = s_mouse_x;
     data->point.y = s_mouse_y;
-    data->state   = s_mouse_pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+    data->state =
+        (s_mouse_pressed && !just_woke) ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
 }
 
 static void* simulation_thread(void* arg) {

@@ -93,6 +93,23 @@ ws-test:
 	bash scripts/test_ws_reconnect.sh
 
 # ----------------------------------------
+# Unit tests
+# ----------------------------------------
+.PHONY: test test-flash test-monitor
+
+# Build the tests safely from the root directory
+test:
+	python3 scripts/run_tests.py --target esp32s3
+
+# Build and flash the tests directly
+test-flash:
+	python3 scripts/run_tests.py --target esp32s3 --flash
+
+# Build, flash, and boot straight into the interactive Unity menu
+test-monitor:
+	python3 scripts/run_tests.py --target esp32s3 --flash --monitor
+
+# ----------------------------------------
 # Formatting
 # ----------------------------------------
 format-check:
