@@ -85,6 +85,26 @@ static void ui_tab_elpris_update_summary(float now, float min_val, float max_val
         snprintf(buf, sizeof(buf), "%.2f kr", (double)avg);
         lv_label_set_text(ui_lbl_price_avg, buf);
     }
+
+    if (ui_lbl_elec_price) {
+        snprintf(buf, sizeof(buf), "%.2f", (double)now);
+        lv_label_set_text(ui_lbl_elec_price, buf);
+    }
+    if (ui_lbl_elec_status) {
+        const char* status = now < avg * 0.85f ? "Good time to use electricity"
+                           : now > avg * 1.15f ? "Expensive time to use electricity"
+                                               : "Average electricity price";
+        lv_label_set_text(ui_lbl_elec_status, status);
+    }
+    if (ui_lbl_elec_sub) {
+        char sub[48];
+        unsigned h0 = (unsigned)(max_idx / 4);
+        unsigned m0 = (unsigned)((max_idx % 4) * 15);
+        unsigned h1 = (m0 == 45) ? h0 + 1 : h0;
+        unsigned m1 = (m0 + 15) % 60;
+        snprintf(sub, sizeof(sub), "Next peak %02u:%02u-%02u:%02u", h0, m0, h1, m1);
+        lv_label_set_text(ui_lbl_elec_sub, sub);
+    }
 }
 
 static bool ui_tab_elpris_parse_response(const char* json, size_t len) {
@@ -251,7 +271,7 @@ void ui_tab_elpris_init(void) {
     lv_obj_t* card_curr = make_summary_card(ui_panel_price_header, 2);
     ui_lbl_price_now = card_label(card_curr, "CURRENT PRICE", UI_COLOR_INK3,
                                   &lv_font_montserrat_12);
-    ui_lbl_price_val = card_label(card_curr, "0.29", UI_COLOR_GOOD,
+    ui_lbl_price_val = card_label(card_curr, "--", UI_COLOR_GOOD,
                                   &lv_font_montserrat_40);
     ui_lbl_price_unit = card_label(card_curr, "kr/kWh", UI_COLOR_INK3,
                                    &lv_font_montserrat_14);
@@ -259,19 +279,19 @@ void ui_tab_elpris_init(void) {
     // Max card
     lv_obj_t* card_max = make_summary_card(ui_panel_price_header, 1);
     card_label(card_max, "MAX", UI_COLOR_INK3, &lv_font_montserrat_12);
-    ui_lbl_price_hi      = card_label(card_max, "1.05 kr", UI_COLOR_BAD, &lv_font_montserrat_18);
+    ui_lbl_price_hi      = card_label(card_max, "--", UI_COLOR_BAD, &lv_font_montserrat_18);
     ui_lbl_price_hi_time = card_label(card_max, "--:--", UI_COLOR_INK3, &lv_font_montserrat_12);
 
     // Min card
     lv_obj_t* card_min = make_summary_card(ui_panel_price_header, 1);
     card_label(card_min, "MIN", UI_COLOR_INK3, &lv_font_montserrat_12);
-    ui_lbl_price_lo      = card_label(card_min, "0.05 kr", UI_COLOR_GOOD, &lv_font_montserrat_18);
+    ui_lbl_price_lo      = card_label(card_min, "--", UI_COLOR_GOOD, &lv_font_montserrat_18);
     ui_lbl_price_lo_time = card_label(card_min, "--:--", UI_COLOR_INK3, &lv_font_montserrat_12);
 
     // Avg card
     lv_obj_t* card_avg = make_summary_card(ui_panel_price_header, 1);
     card_label(card_avg, "AVG", UI_COLOR_INK3, &lv_font_montserrat_12);
-    ui_lbl_price_avg = card_label(card_avg, "0.35 kr", UI_COLOR_INK1, &lv_font_montserrat_18);
+    ui_lbl_price_avg = card_label(card_avg, "--", UI_COLOR_INK1, &lv_font_montserrat_18);
 
     // ---- Chart card ----
     ui_panel_chart = lv_obj_create(body);

@@ -40,6 +40,7 @@ const char* settings_manager_get_sta_gateway(void) { return ""; }
 const char* settings_manager_get_sta_netmask(void) { return ""; }
 const char* settings_manager_get_mdns_hostname(void) { return "esp32-client"; }
 bool settings_manager_get_ap_enabled(void) { return false; }
+void settings_manager_remove_wifi(const char* ssid) { (void)ssid; }
 void settings_manager_save_local_web_client_enabled(bool e) { (void)e; }
 void settings_manager_save_sta_static_ip(const char* ip) { (void)ip; }
 void settings_manager_save_sta_gateway(const char* gw) { (void)gw; }

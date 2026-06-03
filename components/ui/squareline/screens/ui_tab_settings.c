@@ -1,4 +1,5 @@
 #include "../ui.h"
+#include "kb_swedish.h"
 #include "../ui_theme.h"
 #include "../ui_events.h"
 #include "ui_scr_home.h"
@@ -120,7 +121,7 @@ void ui_tab_settings_init(void) {
     ui_lbl_wifi_sub   = lv_obj_get_child(wifi_labels, 1);
 
     ui_lbl_wifi_name = lv_label_create(wifi_labels);
-    lv_label_set_text(ui_lbl_wifi_name, "HomeNetwork_5G");
+    lv_label_set_text(ui_lbl_wifi_name, "--");
     lv_obj_set_style_text_color(ui_lbl_wifi_name, UI_COLOR_GOOD, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_wifi_name, &lv_font_montserrat_12,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -243,17 +244,17 @@ void ui_tab_settings_init(void) {
     lv_obj_set_style_pad_all(footer, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_t* lbl_fw = lv_label_create(footer);
-    lv_label_set_text(lbl_fw, "FW v1.0.0");
+    lv_label_set_text(lbl_fw, "FW --");
     lv_obj_set_style_text_color(lbl_fw, UI_COLOR_INK4, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(lbl_fw, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_settings_ip = lv_label_create(footer);
-    lv_label_set_text(ui_lbl_settings_ip, "IP: ---");
+    lv_label_set_text(ui_lbl_settings_ip, "IP: --");
     lv_obj_set_style_text_color(ui_lbl_settings_ip, UI_COLOR_INK4, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_settings_ip, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_t* lbl_up = lv_label_create(footer);
-    lv_label_set_text(lbl_up, "Uptime: 0d 0h 0m");
+    lv_label_set_text(lbl_up, "Uptime: --");
     lv_obj_set_style_text_color(lbl_up, UI_COLOR_INK4, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(lbl_up, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
@@ -262,5 +263,6 @@ void ui_tab_settings_init(void) {
     lv_keyboard_set_mode(ui_Keyboard1, LV_KEYBOARD_MODE_TEXT_LOWER);
     lv_obj_set_size(ui_Keyboard1, 1024, 248);
     lv_obj_align(ui_Keyboard1, LV_ALIGN_BOTTOM_MID, 0, 0);
+    kb_apply_swedish(ui_Keyboard1);
     lv_obj_add_flag(ui_Keyboard1, LV_OBJ_FLAG_HIDDEN);
 }

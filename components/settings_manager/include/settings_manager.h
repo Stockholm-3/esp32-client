@@ -14,6 +14,7 @@ int settings_manager_get_price_zone(void);
 char* settings_manager_get_price_zone_as_string();
 int settings_manager_get_timeout(void);
 uint8_t settings_manager_get_all_networks(SavedWifiNetwork* out_list, uint8_t max_count);
+void settings_manager_remove_wifi(const char* ssid);
 
 void settings_manager_save_location(const char* city);
 void settings_manager_save_price_zone(int index);

@@ -35,6 +35,7 @@
 #include "ws7b_board.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #ifndef CONFIG_IDF_TARGET_LINUX
 #    include "mdns.h"
@@ -148,7 +149,9 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     }
     if (state == WIFI_MANAGER_STATE_CONNECTED_WITH_DNS) {
 
-        loc_server_start();
+        if (settings_manager_get_local_web_client_enabled()) {
+            loc_server_start();
+        }
 
         char ip_str[16] = "---";
 #ifndef CONFIG_IDF_TARGET_LINUX
@@ -178,6 +181,11 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     loc_server_notify_wifi_state(state);
 }
 
+static void request_weather_now(void) {
+    data_fetcher_request_now("weather_min");
+    data_fetcher_request_now("weather_hr");
+}
+
 static void on_ap_toggled(bool enabled) {
     wifi_manager_set_ap_enabled(enabled);
     if (enabled) {
@@ -196,6 +204,10 @@ static void on_data_cached(const FetchDescriptor* desc, void* user_ctx) {
 
     ESP_LOGI(g_tag, "[%s] Fresh data ready — %zu bytes", desc->id, len);
     ESP_LOGI(g_tag, "[%s] Preview: %.200s%s", desc->id, (const char*)data, len > 200U ? "…" : "");
+
+    if (strcmp(desc->id, "weather_min") == 0 || strcmp(desc->id, "weather_hr") == 0) {
+        ui_binder_update_weather((const char*)data, len);
+    }
 
     cache_free(data);
 }
@@ -266,6 +278,7 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     setenv("TZ", "CET-1CEST-2,M3.5.0/2,M10.5.0/3", 1);
     tzset();
     ui_binder_init();
+    ui_binder_on_weather_refresh(request_weather_now);
     clock_init();
     display_lvgl_unlock();
 

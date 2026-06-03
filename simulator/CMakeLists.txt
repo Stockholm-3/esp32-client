@@ -18,3 +18,23 @@ set(EXTRA_COMPONENT_DIRS
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 project(simulator)
+
+# Force-include supplement font symbols so the linker resolves montserrat_12/14
+# referenced from managed liblvgl__lvgl.a after font patching.
+target_link_options(${CMAKE_PROJECT_NAME}.elf PRIVATE
+    -Wl,-u,montserrat_12
+    -Wl,-u,montserrat_14
+)
+
+# Patch shared managed LVGL fonts (../managed_components) for Swedish support.
+# Runs here too in case linux-build is invoked without a prior ESP32 build.
+find_program(PYTHON3 python3)
+if(PYTHON3)
+    execute_process(
+        COMMAND ${PYTHON3} ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/patch_lvgl_fonts.py
+        RESULT_VARIABLE _patch_rc
+    )
+    if(NOT _patch_rc EQUAL 0)
+        message(WARNING "patch_lvgl_fonts.py failed — Swedish chars may not render")
+    endif()
+endif()

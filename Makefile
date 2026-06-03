@@ -14,6 +14,7 @@ find $(ROOTS) -name '*.c' \
   -not -path "*/squareline/*" \
   -not -path "*/lib/*" \
   -not -path "*/bingus-lib/*" \
+  -not -path "*/fonts/montserrat_*.c" \
   2>/dev/null
 endef
 

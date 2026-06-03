@@ -1,3 +1,4 @@
+#include "bme280_sensor.h"
 #include "lvgl.h"
 #include "squareline/screens/ui_scr_home.h"
 #include "ui_binder.h"
@@ -57,11 +58,55 @@ static void load_mock_elpris(void) {
     free(buf);
 }
 
+static void load_mock_weather(void) {
+    FILE* f = fopen("spiffs_image/weather.json", "rb");
+    if (!f) {
+        LV_LOG_WARN("ui_binder: weather.json not found");
+        return;
+    }
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    rewind(f);
+    char* buf = malloc((size_t)size + 1);
+    if (!buf) {
+        fclose(f);
+        return;
+    }
+    size_t bytes_read = fread(buf, 1, (size_t)size, f);
+    (void)bytes_read;
+    buf[size] = '\0';
+    fclose(f);
+    ui_tab_weather_handle_server_response(buf, (size_t)size);
+    free(buf);
+}
+
+/* ── BME280 UI update via LVGL timer (same pattern as clock.c) ─────────── */
+
+static void bme280_ui_timer_cb(lv_timer_t* t) {
+    (void)t;
+    Bme280Reading r;
+    if (bme280_sensor_read(&r) != ESP_OK)
+        return;
+
+    char buf[10];
+    snprintf(buf, sizeof(buf), "%.1f", (double)r.temperature_c);
+    lv_label_set_text(ui_lbl_temp_val, buf);
+    lv_arc_set_value(ui_arc_temp, (int32_t)r.temperature_c);
+    snprintf(buf, sizeof(buf), "%.0f", (double)r.pressure_hpa);
+    lv_label_set_text(ui_lbl_press_val, buf);
+    lv_arc_set_value(ui_arc_pressure, (int32_t)r.pressure_hpa);
+    snprintf(buf, sizeof(buf), "%.0f", (double)r.humidity_pct);
+    lv_label_set_text(ui_lbl_hum_val, buf);
+    lv_arc_set_value(ui_arc_humidity, (int32_t)r.humidity_pct);
+}
+
 void ui_binder_init(void) {
     lv_obj_add_event_cb(ui_ta_locationinput, on_location_defocused, LV_EVENT_DEFOCUSED, NULL);
     lv_obj_add_event_cb(ui_dd_price, on_price_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_dd_timeout, on_timeout_changed, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_timer_create(bme280_ui_timer_cb, 500, NULL);
     load_mock_elpris();
+    load_mock_weather();
 }
 
 void ui_binder_update_localtime(const struct tm* t) {
@@ -78,12 +123,13 @@ void ui_binder_on_location_changed(ui_binder_location_cb_t cb) { s_location_cb =
 void ui_binder_on_price_changed(ui_binder_dropdown_cb_t cb) { s_price_cb = cb; }
 void ui_binder_on_timeout_changed(ui_binder_dropdown_cb_t cb) { s_timeout_cb = cb; }
 
-static ui_binder_location_cb_t s_location_cb2 = NULL;
-static ui_binder_dropdown_cb_t s_price_cb2    = NULL;
-static ui_binder_dropdown_cb_t s_timeout_cb2  = NULL;
-static ui_binder_bool_cb_t s_ap_cb            = NULL;
-static ui_binder_bool_cb_t s_ap_cb2           = NULL;
-static ui_binder_bool_cb_t s_lwc_cb           = NULL;
+static ui_binder_location_cb_t s_location_cb2     = NULL;
+static ui_binder_dropdown_cb_t s_price_cb2        = NULL;
+static ui_binder_dropdown_cb_t s_timeout_cb2      = NULL;
+static ui_binder_bool_cb_t s_ap_cb                = NULL;
+static ui_binder_bool_cb_t s_ap_cb2               = NULL;
+static ui_binder_bool_cb_t s_lwc_cb               = NULL;
+static ui_binder_button_cb_t s_weather_refresh_cb = NULL;
 
 void ui_binder_on_location_changed2(ui_binder_location_cb_t cb) { s_location_cb2 = cb; }
 void ui_binder_on_price_changed2(ui_binder_dropdown_cb_t cb) { s_price_cb2 = cb; }
@@ -93,17 +139,18 @@ void ui_binder_set_local_web_client_enabled(bool enabled) { (void)enabled; }
 void ui_binder_on_ap_enabled_changed(ui_binder_bool_cb_t cb) { s_ap_cb = cb; }
 void ui_binder_on_ap_enabled_changed2(ui_binder_bool_cb_t cb) { s_ap_cb2 = cb; }
 void ui_binder_on_local_web_client_changed(ui_binder_bool_cb_t cb) { s_lwc_cb = cb; }
+void ui_binder_on_weather_refresh(ui_binder_button_cb_t cb) { s_weather_refresh_cb = cb; }
+void ui_binder_trigger_weather_refresh(void) {
+    if (s_weather_refresh_cb) {
+        s_weather_refresh_cb();
+    }
+}
+void ui_binder_update_weather(const char* json, size_t len) {
+    if (!json || len == 0) {
+        return;
+    }
+    ui_tab_weather_handle_server_response(json, len);
+}
 void ui_binder_update_local_ip(const char* ip) { (void)ip; }
 
-void ui_binder_update_bme280(const Bme280Reading* reading) {
-    char buf[10];
-    snprintf(buf, sizeof(buf), "%.1f", (double)reading->temperature_c);
-    lv_label_set_text(ui_lbl_temp_val, buf);
-    lv_arc_set_value(ui_arc_temp, (int32_t)reading->temperature_c);
-    snprintf(buf, sizeof(buf), "%.0f", (double)reading->pressure_hpa);
-    lv_label_set_text(ui_lbl_press_val, buf);
-    lv_arc_set_value(ui_arc_pressure, (int32_t)reading->pressure_hpa);
-    snprintf(buf, sizeof(buf), "%.0f", (double)reading->humidity_pct);
-    lv_label_set_text(ui_lbl_hum_val, buf);
-    lv_arc_set_value(ui_arc_humidity, (int32_t)reading->humidity_pct);
-}
+void ui_binder_update_bme280(const Bme280Reading* reading) { (void)reading; }
