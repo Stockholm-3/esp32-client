@@ -3,7 +3,7 @@ if(IDF_TARGET STREQUAL "linux")
     set(REQS log)
 else()
     set(SRC "console_cli.c")
-    set(REQS console bme280_sensor esp_driver_uart vfs esp_timer esp_hw_support spi_flash)
+    set(REQS console bme280_sensor esp_driver_uart vfs esp_timer esp_hw_support spi_flash ws7b_board screen_timeout display)
 
 endif()
 

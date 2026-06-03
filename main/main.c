@@ -257,9 +257,9 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     }
     ui_build(disp);
     ScreenTimeoutConfig timeout_cfg = {
-        .dim_timeout_seconds           = 1 * 60,
-        .screensaver_timeout_seconds   = 2 * 60,
-        .backlight_off_timeout_seconds = 5 * 60,
+        .dim_timeout_seconds           = (5 * 60 * 50U) / 100U, // 150s — matches UI minimum (5 min)
+        .screensaver_timeout_seconds   = (5 * 60 * 75U) / 100U, // 225s
+        .backlight_off_timeout_seconds = 5 * 60,                // 300s
     };
     screen_timeout_init(&timeout_cfg);
     display_set_activity_callback(screen_timeout_record_activity);

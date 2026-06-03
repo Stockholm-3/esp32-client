@@ -43,8 +43,11 @@ void display_lvgl_unlock(void);
 /**
  * @brief Register a callback invoked on every touch event.
  *        Use this to notify screen_timeout of user activity.
+ *
+ * The callback returns true if the screen just woke from a non-active stage.
+ * In that case the touch is not forwarded to LVGL widgets.
  */
-void display_set_activity_callback(void (*cb)(void));
+void display_set_activity_callback(bool (*cb)(void));
 
 /**
  * @brief Set the LCD backlight brightness.

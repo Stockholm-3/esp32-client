@@ -51,8 +51,12 @@ void screen_timeout_init(const ScreenTimeoutConfig* config);
  * - Hides all overlays (dim and screensaver)
  * - Restores backlight to full brightness
  * - Resets the inactivity timer
+ *
+ * @return true  if the screen just woke from a non-active stage (first touch
+ *               should not be forwarded to the UI as a press event).
+ * @return false if the screen was already active.
  */
-void screen_timeout_record_activity(void);
+bool screen_timeout_record_activity(void);
 
 /**
  * @brief Reconfigure timeout values at runtime.

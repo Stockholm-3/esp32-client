@@ -148,6 +148,7 @@ void ui_binder_set_price_zone(int index) {
 void ui_binder_set_timeout(int index) {
     if (display_lvgl_lock(100)) {
         lv_dropdown_set_selected(ui_dd_timeout, (uint32_t)index);
+        lv_obj_send_event(ui_dd_timeout, LV_EVENT_VALUE_CHANGED, NULL);
         display_lvgl_unlock();
     }
 }
