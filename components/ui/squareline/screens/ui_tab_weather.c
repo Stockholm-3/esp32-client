@@ -321,8 +321,14 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len) {
                                  ui_img_day_icon7};
 
     // 7-day carousel
+    lv_obj_t* day_btn_arr[7] = {ui_btn_day1, ui_btn_day2, ui_btn_day3,
+                                 ui_btn_day4, ui_btn_day5, ui_btn_day6, ui_btn_day7};
     for (int i = 0; i < 7; i++) {
-        if (!days[i].valid) break;
+        if (!days[i].valid) {
+            if (day_btn_arr[i]) lv_obj_add_flag(day_btn_arr[i], LV_OBJ_FLAG_HIDDEN);
+            continue;
+        }
+        if (day_btn_arr[i]) lv_obj_remove_flag(day_btn_arr[i], LV_OBJ_FLAG_HIDDEN);
         char wday[8];
         weather_date_to_weekday(days[i].date, wday, sizeof(wday));
         char hi_buf[16], lo_buf[16];
@@ -478,7 +484,7 @@ void ui_tab_weather_init(void) {
     lv_obj_set_flex_align(ui_panel_carousel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
 
-    static const char* day_names[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+    static const char* day_names[] = {"---", "---", "---", "---", "---", "---", "---"};
     static const char* day_his[]   = {"+15\xc2\xb0", "+17\xc2\xb0", "+12\xc2\xb0", "+9\xc2\xb0",
                                       "+11\xc2\xb0", "+14\xc2\xb0", "+16\xc2\xb0"};
     static const char* day_los[]   = {"+8\xc2\xb0", "+9\xc2\xb0", "+6\xc2\xb0", "+4\xc2\xb0",

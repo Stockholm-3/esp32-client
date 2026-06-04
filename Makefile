@@ -30,7 +30,7 @@ endef
 # ----------------------------------------
 # Phony targets
 # ----------------------------------------
-.PHONY: build reconfigure flash monitor flash-monitor fm
+.PHONY: build reconfigure flash flash-storage monitor flash-monitor fm
 .PHONY: linux-build linux-run linux-clean linux-hardclean
 .PHONY: hardclean format-check format-fix format-ci
 .PHONY: lint lint-fix lint-ci lint-scrub lint-check-deps linux-reconfigure
@@ -45,13 +45,16 @@ reconfigure:
 	idf.py reconfigure
 
 flash:
-	idf.py flash
+	idf.py app-flash
+
+flash-storage:
+	python $(IDF_PATH)/components/partition_table/parttool.py -p $(LOG_PORT) write_partition --partition-name=storage --input build/storage.bin
 
 monitor:
 	idf.py monitor
 
 flash-monitor:
-	idf.py flash monitor
+	idf.py app-flash monitor
 
 fm: flash-monitor
 
