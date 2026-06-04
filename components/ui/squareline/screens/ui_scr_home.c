@@ -207,7 +207,7 @@ void ui_scr_home_screen_init(void) {
     lv_arc_set_rotation(ui_arc_temp, 135);
     lv_arc_set_bg_angles(ui_arc_temp, 0, 270);
     lv_arc_set_range(ui_arc_temp, -40, 85);
-    lv_arc_set_value(ui_arc_temp, 0);
+    lv_arc_set_value(ui_arc_temp, -40);
     lv_obj_remove_flag(ui_arc_temp, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_arc_color(ui_arc_temp, UI_COLOR_BG3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_width(ui_arc_temp, 8, LV_PART_MAIN | LV_STATE_DEFAULT);
