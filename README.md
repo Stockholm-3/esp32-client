@@ -122,7 +122,7 @@ Tests are written using the Unity framework (ESP-IDF's built-in test library) an
 **Workflow:**
 1. Connect the ESP32-S3 board via USB.
 2. Run `make test-monitor`.
-3. Unity prints pass/fail results over serial:
+3. Unity prints pass/fail results over serial, in example:
 ```
 TEST(cache_fs, cache_fs_config stores root_path correctly) PASS
 TEST(cache_fs, cache_fs_config stores zero TTL correctly) PASS
