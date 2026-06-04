@@ -49,6 +49,13 @@ __pycache__/
 /managed_components/
 /sdkconfig
 
+# Test build artifacts
+/test/build/
+/test/sdkconfig
+/test/sdkconfig.old
+/test/dependencies.lock
+/test/managed_components/
+
 #Doxygen documentation
 docs/
 

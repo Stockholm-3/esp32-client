@@ -271,3 +271,17 @@ docs-open:
 	@echo "Opening documentation..."
 	@xdg-open docs/html/index.html
 	@echo "Documentation opened in default browser."
+
+# ------------------------------------------------------------
+# Unit tests (Unity via ESP-IDF)
+# ------------------------------------------------------------
+.PHONY: test test-flash test-monitor
+
+test:
+	python3 scripts/run_tests.py --target esp32s3
+
+test-flash:
+	python3 scripts/run_tests.py --target esp32s3 --flash
+
+test-monitor:
+	python3 scripts/run_tests.py --target esp32s3 --flash --monitor
