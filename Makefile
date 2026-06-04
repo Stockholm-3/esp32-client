@@ -65,7 +65,7 @@ fm: flash-monitor
 # Note: install WinUSB driver for "USB JTAG/serial debug unit Interface 2"
 # via Zadig (https://zadig.akeo.ie/) before first use on Windows.
 openocd:
-	idf.py openocd
+	sudo -E LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) $(shell which idf.py) openocd
 
 gdb:
 	idf.py gdb
