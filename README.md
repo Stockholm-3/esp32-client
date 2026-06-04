@@ -110,6 +110,29 @@ Start with `break app_main` then `run` to stop at the entry point and step from 
 | `make lint-fix` | Attempt to automatically apply safe linter suggestions. |
 | `make format-check` | Dry-run for CI to ensure code meets style guidelines. |
 
+### Unit Tests
+Tests are written using the Unity framework (ESP-IDF's built-in test library) and live in each component's `test/` subdirectory. They require the physical ESP32-S3 board to run.
+
+| Command | Action |
+| :--- | :--- |
+| `make test` | Build the test firmware. |
+| `make test-flash` | Build and flash the test firmware to the connected device. |
+| `make test-monitor` | Build, flash, and open the serial monitor to view results. |
+
+**Workflow:**
+1. Connect the ESP32-S3 board via USB.
+2. Run `make test-monitor`.
+3. Unity prints pass/fail results over serial:
+```
+TEST(cache_fs, cache_fs_config stores root_path correctly) PASS
+TEST(cache_fs, cache_fs_config stores zero TTL correctly) PASS
+...
+14 Tests 0 Failures 0 Ignored
+OK
+```
+
+> Tests cannot run without the hardware — the Linux simulator uses stubs that do not implement the ESP32-specific logic that many tests exercise.
+
 ---
 
 ## Project Structure
