@@ -6,9 +6,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static ui_binder_location_cb_t s_location_cb = NULL;
-static ui_binder_dropdown_cb_t s_price_cb    = NULL;
-static ui_binder_dropdown_cb_t s_timeout_cb  = NULL;
+static ui_binder_location_cb_t s_location_cb      = NULL;
+static ui_binder_dropdown_cb_t s_price_cb         = NULL;
+static ui_binder_dropdown_cb_t s_timeout_cb       = NULL;
+static ui_binder_location_cb_t s_location_cb2     = NULL;
+static ui_binder_dropdown_cb_t s_price_cb2        = NULL;
+static ui_binder_dropdown_cb_t s_timeout_cb2      = NULL;
+static ui_binder_bool_cb_t s_ap_cb                = NULL;
+static ui_binder_bool_cb_t s_ap_cb2               = NULL;
+static ui_binder_bool_cb_t s_lwc_cb               = NULL;
+static ui_binder_button_cb_t s_weather_refresh_cb = NULL;
 
 static void on_location_defocused(lv_event_t* e) {
     (void)e;
@@ -123,14 +130,6 @@ void ui_binder_set_timeout(int index) { lv_dropdown_set_selected(ui_dd_timeout, 
 void ui_binder_on_location_changed(ui_binder_location_cb_t cb) { s_location_cb = cb; }
 void ui_binder_on_price_changed(ui_binder_dropdown_cb_t cb) { s_price_cb = cb; }
 void ui_binder_on_timeout_changed(ui_binder_dropdown_cb_t cb) { s_timeout_cb = cb; }
-
-static ui_binder_location_cb_t s_location_cb2     = NULL;
-static ui_binder_dropdown_cb_t s_price_cb2        = NULL;
-static ui_binder_dropdown_cb_t s_timeout_cb2      = NULL;
-static ui_binder_bool_cb_t s_ap_cb                = NULL;
-static ui_binder_bool_cb_t s_ap_cb2               = NULL;
-static ui_binder_bool_cb_t s_lwc_cb               = NULL;
-static ui_binder_button_cb_t s_weather_refresh_cb = NULL;
 
 void ui_binder_on_location_changed2(ui_binder_location_cb_t cb) { s_location_cb2 = cb; }
 void ui_binder_on_price_changed2(ui_binder_dropdown_cb_t cb) { s_price_cb2 = cb; }
