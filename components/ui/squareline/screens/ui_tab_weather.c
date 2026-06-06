@@ -9,6 +9,7 @@
 #include <string.h>
 #include <time.h>
 
+
 lv_obj_t* ui_panel_carousel    = NULL;
 lv_obj_t* ui_btn_weather_refresh = NULL;
 
@@ -345,13 +346,26 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len, int ski
         }
     }
 
+    // ── Determine today's date ───────────────────────────────────────────────
+    // Fall back to the forecast midpoint when NTP is not yet synced (year < 2020).
+    char today[11] = "";
+    if (skip_days == 0) {
+        time_t now_t = time(NULL);
+        struct tm* tm_now = localtime(&now_t);
+        if (tm_now->tm_year + 1900 >= 2020) {
+            strftime(today, sizeof(today), "%Y-%m-%d", tm_now);
+        } else {
+            cJSON* mid = cJSON_GetArrayItem(forecast, count / 2);
+            if (cJSON_IsObject(mid)) {
+                cJSON* t = cJSON_GetObjectItemCaseSensitive(mid, "time");
+                if (cJSON_IsString(t)) strncpy(today, t->valuestring, 10);
+            }
+        }
+    }
+
     // ── Fill chart data arrays ───────────────────────────────────────────────
     if (skip_days == 0) {
         // weather_min → store only today's entries in g_min_data
-        char today[11] = "";
-        time_t now = time(NULL);
-        struct tm* tm_now = localtime(&now);
-        strftime(today, sizeof(today), "%Y-%m-%d", tm_now);
 
         int n = 0;
         for (int i = 0; i < count && n < WEATHER_HOUR_MAX; i++) {
@@ -442,13 +456,9 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len, int ski
     // find today's index in days[] — past_hours may prepend yesterday's entries
     int today_di = 0;
     if (skip_days == 0) {
-        char today_s[11] = "";
-        time_t tt = time(NULL);
-        struct tm* tms = localtime(&tt);
-        strftime(today_s, sizeof(today_s), "%Y-%m-%d", tms);
         today_di = -1;
         for (int j = 0; j < day_count; j++) {
-            if (strncmp(days[j].date, today_s, 10) == 0) { today_di = j; break; }
+            if (strncmp(days[j].date, today, 10) == 0) { today_di = j; break; }
         }
     }
 
@@ -798,6 +808,7 @@ void ui_tab_weather_init(void) {
     g_chart = lv_chart_create(hourly_card);
     lv_obj_set_flex_grow(g_chart, 1);
     lv_obj_set_width(g_chart, lv_pct(100));
+    lv_obj_remove_flag(g_chart, LV_OBJ_FLAG_SCROLLABLE);
     lv_chart_set_type(g_chart, LV_CHART_TYPE_LINE);
     lv_chart_set_point_count(g_chart, WEATHER_HOUR_MAX);
     lv_chart_set_div_line_count(g_chart, 5, 7);
