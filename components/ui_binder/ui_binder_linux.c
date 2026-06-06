@@ -58,10 +58,10 @@ static void load_mock_elpris(void) {
     free(buf);
 }
 
-static void load_mock_weather(void) {
-    FILE* f = fopen("spiffs_image/weather.json", "rb");
+static void load_mock_file(const char* path, int skip_days) {
+    FILE* f = fopen(path, "rb");
     if (!f) {
-        LV_LOG_WARN("ui_binder: weather.json not found");
+        LV_LOG_WARN("ui_binder: mock file not found");
         return;
     }
     fseek(f, 0, SEEK_END);
@@ -76,7 +76,7 @@ static void load_mock_weather(void) {
     (void)bytes_read;
     buf[size] = '\0';
     fclose(f);
-    ui_tab_weather_handle_server_response(buf, (size_t)size);
+    ui_tab_weather_handle_server_response(buf, (size_t)size, skip_days);
     free(buf);
 }
 
@@ -106,7 +106,8 @@ void ui_binder_init(void) {
     lv_obj_add_event_cb(ui_dd_timeout, on_timeout_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_timer_create(bme280_ui_timer_cb, 500, NULL);
     load_mock_elpris();
-    load_mock_weather();
+    load_mock_file("spiffs_image/weather_min.json", 0);
+    load_mock_file("spiffs_image/weather_hr.json", 1);
 }
 
 void ui_binder_update_localtime(const struct tm* t) {
@@ -145,11 +146,18 @@ void ui_binder_trigger_weather_refresh(void) {
         s_weather_refresh_cb();
     }
 }
-void ui_binder_update_weather(const char* json, size_t len) {
+void ui_binder_update_weather_min(const char* json, size_t len) {
     if (!json || len == 0) {
         return;
     }
-    ui_tab_weather_handle_server_response(json, len);
+    ui_tab_weather_handle_server_response(json, len, 0);
+}
+
+void ui_binder_update_weather_hr(const char* json, size_t len) {
+    if (!json || len == 0) {
+        return;
+    }
+    ui_tab_weather_handle_server_response(json, len, 1);
 }
 void ui_binder_update_local_ip(const char* ip) { (void)ip; }
 

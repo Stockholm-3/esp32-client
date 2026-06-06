@@ -39,5 +39,6 @@ void ui_binder_on_ap_enabled_changed2(ui_binder_bool_cb_t cb);
 void ui_binder_on_local_web_client_changed(ui_binder_bool_cb_t cb);
 void ui_binder_on_weather_refresh(ui_binder_button_cb_t cb);
 void ui_binder_trigger_weather_refresh(void);
-void ui_binder_update_weather(const char* json, size_t len);
+void ui_binder_update_weather_min(const char* json, size_t len);
+void ui_binder_update_weather_hr(const char* json, size_t len);
 void ui_binder_update_local_ip(const char* ip);
