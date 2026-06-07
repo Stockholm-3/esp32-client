@@ -31,6 +31,25 @@ static int                g_now_index   = -1;
 static int                g_min_index   = -1;
 static int                g_max_index   = -1;
 static int                g_avg_index   = -1;
+static float              g_raw[96]     = {0};
+static float              g_avg_price   = 0.0f;
+static float              g_min_price   = 0.0f;
+static float              g_max_price   = 0.0f;
+
+// Returns first index >= `from` where at least `min_slots` consecutive entries
+// are above (if `above`) or below (!`above`) `threshold`. Returns -1 if not found.
+static int find_block_start(int from, float threshold, bool above, int min_slots) {
+    for (int i = from; i <= 96 - min_slots; i++) {
+        bool ok = true;
+        for (int j = 0; j < min_slots; j++) {
+            bool cond = above ? (g_raw[i + j] > threshold)
+                              : (g_raw[i + j] < threshold);
+            if (!cond) { ok = false; break; }
+        }
+        if (ok) return i;
+    }
+    return -1;
+}
 
 static lv_coord_t ui_tab_elpris_price_to_chart_units(float price_kr) {
     return (lv_coord_t)roundf(price_kr * 100.0f);
@@ -86,24 +105,86 @@ static void ui_tab_elpris_update_summary(float now, float min_val, float max_val
         lv_label_set_text(ui_lbl_price_avg, buf);
     }
 
+    bool is_good = now < avg * 0.85f;
+    bool is_bad  = now > avg * 1.15f;
+    lv_color_t state_color = is_good ? UI_COLOR_GOOD
+                           : is_bad  ? UI_COLOR_BAD
+                                     : UI_COLOR_WARN;
+    if (ui_lbl_price_val)
+        lv_obj_set_style_text_color(ui_lbl_price_val, state_color, LV_PART_MAIN | LV_STATE_DEFAULT);
+    if (ui_lbl_price_avg)
+        lv_obj_set_style_text_color(ui_lbl_price_avg, UI_COLOR_WARN, LV_PART_MAIN | LV_STATE_DEFAULT);
     if (ui_lbl_elec_price) {
         snprintf(buf, sizeof(buf), "%.2f", (double)now);
         lv_label_set_text(ui_lbl_elec_price, buf);
+        lv_obj_set_style_text_color(ui_lbl_elec_price, state_color,
+                                    LV_PART_MAIN | LV_STATE_DEFAULT);
     }
     if (ui_lbl_elec_status) {
-        const char* status = now < avg * 0.85f ? "Good time to use electricity"
-                           : now > avg * 1.15f ? "Expensive time to use electricity"
-                                               : "Average electricity price";
+        const char* status = is_good ? "Good time to use electricity"
+                           : is_bad  ? "Expensive time to use electricity"
+                                     : "Average electricity price";
         lv_label_set_text(ui_lbl_elec_status, status);
+        lv_obj_set_style_text_color(ui_lbl_elec_status, state_color,
+                                    LV_PART_MAIN | LV_STATE_DEFAULT);
     }
+    if (ui_dot_light_green)
+        lv_obj_set_style_bg_opa(ui_dot_light_green, is_good ? 255 : 80,
+                                LV_PART_MAIN | LV_STATE_DEFAULT);
+    if (ui_dot_light_amber)
+        lv_obj_set_style_bg_opa(ui_dot_light_amber, (!is_good && !is_bad) ? 255 : 80,
+                                LV_PART_MAIN | LV_STATE_DEFAULT);
+    if (ui_dot_light_red)
+        lv_obj_set_style_bg_opa(ui_dot_light_red, is_bad ? 255 : 80,
+                                LV_PART_MAIN | LV_STATE_DEFAULT);
     if (ui_lbl_elec_sub) {
-        char sub[48];
-        unsigned h0 = (unsigned)(max_idx / 4);
-        unsigned m0 = (unsigned)((max_idx % 4) * 15);
-        unsigned h1 = (m0 == 45) ? h0 + 1 : h0;
-        unsigned m1 = (m0 + 15) % 60;
-        snprintf(sub, sizeof(sub), "Next peak %02u:%02u-%02u:%02u", h0, m0, h1, m1);
-        lv_label_set_text(ui_lbl_elec_sub, sub);
+        char sub[48] = "";
+        if (now_idx >= 0 && now_idx < 96) {
+            float thr_bad   = avg * 1.15f;
+            float thr_good  = avg * 0.85f;
+            float now_price = now;
+            if (is_good) {
+                int peak_idx = find_block_start(now_idx + 1, thr_bad, true, 4);
+                if (peak_idx >= 0)
+                    snprintf(sub, sizeof(sub), "Next peak %02u:%02u",
+                             (unsigned)(peak_idx / 4), (unsigned)((peak_idx % 4) * 15));
+                else {
+                    // find when price rises above current level
+                    int rise_idx = find_block_start(now_idx + 1, now_price, true, 4);
+                    if (rise_idx >= 0)
+                        snprintf(sub, sizeof(sub), "Rising from %02u:%02u",
+                                 (unsigned)(rise_idx / 4), (unsigned)((rise_idx % 4) * 15));
+                    else
+                        snprintf(sub, sizeof(sub), "Low price all day");
+                }
+            } else if (is_bad) {
+                int cheap_idx = find_block_start(now_idx + 1, thr_good, false, 4);
+                if (cheap_idx >= 0)
+                    snprintf(sub, sizeof(sub), "Cheaper from %02u:%02u",
+                             (unsigned)(cheap_idx / 4), (unsigned)((cheap_idx % 4) * 15));
+                else {
+                    // find when price drops sustainably below current level
+                    int ease_idx = find_block_start(now_idx + 1, now_price, false, 4);
+                    if (ease_idx >= 0)
+                        snprintf(sub, sizeof(sub), "Easing from %02u:%02u",
+                                 (unsigned)(ease_idx / 4), (unsigned)((ease_idx % 4) * 15));
+                    else
+                        snprintf(sub, sizeof(sub), "High price all day");
+                }
+            } else {
+                int peak_idx  = find_block_start(now_idx + 1, thr_bad,  true,  4);
+                int cheap_idx = find_block_start(now_idx + 1, thr_good, false, 4);
+                if (cheap_idx >= 0 && (peak_idx < 0 || cheap_idx < peak_idx))
+                    snprintf(sub, sizeof(sub), "Cheaper from %02u:%02u",
+                             (unsigned)(cheap_idx / 4), (unsigned)((cheap_idx % 4) * 15));
+                else if (peak_idx >= 0)
+                    snprintf(sub, sizeof(sub), "Next peak %02u:%02u",
+                             (unsigned)(peak_idx / 4), (unsigned)((peak_idx % 4) * 15));
+                else
+                    snprintf(sub, sizeof(sub), "Stable prices today");
+            }
+        }
+        lv_label_set_text(ui_lbl_elec_sub, sub[0] ? sub : "--");
     }
 }
 
@@ -111,24 +192,28 @@ static bool ui_tab_elpris_parse_response(const char* json, size_t len) {
     cJSON* root = cJSON_ParseWithLength(json, len);
     if (!root) return false;
 
-    cJSON* slots = cJSON_GetObjectItem(root, "slots_total");
-    if (cJSON_IsNumber(slots) && (int)slots->valuedouble != 96) {
-        LV_LOG_WARN("elpris: unexpected slots_total=%d", (int)slots->valuedouble);
-    }
+    // Support two formats:
+    // 1. Flat array: [{SEK_per_kWh, time_start, ...}, ...] (local server)
+    // 2. Object: {decisions: [{input_variables: {elpris: ...}}]} (legacy mock)
+    cJSON* arr = cJSON_IsArray(root) ? root : cJSON_GetObjectItem(root, "decisions");
+    if (!cJSON_IsArray(arr)) { cJSON_Delete(root); return false; }
 
-    cJSON* decisions = cJSON_GetObjectItem(root, "decisions");
-    if (!cJSON_IsArray(decisions)) { cJSON_Delete(root); return false; }
-
-    int count = cJSON_GetArraySize(decisions);
+    int count = cJSON_GetArraySize(arr);
     int used  = count < 96 ? count : 96;
 
     float raw[96] = {0};
     for (int i = 0; i < used; i++) {
-        cJSON* entry      = cJSON_GetArrayItem(decisions, i);
+        cJSON* entry = cJSON_GetArrayItem(arr, i);
+        if (!cJSON_IsObject(entry)) continue;
+        // flat format
+        cJSON* sek = cJSON_GetObjectItem(entry, "SEK_per_kWh");
+        if (cJSON_IsNumber(sek)) { raw[i] = (float)sek->valuedouble; continue; }
+        // legacy format
         cJSON* input_vars = cJSON_GetObjectItem(entry, "input_variables");
-        if (!cJSON_IsObject(input_vars)) continue;
-        cJSON* item = cJSON_GetObjectItem(input_vars, "elpris");
-        if (cJSON_IsNumber(item)) raw[i] = (float)item->valuedouble;
+        if (cJSON_IsObject(input_vars)) {
+            cJSON* item = cJSON_GetObjectItem(input_vars, "elpris");
+            if (cJSON_IsNumber(item)) raw[i] = (float)item->valuedouble;
+        }
     }
     cJSON_Delete(root);
 
@@ -158,6 +243,15 @@ static bool ui_tab_elpris_parse_response(const char* json, size_t len) {
         if (d < 0) d = -d;
         if (d < avg_diff) { avg_diff = d; avg_idx = i; }
     }
+
+    // persist raw prices and statistics for later re-use in update_now
+    memcpy(g_raw, raw, sizeof(g_raw));
+    g_avg_price = avg;
+    g_min_price = min_val;
+    g_max_price = max_val;
+    g_min_index = min_idx;
+    g_max_index = max_idx;
+    g_avg_index = avg_idx;
 
     // convert to chart units
     lv_coord_t chart_vals[96];
@@ -197,19 +291,13 @@ static void elpris_chart_draw_cb(lv_event_t* e) {
 
     lv_color_t color;
     if ((int)id == g_now_index)
-        color = lv_color_hex(0xFFFFFF);       // now  — white
-    else if ((int)id == g_max_index)
-        color = lv_color_hex(0xFF9040);       // max  — yellow
-    else if ((int)id == g_min_index)
-        color = lv_color_hex(0x5BC8F5);       // min  — blue
-    else if ((int)id == g_avg_index)
-        color = lv_color_hex(0xA07BE0);       // avg  — violet
-    else if (val < UI_ELPRIS_CHEAP_MAX)
-        color = UI_COLOR_GOOD;                // cheap
-    else if (val < UI_ELPRIS_WARN_MAX)
-        color = UI_COLOR_WARN;                // warn
+        color = lv_color_hex(0xFFFFFF);
+    else if (g_avg_price > 0.0f && (float)val < g_avg_price * 0.85f * 100.0f)
+        color = UI_COLOR_GOOD;
+    else if (g_avg_price > 0.0f && (float)val < g_avg_price * 1.15f * 100.0f)
+        color = UI_COLOR_WARN;
     else
-        color = UI_COLOR_BAD;                 // expensive
+        color = UI_COLOR_BAD;
 
     lv_draw_fill_dsc_t* fill_dsc = lv_draw_task_get_fill_dsc(draw_task);
     if (fill_dsc) fill_dsc->color = color;
@@ -432,5 +520,9 @@ void ui_tab_elpris_update_now(void) {
     if (new_idx != g_now_index) {
         g_now_index = new_idx;
         lv_obj_invalidate(ui_chart_elpris);
+        if (g_min_price > 0.0f || g_max_price > 0.0f) {
+            ui_tab_elpris_update_summary(g_raw[new_idx], g_min_price, g_max_price, g_avg_price,
+                                         new_idx, g_min_index, g_max_index, g_avg_index);
+        }
     }
 }
