@@ -211,6 +211,8 @@ static void on_data_cached(const FetchDescriptor* desc, void* user_ctx) {
         ui_binder_update_weather_min((const char*)data, len);
     } else if (strcmp(desc->id, "weather_hr") == 0) {
         ui_binder_update_weather_hr((const char*)data, len);
+    } else if (strcmp(desc->id, "elpris") == 0) {
+        ui_binder_update_elpris((const char*)data, len);
     }
 
     cache_free(data);
@@ -400,11 +402,19 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     df_cfg.descriptor_count  = 4;
     df_cfg.on_cached         = on_data_cached;
 
+#ifndef CONFIG_IDF_TARGET_LINUX
     data_fetcher_init(&df_cfg);
+#endif
 
     if (display_lvgl_lock(-1)) {
         void* cached_data = NULL;
         size_t cached_len = 0;
+        if (cache_get_alloc("fetch:elpris", &cached_data, &cached_len) == CACHE_OK) {
+            ui_tab_elpris_handle_server_response((const char*)cached_data, cached_len);
+            cache_free(cached_data);
+        }
+        cached_data = NULL;
+        cached_len  = 0;
         if (cache_get_alloc("fetch:weather_min", &cached_data, &cached_len) == CACHE_OK) {
             ui_tab_weather_handle_server_response((const char*)cached_data, cached_len, 0);
             cache_free(cached_data);
