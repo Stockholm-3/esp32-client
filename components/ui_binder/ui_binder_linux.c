@@ -145,6 +145,12 @@ void ui_binder_trigger_weather_refresh(void) {
         s_weather_refresh_cb();
     }
 }
+void ui_binder_update_elpris(const char* json, size_t len) {
+    if (!json || len == 0)
+        return;
+    ui_tab_elpris_handle_server_response(json, len);
+}
+
 void ui_binder_update_weather_min(const char* json, size_t len) {
     if (!json || len == 0) {
         return;

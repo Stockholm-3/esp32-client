@@ -175,6 +175,16 @@ void ui_binder_trigger_weather_refresh(void) {
     }
 }
 
+void ui_binder_update_elpris(const char* json, size_t len) {
+    if (!json || len == 0) {
+        return;
+    }
+    if (display_lvgl_lock(100)) {
+        ui_tab_elpris_handle_server_response(json, len);
+        display_lvgl_unlock();
+    }
+}
+
 void ui_binder_update_weather_min(const char* json, size_t len) {
     if (!json || len == 0) {
         return;
