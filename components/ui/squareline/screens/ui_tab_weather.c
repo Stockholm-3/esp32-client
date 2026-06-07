@@ -139,6 +139,11 @@ static char               g_hour_times[WEATHER_HOUR_MAX][6];
 static int32_t   g_min_data[METRIC_COUNT][WEATHER_HOUR_MAX];
 static char      g_min_times[WEATHER_HOUR_MAX][6];
 static int       g_min_count = 0;
+static int       g_min_codes[WEATHER_HOUR_MAX];
+static char      g_min_descs[WEATHER_HOUR_MAX][48];
+static int32_t   g_min_feels[WEATHER_HOUR_MAX];
+static char      g_sunrise_time[6] = "";
+static char      g_sunset_time[6]  = "";
 
 static int32_t   g_hr_data[METRIC_COUNT][WEATHER_HR_MAX];
 static char      g_hr_times[WEATHER_HR_MAX][6];
@@ -368,6 +373,9 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len, int ski
         // weather_min → store only today's entries in g_min_data
 
         int n = 0;
+        int prev_is_day = -1;
+        g_sunrise_time[0] = '\0';
+        g_sunset_time[0]  = '\0';
         for (int i = 0; i < count && n < WEATHER_HOUR_MAX; i++) {
             cJSON* item     = cJSON_GetArrayItem(forecast, i);
             if (!cJSON_IsObject(item)) break;
@@ -381,12 +389,31 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len, int ski
             cJSON* prec_obj  = cJSON_GetObjectItemCaseSensitive(item, "precipitation");
             cJSON* wind_obj  = cJSON_GetObjectItemCaseSensitive(item, "windspeed");
             cJSON* press_obj = cJSON_GetObjectItemCaseSensitive(item, "pressure");
+            cJSON* code2_obj = cJSON_GetObjectItemCaseSensitive(item, "weather_code");
+            cJSON* desc2_obj = cJSON_GetObjectItemCaseSensitive(item, "weather_description");
+            cJSON* feel_obj  = cJSON_GetObjectItemCaseSensitive(item, "apparent_temperature");
+            cJSON* day_obj   = cJSON_GetObjectItemCaseSensitive(item, "is_day");
+            int is_day_val   = cJSON_IsNumber(day_obj) ? day_obj->valueint : 1;
+
+            if (prev_is_day >= 0 && is_day_val != prev_is_day) {
+                if (is_day_val == 1)
+                    weather_timestamp_to_label(ts2, g_sunrise_time, sizeof(g_sunrise_time));
+                else
+                    weather_timestamp_to_label(ts2, g_sunset_time, sizeof(g_sunset_time));
+            }
+            prev_is_day = is_day_val;
 
             g_min_data[METRIC_TEMP][n]     = cJSON_IsNumber(temp_obj)  ? (int32_t)round(temp_obj->valuedouble)      : 0;
             g_min_data[METRIC_HUMIDITY][n] = cJSON_IsNumber(hum_obj)   ? (int32_t)round(hum_obj->valuedouble)       : 0;
             g_min_data[METRIC_PRECIP][n]   = cJSON_IsNumber(prec_obj)  ? (int32_t)round(prec_obj->valuedouble * 10) : 0;
             g_min_data[METRIC_WIND][n]     = cJSON_IsNumber(wind_obj)  ? (int32_t)round(wind_obj->valuedouble)      : 0;
             g_min_data[METRIC_PRESSURE][n] = cJSON_IsNumber(press_obj) ? (int32_t)round(press_obj->valuedouble)     : 0;
+            g_min_codes[n]  = cJSON_IsNumber(code2_obj) ? code2_obj->valueint : 0;
+            g_min_feels[n]  = cJSON_IsNumber(feel_obj)  ? (int32_t)round(feel_obj->valuedouble) : g_min_data[METRIC_TEMP][n];
+            if (cJSON_IsString(desc2_obj))
+                snprintf(g_min_descs[n], sizeof(g_min_descs[n]), "%s", desc2_obj->valuestring);
+            else
+                g_min_descs[n][0] = '\0';
             weather_timestamp_to_label(ts2, g_min_times[n], sizeof(g_min_times[n]));
             n++;
         }
@@ -541,13 +568,30 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len, int ski
         }
 
         // ── Home screen weather summary ──────────────────────────────────────────
+        // Find cur_hr and start_idx: nearest entry >= current time (any minutes)
+        int cur_hr = 0;
+        int start_idx = 0;
+        {
+            time_t now_t = time(NULL);
+            struct tm* tnow = localtime(&now_t);
+            cur_hr = (tnow->tm_year + 1900 >= 2020) ? tnow->tm_hour : 0;
+            start_idx = (g_min_count > 0) ? g_min_count - 1 : 0;
+            for (int i = 0; i < g_min_count; i++) {
+                int h = (g_min_times[i][0]-'0')*10 + (g_min_times[i][1]-'0');
+                if (h >= cur_hr) { start_idx = i; break; }
+            }
+        }
+
         if (ui_lbl_w_temp && g_min_count > 0) {
             char tmp[12];
-            snprintf(tmp, sizeof(tmp), "%+d%s", (int)g_hour_data[METRIC_TEMP][0], current_unit);
+            snprintf(tmp, sizeof(tmp), "%+d%s", (int)g_min_data[METRIC_TEMP][start_idx], current_unit);
             lv_label_set_text(ui_lbl_w_temp, tmp);
         }
-        if (ui_lbl_w_desc)
-            lv_label_set_text(ui_lbl_w_desc, current_desc ? current_desc : "--");
+        if (ui_lbl_w_desc && g_min_count > 0)
+            lv_label_set_text(ui_lbl_w_desc,
+                g_min_descs[start_idx][0] ? g_min_descs[start_idx] : "--");
+        if (ui_Image1 && g_min_count > 0)
+            lv_image_set_src(ui_Image1, weather_code_to_icon(g_min_codes[start_idx]));
         if (ui_lbl_w_loc && td >= 0 && days[td].valid) {
             char wday[8];
             weather_date_to_weekday(days[td].date, wday, sizeof(wday));
@@ -565,23 +609,47 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len, int ski
         }
         if (ui_labl_stat_wind_val && g_min_count > 0) {
             char wbuf[12];
-            snprintf(wbuf, sizeof(wbuf), "%d m/s", (int)g_hour_data[METRIC_WIND][0]);
+            snprintf(wbuf, sizeof(wbuf), "%d m/s", (int)g_min_data[METRIC_WIND][start_idx]);
             lv_label_set_text(ui_labl_stat_wind_val, wbuf);
         }
+        if (ui_labl_stat_feels_val && g_min_count > 0) {
+            char fbuf[12];
+            snprintf(fbuf, sizeof(fbuf), "%+d%s", (int)g_min_feels[start_idx], current_unit);
+            lv_label_set_text(ui_labl_stat_feels_val, fbuf);
+        }
+        if (ui_lbl_stat_sunrise_val && g_sunrise_time[0])
+            lv_label_set_text(ui_lbl_stat_sunrise_val, g_sunrise_time);
+        if (ui_lbl_stat_sunset_val && g_sunset_time[0])
+            lv_label_set_text(ui_lbl_stat_sunset_val, g_sunset_time);
         {
-            lv_obj_t* htimes[] = {ui_lbl_home_htime1, ui_lbl_home_htime2, ui_lbl_home_htime3,
-                                  ui_lbl_home_htime4, ui_lbl_home_htime5, ui_lbl_home_htime6};
-            lv_obj_t* htemps[] = {ui_lbl_home_htemp1, ui_lbl_home_htemp2, ui_lbl_home_htemp3,
-                                  ui_lbl_home_htemp4, ui_lbl_home_htemp5, ui_lbl_home_htemp6};
-            for (int i = 0; i < 6 && i < g_min_count; i++) {
-                if (htimes[i] && g_hour_times[i][0])
-                    lv_label_set_text(htimes[i], g_hour_times[i]);
-                if (htemps[i]) {
+            lv_obj_t* hpanels[] = {ui_panel_home_h1, ui_panel_home_h2, ui_panel_home_h3,
+                                   ui_panel_home_h4, ui_panel_home_h5, ui_panel_home_h6};
+            lv_obj_t* htimes[]  = {ui_lbl_home_htime1, ui_lbl_home_htime2, ui_lbl_home_htime3,
+                                   ui_lbl_home_htime4, ui_lbl_home_htime5, ui_lbl_home_htime6};
+            lv_obj_t* htemps[]  = {ui_lbl_home_htemp1, ui_lbl_home_htemp2, ui_lbl_home_htemp3,
+                                   ui_lbl_home_htemp4, ui_lbl_home_htemp5, ui_lbl_home_htemp6};
+            int slot = 0;
+            for (int i = 0; i < g_min_count && slot < 6; i++) {
+                int h = (g_min_times[i][0]-'0')*10 + (g_min_times[i][1]-'0');
+                // only on-the-hour entries, from current hour
+                if (h < cur_hr) continue;
+                if (g_min_times[i][3] != '0' || g_min_times[i][4] != '0') continue;
+                if (hpanels[slot]) lv_obj_remove_flag(hpanels[slot], LV_OBJ_FLAG_HIDDEN);
+                if (htimes[slot])  lv_label_set_text(htimes[slot], g_min_times[i]);
+                if (htemps[slot]) {
                     char tbuf[8];
                     snprintf(tbuf, sizeof(tbuf), "%+d%s",
-                             (int)g_hour_data[METRIC_TEMP][i], current_unit);
-                    lv_label_set_text(htemps[i], tbuf);
+                             (int)g_min_data[METRIC_TEMP][i], current_unit);
+                    lv_label_set_text(htemps[slot], tbuf);
                 }
+                if (hpanels[slot]) {
+                    lv_obj_t* icon = lv_obj_get_child(hpanels[slot], 1);
+                    if (icon) lv_image_set_src(icon, weather_code_to_icon(g_min_codes[i]));
+                }
+                slot++;
+            }
+            for (int s = slot; s < 6; s++) {
+                if (hpanels[s]) lv_obj_add_flag(hpanels[s], LV_OBJ_FLAG_HIDDEN);
             }
         }
     }
