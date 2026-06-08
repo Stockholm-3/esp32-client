@@ -734,10 +734,6 @@ void data_fetcher_notify_wifi_state(WifiManagerState state) {
         g_jobs[FETCH_KIND_ELPRIS].dns_ready_at_ms  = now_ms;
         g_jobs[FETCH_KIND_WEATHER].dns_ready_at_ms = now_ms;
 
-        if (!g_jobs[FETCH_KIND_WEATHER].first_run) {
-            g_jobs[FETCH_KIND_WEATHER].force_now = true;
-        }
-
         ESP_LOGI(g_tag, "DNS available — fetch jobs unblocked");
     } else if ((int)was_ready && !now_ready) {
         ESP_LOGW(g_tag, "DNS lost — fetch jobs suspended");

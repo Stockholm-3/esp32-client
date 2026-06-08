@@ -20,7 +20,6 @@ idf_component_register(
         smw_http
         http_client
         data_fetcher
-        trigger_manager
 )
 
 target_include_directories(__idf_main PRIVATE ${CMAKE_SOURCE_DIR})
