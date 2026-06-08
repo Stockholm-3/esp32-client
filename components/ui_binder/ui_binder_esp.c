@@ -8,15 +8,16 @@
 #include <stdio.h>
 #include <string.h>
 
-static ui_binder_location_cb_t g_s_location_cb  = NULL;
-static ui_binder_dropdown_cb_t g_s_price_cb     = NULL;
-static ui_binder_dropdown_cb_t g_s_timeout_cb   = NULL;
-static ui_binder_location_cb_t g_s_location_cb2 = NULL;
-static ui_binder_dropdown_cb_t g_s_price_cb2    = NULL;
-static ui_binder_dropdown_cb_t g_s_timeout_cb2  = NULL;
-static ui_binder_bool_cb_t g_s_ap_enabled_cb    = NULL;
-static ui_binder_bool_cb_t g_s_ap_enabled_cb2   = NULL;
-static ui_binder_bool_cb_t g_s_lwc_cb           = NULL;
+static ui_binder_location_cb_t g_s_location_cb      = NULL;
+static ui_binder_dropdown_cb_t g_s_price_cb         = NULL;
+static ui_binder_dropdown_cb_t g_s_timeout_cb       = NULL;
+static ui_binder_location_cb_t g_s_location_cb2     = NULL;
+static ui_binder_dropdown_cb_t g_s_price_cb2        = NULL;
+static ui_binder_dropdown_cb_t g_s_timeout_cb2      = NULL;
+static ui_binder_bool_cb_t g_s_ap_enabled_cb        = NULL;
+static ui_binder_bool_cb_t g_s_ap_enabled_cb2       = NULL;
+static ui_binder_bool_cb_t g_s_lwc_cb               = NULL;
+static ui_binder_button_cb_t g_s_weather_refresh_cb = NULL;
 
 static void load_mock_elpris(void) {
     char* buf = fs_read_str("/storage/response.json");
@@ -40,7 +41,9 @@ static void on_location_defocused(lv_event_t* e) {
 
 void ui_binder_update_wifi_status(WifiManagerState state) {
     const char* text;
-    if (state == WIFI_MANAGER_STATE_CONNECTED) {
+    if (state == WIFI_MANAGER_STATE_CONNECTED_WITH_DNS) {
+        text = "Online";
+    } else if (state == WIFI_MANAGER_STATE_CONNECTED) {
         text = "Connected";
     } else if (state == WIFI_MANAGER_STATE_CONNECTING) {
         text = "Connecting...";
@@ -148,6 +151,7 @@ void ui_binder_set_price_zone(int index) {
 void ui_binder_set_timeout(int index) {
     if (display_lvgl_lock(100)) {
         lv_dropdown_set_selected(ui_dd_timeout, (uint32_t)index);
+        lv_obj_send_event(ui_dd_timeout, LV_EVENT_VALUE_CHANGED, NULL);
         display_lvgl_unlock();
     }
 }
@@ -163,6 +167,43 @@ void ui_binder_on_timeout_changed2(ui_binder_dropdown_cb_t cb) { g_s_timeout_cb2
 void ui_binder_on_ap_enabled_changed(ui_binder_bool_cb_t cb) { g_s_ap_enabled_cb = cb; }
 void ui_binder_on_ap_enabled_changed2(ui_binder_bool_cb_t cb) { g_s_ap_enabled_cb2 = cb; }
 void ui_binder_on_local_web_client_changed(ui_binder_bool_cb_t cb) { g_s_lwc_cb = cb; }
+void ui_binder_on_weather_refresh(ui_binder_button_cb_t cb) { g_s_weather_refresh_cb = cb; }
+
+void ui_binder_trigger_weather_refresh(void) {
+    if (g_s_weather_refresh_cb) {
+        g_s_weather_refresh_cb();
+    }
+}
+
+void ui_binder_update_elpris(const char* json, size_t len) {
+    if (!json || len == 0) {
+        return;
+    }
+    if (display_lvgl_lock(100)) {
+        ui_tab_elpris_handle_server_response(json, len);
+        display_lvgl_unlock();
+    }
+}
+
+void ui_binder_update_weather_min(const char* json, size_t len) {
+    if (!json || len == 0) {
+        return;
+    }
+    if (display_lvgl_lock(100)) {
+        ui_tab_weather_handle_server_response(json, len, 0);
+        display_lvgl_unlock();
+    }
+}
+
+void ui_binder_update_weather_hr(const char* json, size_t len) {
+    if (!json || len == 0) {
+        return;
+    }
+    if (display_lvgl_lock(100)) {
+        ui_tab_weather_handle_server_response(json, len, 1);
+        display_lvgl_unlock();
+    }
+}
 
 void ui_binder_set_ap_enabled(bool enabled) {
     if (display_lvgl_lock(100)) {

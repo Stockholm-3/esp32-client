@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "ui.c"
         "wifi_popup.c"
+        "kb_swedish.c"
         "squareline/ui.c"
         "squareline/ui_helpers.c"
         "squareline/ui_events.c"
@@ -54,5 +55,9 @@ idf_component_register(
         screen_timeout
         lvgl__lvgl
         wifi_manager
+        settings_manager
         espressif__cjson
+        fonts
+    PRIV_REQUIRES
+        ui_binder
 )

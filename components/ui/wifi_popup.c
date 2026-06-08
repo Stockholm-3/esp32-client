@@ -1,5 +1,7 @@
 #include "wifi_popup.h"
 
+#include "kb_swedish.h"
+#include "settings_manager.h"
 #include "squareline/screens/ui_scr_home.h"
 
 #include <stdio.h>
@@ -38,6 +40,13 @@ static lv_obj_t* g_lbl_info_ssid        = NULL;
 static lv_obj_t* g_lbl_info_security    = NULL;
 static lv_obj_t* g_lbl_info_rssi        = NULL;
 
+static lv_obj_t* g_sw_backdrop       = NULL;
+static lv_obj_t* g_panel_saved_popup = NULL;
+static lv_obj_t* g_lbl_saved_ssid    = NULL;
+static lv_obj_t* g_lbl_saved_status  = NULL;
+static lv_obj_t* g_btn_saved_connect = NULL;
+static char g_saved_password[64]     = "";
+
 typedef struct {
     WifiManagerApInfo* aps;
     uint16_t count;
@@ -45,6 +54,7 @@ typedef struct {
 
 static lv_obj_t* make_net_panel(lv_obj_t* parent, const char* name, const char* sub,
                                 uint8_t authmode, int8_t rssi);
+static void open_saved_popup(const char* ssid, const char* password);
 
 static void update_networks_async(void* user_data) {
     ScanData* data = (ScanData*)user_data;
@@ -152,6 +162,15 @@ static void open_password_popup_cb(lv_event_t* e) {
         return;
     }
 
+    SavedWifiNetwork saved_list[MAX_SAVED_NETWORKS];
+    uint8_t saved_count = settings_manager_get_all_networks(saved_list, MAX_SAVED_NETWORKS);
+    for (uint8_t i = 0; i < saved_count; i++) {
+        if (strncmp(ssid, saved_list[i].ssid, 32) == 0) {
+            open_saved_popup(ssid, saved_list[i].password);
+            return;
+        }
+    }
+
     bool is_open = (authmode == 0);
     if (is_open) {
         if (g_connect_cb) {
@@ -237,6 +256,140 @@ static lv_obj_t* make_net_panel(lv_obj_t* parent, const char* name, const char* 
 
     lv_obj_add_event_cb(p, open_password_popup_cb, LV_EVENT_CLICKED, NULL);
     return p;
+}
+
+// ── Saved network popup ───────────────────────────────────────────────────────
+
+static void close_saved_popup_cb(lv_event_t* e) {
+    (void)e;
+    lv_obj_add_flag(g_panel_saved_popup, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_sw_backdrop, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(g_wifi_backdrop, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(g_panel_wifi_popup, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void open_saved_popup(const char* ssid, const char* password) {
+    strncpy(g_selected_ssid, ssid, 32);
+    g_selected_ssid[32] = '\0';
+    strncpy(g_saved_password, password ? password : "", 63);
+    g_saved_password[63] = '\0';
+
+    lv_label_set_text(g_lbl_saved_ssid, ssid);
+    lv_obj_add_flag(g_lbl_saved_status, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_state(g_btn_saved_connect, LV_STATE_DISABLED);
+
+    lv_obj_add_flag(g_panel_wifi_popup, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_wifi_backdrop, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(g_sw_backdrop, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(g_panel_saved_popup, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void on_saved_connect_cb(lv_event_t* e) {
+    (void)e;
+    if (g_connect_cb) {
+        g_connect_cb(g_selected_ssid, g_saved_password);
+    }
+    lv_obj_add_state(g_btn_saved_connect, LV_STATE_DISABLED);
+    lv_label_set_text(g_lbl_saved_status, "Connecting...");
+    lv_obj_set_style_text_color(g_lbl_saved_status, lv_color_hex(0x8888AA), 0);
+    lv_obj_remove_flag(g_lbl_saved_status, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void on_saved_forget_cb(lv_event_t* e) {
+    (void)e;
+    settings_manager_remove_wifi(g_selected_ssid);
+    lv_obj_add_flag(g_panel_saved_popup, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(g_sw_backdrop, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(g_wifi_backdrop, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(g_panel_wifi_popup, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void build_saved_network_popup(void) {
+    g_sw_backdrop = make_backdrop(lv_color_hex(0x000000), LV_OPA_50, close_saved_popup_cb);
+
+    g_panel_saved_popup = lv_obj_create(lv_scr_act());
+    lv_obj_set_pos(g_panel_saved_popup, 272, TAB_Y + POPUP_Y_OFS);
+    lv_obj_set_size(g_panel_saved_popup, 480, 220);
+    style_panel(g_panel_saved_popup);
+    lv_obj_set_style_bg_color(g_panel_saved_popup, lv_color_hex(0x2A2A3E), 0);
+    lv_obj_set_style_bg_opa(g_panel_saved_popup, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(g_panel_saved_popup, lv_color_hex(0x4A6FA5), 0);
+    lv_obj_set_style_border_width(g_panel_saved_popup, 1, 0);
+    lv_obj_set_style_radius(g_panel_saved_popup, 12, 0);
+    lv_obj_add_flag(g_panel_saved_popup, LV_OBJ_FLAG_HIDDEN);
+
+    // Header
+    lv_obj_t* hdr = lv_obj_create(g_panel_saved_popup);
+    lv_obj_set_pos(hdr, 0, 0);
+    lv_obj_set_size(hdr, 480, 44);
+    style_panel(hdr);
+    lv_obj_set_style_bg_color(hdr, lv_color_hex(0x252538), 0);
+    lv_obj_set_style_bg_opa(hdr, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(hdr, 0, 0);
+
+    make_label(hdr, 16, 12, 260, 20, "Saved network", lv_color_hex(0xE0E0F0),
+               &lv_font_montserrat_16);
+
+    lv_obj_t* btn_close = lv_button_create(hdr);
+    lv_obj_set_pos(btn_close, 438, 8);
+    lv_obj_set_size(btn_close, 28, 28);
+    lv_obj_set_style_bg_color(btn_close, lv_color_hex(0x252538), 0);
+    lv_obj_set_style_shadow_width(btn_close, 0, 0);
+    lv_obj_t* lbl_x = lv_label_create(btn_close);
+    lv_label_set_text(lbl_x, "X");
+    lv_obj_set_style_text_color(lbl_x, lv_color_hex(0x666666), 0);
+    lv_obj_center(lbl_x);
+    lv_obj_add_event_cb(btn_close, close_saved_popup_cb, LV_EVENT_CLICKED, NULL);
+
+    // Network info bar
+    lv_obj_t* net_info = lv_obj_create(g_panel_saved_popup);
+    lv_obj_set_pos(net_info, 0, 44);
+    lv_obj_set_size(net_info, 480, 70);
+    style_panel(net_info);
+    lv_obj_set_style_bg_color(net_info, lv_color_hex(0x1A2A1A), 0);
+    lv_obj_set_style_bg_opa(net_info, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(net_info, 0, 0);
+
+    g_lbl_saved_ssid =
+        make_label(net_info, 20, 12, 400, 22, "", lv_color_hex(0xE0E0F0), &lv_font_montserrat_16);
+    make_label(net_info, 20, 40, 200, 16, "Credentials saved", lv_color_hex(0x6ECB7F),
+               &lv_font_montserrat_14);
+
+    // Status label
+    g_lbl_saved_status = lv_label_create(g_panel_saved_popup);
+    lv_obj_set_pos(g_lbl_saved_status, 20, 124);
+    lv_obj_set_size(g_lbl_saved_status, 440, 18);
+    lv_obj_set_style_text_color(g_lbl_saved_status, lv_color_hex(0xFF5555), 0);
+    lv_obj_set_style_text_font(g_lbl_saved_status, &lv_font_montserrat_14, 0);
+    lv_label_set_text(g_lbl_saved_status, "");
+    lv_obj_add_flag(g_lbl_saved_status, LV_OBJ_FLAG_HIDDEN);
+
+    // Buttons row
+    g_btn_saved_connect = lv_button_create(g_panel_saved_popup);
+    lv_obj_set_pos(g_btn_saved_connect, 200, 164);
+    lv_obj_set_size(g_btn_saved_connect, 120, 36);
+    lv_obj_set_style_bg_color(g_btn_saved_connect, lv_color_hex(0x4A6FA5), 0);
+    lv_obj_set_style_radius(g_btn_saved_connect, 8, 0);
+    lv_obj_set_style_shadow_width(g_btn_saved_connect, 0, 0);
+    lv_obj_t* lbl_conn = lv_label_create(g_btn_saved_connect);
+    lv_label_set_text(lbl_conn, "Connect");
+    lv_obj_set_style_text_color(lbl_conn, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_center(lbl_conn);
+    lv_obj_add_event_cb(g_btn_saved_connect, on_saved_connect_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t* btn_forget = lv_button_create(g_panel_saved_popup);
+    lv_obj_set_pos(btn_forget, 334, 164);
+    lv_obj_set_size(btn_forget, 120, 36);
+    lv_obj_set_style_bg_color(btn_forget, lv_color_hex(0x3A2222), 0);
+    lv_obj_set_style_border_color(btn_forget, lv_color_hex(0x883333), 0);
+    lv_obj_set_style_border_width(btn_forget, 1, 0);
+    lv_obj_set_style_radius(btn_forget, 8, 0);
+    lv_obj_set_style_shadow_width(btn_forget, 0, 0);
+    lv_obj_t* lbl_forget = lv_label_create(btn_forget);
+    lv_label_set_text(lbl_forget, "Forget");
+    lv_obj_set_style_text_color(lbl_forget, lv_color_hex(0xCC6666), 0);
+    lv_obj_center(lbl_forget);
+    lv_obj_add_event_cb(btn_forget, on_saved_forget_cb, LV_EVENT_CLICKED, NULL);
 }
 
 // ── Network info popup ────────────────────────────────────────────────────────
@@ -529,6 +682,7 @@ static void build_password_popup(void) { // NOLINT(readability-function-size)
     lv_obj_set_size(g_pw_keyboard, 640, KB_H);
     lv_keyboard_set_mode(g_pw_keyboard, LV_KEYBOARD_MODE_TEXT_LOWER);
     lv_keyboard_set_textarea(g_pw_keyboard, g_ta_password);
+    kb_apply_swedish(g_pw_keyboard);
     lv_obj_add_flag(g_pw_keyboard, LV_OBJ_FLAG_HIDDEN);
 }
 
@@ -537,13 +691,16 @@ static void build_password_popup(void) { // NOLINT(readability-function-size)
 static void notify_result_async(void* user_data) {
     WifiPopupConnectResult result = (WifiPopupConnectResult)(uintptr_t)user_data;
 
-    bool pw_visible   = (!lv_obj_has_flag(g_panel_password_popup, LV_OBJ_FLAG_HIDDEN)) != 0;
-    bool scan_visible = (!lv_obj_has_flag(g_panel_wifi_popup, LV_OBJ_FLAG_HIDDEN)) != 0;
+    bool pw_visible    = (!lv_obj_has_flag(g_panel_password_popup, LV_OBJ_FLAG_HIDDEN)) != 0;
+    bool scan_visible  = (!lv_obj_has_flag(g_panel_wifi_popup, LV_OBJ_FLAG_HIDDEN)) != 0;
+    bool saved_visible = (!lv_obj_has_flag(g_panel_saved_popup, LV_OBJ_FLAG_HIDDEN)) != 0;
 
     if (result == WIFI_POPUP_RESULT_CONNECTED) {
         lv_obj_add_flag(g_panel_password_popup, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(g_pw_keyboard, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(g_pw_backdrop, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(g_panel_saved_popup, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(g_sw_backdrop, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(g_panel_wifi_popup, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(g_wifi_backdrop, LV_OBJ_FLAG_HIDDEN);
         return;
@@ -563,6 +720,11 @@ static void notify_result_async(void* user_data) {
         lv_obj_remove_flag(g_lbl_pw_status, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_state(g_btn_connect, LV_STATE_DISABLED);
         lv_textarea_set_text(g_ta_password, "");
+    } else if (saved_visible) {
+        lv_label_set_text(g_lbl_saved_status, msg);
+        lv_obj_set_style_text_color(g_lbl_saved_status, lv_color_hex(0xFF5555), 0);
+        lv_obj_remove_flag(g_lbl_saved_status, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_state(g_btn_saved_connect, LV_STATE_DISABLED);
     } else if (scan_visible) {
         lv_label_set_text(g_lbl_scan_status, msg);
         lv_obj_set_style_text_color(g_lbl_scan_status, lv_color_hex(0xFF5555), 0);
@@ -586,6 +748,7 @@ void wifi_popup_init(lv_obj_t* parent) {
     (void)parent;
     build_wifi_popup();
     build_password_popup();
+    build_saved_network_popup();
     build_net_info_popup();
     lv_obj_add_event_cb(ui_btn_wifi_change, show_wifi_popup_cb, LV_EVENT_CLICKED, NULL);
 }

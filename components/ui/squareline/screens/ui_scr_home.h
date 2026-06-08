@@ -95,6 +95,7 @@ extern lv_obj_t * ui_lbl_home_htime6;
 extern lv_obj_t * ui_lbl_home_htemp6;
 
 extern void ui_tab_weather_init(void);
+extern void ui_tab_weather_handle_server_response(const char* json, size_t len, int skip_days);
 extern void ui_tab_elpris_init(void);
 extern void ui_tab_elpris_handle_server_response(const char* json, size_t len);
 extern void ui_tab_elpris_update_now(void);

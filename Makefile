@@ -14,6 +14,7 @@ find $(ROOTS) -name '*.c' \
   -not -path "*/squareline/*" \
   -not -path "*/lib/*" \
   -not -path "*/bingus-lib/*" \
+  -not -path "*/fonts/montserrat_*.c" \
   2>/dev/null
 endef
 
@@ -29,10 +30,11 @@ endef
 # ----------------------------------------
 # Phony targets
 # ----------------------------------------
-.PHONY: build reconfigure flash monitor flash-monitor fm
+.PHONY: build reconfigure flash flash-storage monitor flash-monitor fm
 .PHONY: linux-build linux-run linux-clean linux-hardclean
 .PHONY: hardclean format-check format-fix format-ci
 .PHONY: lint lint-fix lint-ci lint-scrub lint-check-deps linux-reconfigure
+.PHONY: openocd gdb
 
 # ----------------------------------------
 # Build / Flash / Monitor
@@ -44,15 +46,32 @@ reconfigure:
 	idf.py reconfigure
 
 flash:
-	idf.py flash
+	idf.py app-flash
+
+flash-storage:
+	python $(IDF_PATH)/components/partition_table/parttool.py -p $(LOG_PORT) write_partition --partition-name=storage --input build/storage.bin
 
 monitor:
 	idf.py monitor
 
 flash-monitor:
-	idf.py flash monitor
+	idf.py app-flash monitor
 
 fm: flash-monitor
+
+# ----------------------------------------
+# Debugging (requires hardware with USB JTAG)
+# ----------------------------------------
+# Terminal 1: make openocd   (start OpenOCD server)
+# Terminal 2: make gdb       (connect GDB)
+# Or use VS Code F5 with .vscode/launch.json (OpenOCD must be running first).
+# Note: install WinUSB driver for "USB JTAG/serial debug unit Interface 2"
+# via Zadig (https://zadig.akeo.ie/) before first use on Windows.
+openocd:
+	sudo -E LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) $(shell which idf.py) openocd
+
+gdb:
+	idf.py gdb
 
 ##Overides and updates the certs for the http_client.
 .PHONY: update-certs
@@ -83,6 +102,30 @@ linux-clean:
 
 linux-hardclean:
 	rm -rf ./simulator/managed_components ./simulator/build ./simulator/sdkconfig
+
+# ----------------------------------------
+# Integration tests
+# ----------------------------------------
+.PHONY: ws-test
+ws-test:
+	bash scripts/test_ws_reconnect.sh
+
+# ----------------------------------------
+# Unit tests
+# ----------------------------------------
+.PHONY: test test-flash test-monitor
+
+# Build the tests safely from the root directory
+test:
+	python3 scripts/run_tests.py --target esp32s3
+
+# Build and flash the tests directly
+test-flash:
+	python3 scripts/run_tests.py --target esp32s3 --flash
+
+# Build, flash, and boot straight into the interactive Unity menu
+test-monitor:
+	python3 scripts/run_tests.py --target esp32s3 --flash --monitor
 
 # ----------------------------------------
 # Formatting
@@ -256,3 +299,55 @@ docs-open:
 	@echo "Opening documentation..."
 	@xdg-open docs/html/index.html
 	@echo "Documentation opened in default browser."
+
+# --------------------------------------------------------------------------
+# SERIAL INTERFACE
+#
+#  USB port  (Espressif JTAG) — normal daily use:
+#    make flash    / idf.py flash
+#    make monitor  / idf.py monitor
+#    make fm       / idf.py flash monitor
+#
+#  UART port (WCH/CP210x bridge) — CLI when needed:
+#    make cli
+#
+#  Exit picocom: Ctrl-A then Ctrl-X
+# --------------------------------------------------------------------------
+
+BAUD_RATE ?= 115200
+
+LOG_PORT = $(shell ls /dev/serial/by-id/usb-Espressif_* 2>/dev/null \
+             | head -n 1)
+CLI_PORT = $(shell ls /dev/serial/by-id/usb-WCH.CN_* \
+                      /dev/serial/by-id/usb-Silicon_Labs_* \
+                      /dev/serial/by-id/usb-1a86_* \
+                      /dev/serial/by-id/usb-FTDI_* \
+                   2>/dev/null | head -n 1)
+
+# NixOS fallback
+ifeq ($(LOG_PORT),)
+  LOG_PORT = $(shell ls /dev/ttyACM0 /dev/ttyACM1 2>/dev/null | head -n 1)
+endif
+ifeq ($(CLI_PORT),)
+  CLI_PORT = $(shell ls /dev/ttyUSB0 /dev/ttyUSB1 2>/dev/null | head -n 1)
+endif
+
+.PHONY: cli check-cli-port
+
+check-cli-port:
+	@if [ -z "$(CLI_PORT)" ]; then \
+		echo ""; \
+		echo "  ERROR: UART port not found."; \
+		echo "         Plug in the USB-C cable labeled 'UART' for CLI access."; \
+		echo "         For logs/flashing, use the 'USB' port as normal."; \
+		echo ""; \
+		exit 1; \
+	fi
+
+## Interactive CLI on UART port (clean, no log noise)
+cli: check-cli-port
+	@echo ""
+	@echo "  CLI port : $(CLI_PORT)"
+	@echo "  Exit     : Ctrl-A then Ctrl-X"
+	@echo ""
+	@picocom -b $(BAUD_RATE) --nolock --omap crlf --imap lfcrlf $(CLI_PORT)

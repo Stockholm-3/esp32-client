@@ -29,6 +29,7 @@ void ui_binder_update_wifi_name(const char *ssid);
 void ui_binder_update_bme280(const Bme280Reading *reading);
 
 typedef void (*ui_binder_bool_cb_t)(bool enabled);
+typedef void (*ui_binder_button_cb_t)(void);
 
 void ui_binder_set_ap_enabled(bool enabled);
 void ui_binder_set_local_web_client_enabled(bool enabled);
@@ -36,4 +37,9 @@ void ui_binder_set_local_web_client_enabled(bool enabled);
 void ui_binder_on_ap_enabled_changed(ui_binder_bool_cb_t cb);
 void ui_binder_on_ap_enabled_changed2(ui_binder_bool_cb_t cb);
 void ui_binder_on_local_web_client_changed(ui_binder_bool_cb_t cb);
+void ui_binder_on_weather_refresh(ui_binder_button_cb_t cb);
+void ui_binder_trigger_weather_refresh(void);
+void ui_binder_update_elpris(const char* json, size_t len);
+void ui_binder_update_weather_min(const char* json, size_t len);
+void ui_binder_update_weather_hr(const char* json, size_t len);
 void ui_binder_update_local_ip(const char* ip);

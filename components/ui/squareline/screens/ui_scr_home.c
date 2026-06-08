@@ -105,6 +105,7 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_bg_opa(ui_scr_home, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_TabView = lv_tabview_create(ui_scr_home);
+    lv_obj_remove_flag(lv_tabview_get_content(ui_TabView), LV_OBJ_FLAG_SCROLLABLE);
     lv_tabview_set_tab_bar_size(ui_TabView, 78);
     lv_obj_set_width(ui_TabView, 1024);
     lv_obj_set_height(ui_TabView, 576);
@@ -206,7 +207,7 @@ void ui_scr_home_screen_init(void) {
     lv_arc_set_rotation(ui_arc_temp, 135);
     lv_arc_set_bg_angles(ui_arc_temp, 0, 270);
     lv_arc_set_range(ui_arc_temp, -40, 85);
-    lv_arc_set_value(ui_arc_temp, 22);
+    lv_arc_set_value(ui_arc_temp, -40);
     lv_obj_remove_flag(ui_arc_temp, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_arc_color(ui_arc_temp, UI_COLOR_BG3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_width(ui_arc_temp, 8, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -218,7 +219,7 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_pad_all(ui_arc_temp, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_temp_val = lv_label_create(ui_arc_temp);
-    lv_label_set_text(ui_lbl_temp_val, "21.5");
+    lv_label_set_text(ui_lbl_temp_val, "--");
     lv_obj_set_style_text_color(ui_lbl_temp_val, UI_COLOR_TEMP, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_temp_val, &lv_font_montserrat_22, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_align(ui_lbl_temp_val, LV_ALIGN_CENTER, 0, -10);
@@ -235,7 +236,7 @@ void ui_scr_home_screen_init(void) {
     lv_arc_set_rotation(ui_arc_humidity, 135);
     lv_arc_set_bg_angles(ui_arc_humidity, 0, 270);
     lv_arc_set_range(ui_arc_humidity, 0, 100);
-    lv_arc_set_value(ui_arc_humidity, 45);
+    lv_arc_set_value(ui_arc_humidity, 0);
     lv_obj_remove_flag(ui_arc_humidity, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_arc_color(ui_arc_humidity, UI_COLOR_BG3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_width(ui_arc_humidity, 8, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -247,7 +248,7 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_pad_all(ui_arc_humidity, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_hum_val = lv_label_create(ui_arc_humidity);
-    lv_label_set_text(ui_lbl_hum_val, "45%");
+    lv_label_set_text(ui_lbl_hum_val, "--");
     lv_obj_set_style_text_color(ui_lbl_hum_val, UI_COLOR_HUM, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_hum_val, &lv_font_montserrat_22, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_align(ui_lbl_hum_val, LV_ALIGN_CENTER, 0, -10);
@@ -264,7 +265,7 @@ void ui_scr_home_screen_init(void) {
     lv_arc_set_rotation(ui_arc_pressure, 135);
     lv_arc_set_bg_angles(ui_arc_pressure, 0, 270);
     lv_arc_set_range(ui_arc_pressure, 950, 1050);
-    lv_arc_set_value(ui_arc_pressure, 1013);
+    lv_arc_set_value(ui_arc_pressure, 0);
     lv_obj_remove_flag(ui_arc_pressure, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_arc_color(ui_arc_pressure, UI_COLOR_BG3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_width(ui_arc_pressure, 8, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -276,7 +277,7 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_pad_all(ui_arc_pressure, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_press_val = lv_label_create(ui_arc_pressure);
-    lv_label_set_text(ui_lbl_press_val, "1013");
+    lv_label_set_text(ui_lbl_press_val, "--");
     lv_obj_set_style_text_color(ui_lbl_press_val, UI_COLOR_PRES, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_press_val, &lv_font_montserrat_22, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_align(ui_lbl_press_val, LV_ALIGN_CENTER, 0, -10);
@@ -357,13 +358,13 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_pad_row(elec_text_col, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_elec_status = lv_label_create(elec_text_col);
-    lv_label_set_text(ui_lbl_elec_status, "Good time to use electricity");
+    lv_label_set_text(ui_lbl_elec_status, "--");
     lv_obj_set_width(ui_lbl_elec_status, lv_pct(100));
     lv_obj_set_style_text_color(ui_lbl_elec_status, UI_COLOR_GOOD, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_elec_status, &lv_font_montserrat_16, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_elec_sub = lv_label_create(elec_text_col);
-    lv_label_set_text(ui_lbl_elec_sub, "SE3  |  Next peak 20:00-21:00");
+    lv_label_set_text(ui_lbl_elec_sub, "--");
     lv_obj_set_width(ui_lbl_elec_sub, lv_pct(100));
     lv_obj_set_style_text_color(ui_lbl_elec_sub, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_elec_sub, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -382,7 +383,7 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_pad_row(elec_price_col, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_elec_price = lv_label_create(elec_price_col);
-    lv_label_set_text(ui_lbl_elec_price, "0.29");
+    lv_label_set_text(ui_lbl_elec_price, "--");
     lv_obj_set_style_text_color(ui_lbl_elec_price, UI_COLOR_GOOD, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_elec_price, &lv_font_montserrat_22, LV_PART_MAIN | LV_STATE_DEFAULT);
 
@@ -406,7 +407,7 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_pad_row(ui_panel_right, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_t* outdoor_title = lv_label_create(ui_panel_right);
-    lv_label_set_text(outdoor_title, "OUTDOOR | STOCKHOLM");
+    lv_label_set_text(outdoor_title, "OUTDOOR | ");
     lv_obj_set_style_text_color(outdoor_title, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(outdoor_title, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_bottom(outdoor_title, 10, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -441,17 +442,17 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_pad_row(wx_info_col, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_w_temp = lv_label_create(wx_info_col);
-    lv_label_set_text(ui_lbl_w_temp, "21\xc2\xb0""C");
+    lv_label_set_text(ui_lbl_w_temp, "--");
     lv_obj_set_style_text_color(ui_lbl_w_temp, UI_COLOR_INK1, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_w_temp, &lv_font_montserrat_40, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_w_desc = lv_label_create(wx_info_col);
-    lv_label_set_text(ui_lbl_w_desc, "Partly cloudy");
+    lv_label_set_text(ui_lbl_w_desc, "--");
     lv_obj_set_style_text_color(ui_lbl_w_desc, UI_COLOR_INK1, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_w_desc, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_w_loc = lv_label_create(wx_info_col);
-    lv_label_set_text(ui_lbl_w_loc, "Monday | April 27");
+    lv_label_set_text(ui_lbl_w_loc, "--");
     lv_obj_set_style_text_color(ui_lbl_w_loc, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_w_loc, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
@@ -467,12 +468,12 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_pad_column(extremes_row, 14, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_w_temp_hi = lv_label_create(extremes_row);
-    lv_label_set_text(ui_lbl_w_temp_hi, "Hi +25\xc2\xb0");
+    lv_label_set_text(ui_lbl_w_temp_hi, "Hi --");
     lv_obj_set_style_text_color(ui_lbl_w_temp_hi, UI_COLOR_BAD, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_w_temp_hi, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_w_temp_lo = lv_label_create(extremes_row);
-    lv_label_set_text(ui_lbl_w_temp_lo, "Lo +14\xc2\xb0");
+    lv_label_set_text(ui_lbl_w_temp_lo, "Lo --");
     lv_obj_set_style_text_color(ui_lbl_w_temp_lo, UI_COLOR_HUM, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_lbl_w_temp_lo, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
@@ -534,13 +535,13 @@ void ui_scr_home_screen_init(void) {
     lv_obj_align(lbl_val_var, LV_ALIGN_BOTTOM_LEFT, 0, 0);
 
     MAKE_STAT_BOX(stats_row1, ui_panel_stat_wind,
-                  ui_labl_stat_wind_, ui_labl_stat_wind_val, "WIND", "5 m/s SW")
+                  ui_labl_stat_wind_, ui_labl_stat_wind_val, "WIND", "--")
     MAKE_STAT_BOX(stats_row1, ui_panel_stat_feels,
-                  ui_labl_stat_feels, ui_labl_stat_feels_val, "FEELS LIKE", "+19\xc2\xb0""C")
+                  ui_labl_stat_feels, ui_labl_stat_feels_val, "FEELS LIKE", "--")
     MAKE_STAT_BOX(stats_row2, ui_panel_stat_sunrise,
-                  ui_labl_stat_sunrise, ui_lbl_stat_sunrise_val, "SUNRISE", "05:42")
+                  ui_labl_stat_sunrise, ui_lbl_stat_sunrise_val, "SUNRISE", "--")
     MAKE_STAT_BOX(stats_row2, ui_panel_stat_sunset,
-                  ui_labl_stat_sunset, ui_lbl_stat_sunset_val, "SUNSET", "20:18")
+                  ui_labl_stat_sunset, ui_lbl_stat_sunset_val, "SUNSET", "--")
 
     // ── Hourly strip (fills remaining space) ─────────────────────────────────
     lv_obj_t* hourly_section = lv_obj_create(ui_panel_right);
@@ -571,9 +572,8 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_flex_flow(hourly_strip, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_column(hourly_strip, 6, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    static const char* hour_times[] = {"14:00", "15:00", "16:00", "17:00", "18:00", "19:00"};
-    static const char* hour_temps[] = {"+21\xc2\xb0", "+20\xc2\xb0", "+19\xc2\xb0",
-                                       "+18\xc2\xb0", "+18\xc2\xb0", "+17\xc2\xb0"};
+    static const char* hour_times[] = {"--", "--", "--", "--", "--", "--"};
+    static const char* hour_temps[] = {"--", "--", "--", "--", "--", "--"};
     lv_obj_t** cell_panels[] = {&ui_panel_home_h1, &ui_panel_home_h2, &ui_panel_home_h3,
                                  &ui_panel_home_h4, &ui_panel_home_h5, &ui_panel_home_h6};
     lv_obj_t** cell_times[]  = {&ui_lbl_home_htime1, &ui_lbl_home_htime2, &ui_lbl_home_htime3,
@@ -663,7 +663,7 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_width(ui_lbl_localtime, LV_SIZE_CONTENT);  /// 50
     lv_obj_set_height(ui_lbl_localtime, LV_SIZE_CONTENT); /// 20
     lv_obj_align(ui_lbl_localtime, LV_ALIGN_RIGHT_MID, -8, 0);
-    lv_label_set_text(ui_lbl_localtime, "12:00");
+    lv_label_set_text(ui_lbl_localtime, "--");
 
     ui_lbl_wifi_status = lv_label_create(ui_panel_statusbar);
     lv_obj_set_width(ui_lbl_wifi_status, LV_SIZE_CONTENT);  /// 50

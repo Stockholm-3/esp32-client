@@ -10,6 +10,7 @@
 #include "cache.h"
 #include "cache_fs.h"
 #include "clock.h"
+#include "console_cli.h"
 #include "data_fetcher.h"
 #include "display.h"
 #include "esp_event.h"
@@ -35,6 +36,7 @@
 #include "ws7b_board.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #ifndef CONFIG_IDF_TARGET_LINUX
 #    include "mdns.h"
@@ -54,6 +56,8 @@ static Bme280Reading g_bme_reading = {0};
 static volatile bool g_bme_updated = false;
 /** @brief Tracks whether BME280 was present in the last check. */
 static bool g_bme_was_present = false;
+/** @brief Set to true after first successful time sync to rebuild weather URL once. */
+static bool g_time_synced = false;
 
 /** @brief SMW scheduler instance. */
 static SmwWorker g_smw_worker;
@@ -144,7 +148,9 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     }
     if (state == WIFI_MANAGER_STATE_CONNECTED_WITH_DNS) {
 
-        loc_server_start();
+        if (settings_manager_get_local_web_client_enabled()) {
+            loc_server_start();
+        }
 
         char ip_str[16] = "---";
 #ifndef CONFIG_IDF_TARGET_LINUX
@@ -174,6 +180,11 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     loc_server_notify_wifi_state(state);
 }
 
+static void request_weather_now(void) {
+    data_fetcher_request_now("weather_min");
+    data_fetcher_request_now("weather_hr");
+}
+
 static void on_ap_toggled(bool enabled) {
     wifi_manager_set_ap_enabled(enabled);
     if (enabled) {
@@ -181,18 +192,25 @@ static void on_ap_toggled(bool enabled) {
     }
 }
 
-static void on_data_cached(DataFetcherKind kind, const char* cache_key, void* user_ctx) {
+static void on_data_cached(const FetchDescriptor* desc, void* user_ctx) {
     (void)user_ctx;
+
     void* data = NULL;
     size_t len = 0;
-    if (cache_get_alloc(cache_key, &data, &len) != CACHE_OK) {
+    if (cache_get_alloc(desc->cache_key, &data, &len) != CACHE_OK) {
         return;
     }
 
-    const char* kind_str = (kind == DATA_FETCHER_KIND_ELPRIS) ? "elpris" : "weather";
-    ESP_LOGI(g_tag, "[%s] Fresh data ready — %zu bytes in cache", kind_str, len);
+    ESP_LOGI(g_tag, "[%s] Fresh data ready — %zu bytes", desc->id, len);
+    ESP_LOGI(g_tag, "[%s] Preview: %.200s%s", desc->id, (const char*)data, len > 200U ? "…" : "");
 
-    ESP_LOGI(g_tag, "[%s] Preview: %.200s%s", kind_str, (const char*)data, len > 200U ? "…" : "");
+    if (strcmp(desc->id, "weather_min") == 0) {
+        ui_binder_update_weather_min((const char*)data, len);
+    } else if (strcmp(desc->id, "weather_hr") == 0) {
+        ui_binder_update_weather_hr((const char*)data, len);
+    } else if (strcmp(desc->id, "elpris") == 0) {
+        ui_binder_update_elpris((const char*)data, len);
+    }
 
     cache_free(data);
 }
@@ -223,9 +241,6 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
 
     CacheConfig cfg = cache_fs_config("/storage/cache", 3600);
     cache_init(&cfg);
-    // since esp can loose power its a huge hassle to try to wait for wifi reconnect and clean
-    // cache only then. so we just purge all
-    cache_purge_all();
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -256,15 +271,16 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     }
     ui_build(disp);
     ScreenTimeoutConfig timeout_cfg = {
-        .dim_timeout_seconds           = 1 * 60,
-        .screensaver_timeout_seconds   = 2 * 60,
-        .backlight_off_timeout_seconds = 5 * 60,
+        .dim_timeout_seconds           = (5 * 60 * 50U) / 100U, // 150s — matches UI minimum (5 min)
+        .screensaver_timeout_seconds   = (5 * 60 * 75U) / 100U, // 225s
+        .backlight_off_timeout_seconds = 5 * 60,                // 300s
     };
     screen_timeout_init(&timeout_cfg);
     display_set_activity_callback(screen_timeout_record_activity);
     setenv("TZ", "CET-1CEST-2,M3.5.0/2,M10.5.0/3", 1);
     tzset();
     ui_binder_init();
+    ui_binder_on_weather_refresh(request_weather_now);
     clock_init();
     display_lvgl_unlock();
 
@@ -313,32 +329,103 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         ESP_LOGE("MAIN", "Failed to create SMW background task!");
     }
 
-    char* price_zone = settings_manager_get_price_zone_as_string();
-    const char* city = settings_manager_get_location();
+    console_cli_start();
 
-    char elpris_url[256];
+    char s_elpris_url[256];
+    char s_weather_min_url[256];
+    char s_weather_hr_url[256];
+    char s_energy_plan_url[256];
 
-    char weather_url[256];
+    FetchDescriptor s_fetch_descs[4];
 
-    int result = snprintf(elpris_url, sizeof(elpris_url),
-                          "https://just-dev.freeduck.dev/v1/elpris?price=%s", price_zone);
-    if (result < 0) {
-        ESP_LOGE(g_tag, "Failed to write elpris_url");
-    }
+    const char* price_zone = settings_manager_get_price_zone_as_string();
+    const char* city       = settings_manager_get_location();
 
-    result = snprintf(weather_url, sizeof(weather_url),
-                      "https://just-dev.freeduck.dev/v1/minutely?city=%s", city);
+    snprintf(s_elpris_url, sizeof(s_elpris_url), "https://just-dev.freeduck.dev/v1/elpris?price=%s",
+             price_zone);
+    snprintf(s_weather_min_url, sizeof(s_weather_min_url),
+             "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=24", city);
 
-    if (result < 0) {
-        ESP_LOGE(g_tag, "Failed to write weather_url");
-    }
+    snprintf(s_weather_hr_url, sizeof(s_weather_hr_url),
+             "https://just-dev.freeduck.dev/v1/hourly?city=%s&hours=168", city);
+
+    snprintf(s_energy_plan_url, sizeof(s_energy_plan_url),
+             "https://just-dev.freeduck.dev/v1/get_plan?price=%s&city=%s", price_zone, city);
+
+    s_fetch_descs[0] = (FetchDescriptor){
+        .id                  = "elpris",
+        .url                 = s_elpris_url,
+        .cache_key           = "fetch:elpris",
+        .cache_ttl_sec       = 24U * 3600U,
+        .schedule.type       = FETCH_SCHEDULE_DAILY,
+        .schedule.daily_hour = 14,
+        .fetch_on_startup    = true,
+        .startup_delay_ms    = 0U,
+    };
+
+    s_fetch_descs[1] = (FetchDescriptor){
+        .id                    = "weather_min",
+        .url                   = s_weather_min_url,
+        .cache_key             = "fetch:weather_min",
+        .cache_ttl_sec         = 24U * 3600U,
+        .schedule.type         = FETCH_SCHEDULE_INTERVAL,
+        .schedule.interval_sec = 15U * 60U,
+        .fetch_on_startup      = true,
+        .startup_delay_ms      = 0U,
+    };
+
+    s_fetch_descs[2] = (FetchDescriptor){
+        .id                    = "weather_hr",
+        .url                   = s_weather_hr_url,
+        .cache_key             = "fetch:weather_hr",
+        .cache_ttl_sec         = 24U * 3600U,
+        .schedule.type         = FETCH_SCHEDULE_INTERVAL,
+        .schedule.interval_sec = 15U * 60U,
+        .fetch_on_startup      = true,
+        .startup_delay_ms      = 0U,
+    };
+
+    s_fetch_descs[3] = (FetchDescriptor){
+        .id                    = "energy_plan",
+        .url                   = s_energy_plan_url,
+        .cache_key             = "fetch:energy_plan",
+        .cache_ttl_sec         = 24U * 3600U,
+        .schedule.type         = FETCH_SCHEDULE_INTERVAL,
+        .schedule.interval_sec = 15U * 60U,
+        .fetch_on_startup      = true,
+        .startup_delay_ms      = 0U,
+    };
 
     DataFetcherConfig df_cfg = data_fetcher_default_config();
-    df_cfg.elpris_url        = elpris_url;
-    df_cfg.weather_url       = weather_url;
+    df_cfg.descriptors       = s_fetch_descs;
+    df_cfg.descriptor_count  = 4;
     df_cfg.on_cached         = on_data_cached;
-    df_cfg.on_cached_ctx     = NULL;
-    data_fetcher_init(&df_cfg, &g_smw_worker);
+
+#ifndef CONFIG_IDF_TARGET_LINUX
+    data_fetcher_init(&df_cfg);
+#endif
+
+    if (display_lvgl_lock(-1)) {
+        void* cached_data = NULL;
+        size_t cached_len = 0;
+        if (cache_get_alloc("fetch:elpris", &cached_data, &cached_len) == CACHE_OK) {
+            ui_tab_elpris_handle_server_response((const char*)cached_data, cached_len);
+            cache_free(cached_data);
+        }
+        cached_data = NULL;
+        cached_len  = 0;
+        if (cache_get_alloc("fetch:weather_min", &cached_data, &cached_len) == CACHE_OK) {
+            ui_tab_weather_handle_server_response((const char*)cached_data, cached_len, 0);
+            cache_free(cached_data);
+        }
+        cached_data = NULL;
+        cached_len  = 0;
+        if (cache_get_alloc("fetch:weather_hr", &cached_data, &cached_len) == CACHE_OK) {
+            ui_tab_weather_handle_server_response((const char*)cached_data, cached_len, 1);
+            cache_free(cached_data);
+        }
+        display_lvgl_unlock();
+    }
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -348,6 +435,15 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         struct tm timeinfo;
         bool time_is_valid = time_manager_get_time(&timeinfo);
         if (time_is_valid) {
+            if (!g_time_synced) {
+                g_time_synced = true;
+                snprintf(s_weather_min_url, sizeof(s_weather_min_url),
+                         "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=%d",
+                         city, timeinfo.tm_hour + 1);
+                ESP_LOGI(g_tag, "Time synced, updating weather_min URL with past_hours=%d",
+                         timeinfo.tm_hour + 1);
+                data_fetcher_request_now("weather_min");
+            }
             ui_binder_update_localtime(&timeinfo);
             ui_tab_elpris_update_now();
         }

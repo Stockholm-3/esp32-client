@@ -8,16 +8,19 @@
 #include "esp_netif.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/timers.h"
 #include "settings_manager.h"
 #include "ui_binder.h"
 #include "wifi_manager.h"
 
 #include <string.h>
+#include <unistd.h>
 
-static const char* g_tag       = "loc_server";
-static httpd_handle_t g_server = NULL;
-static volatile int g_ws_fd    = -1;
+static const char* g_tag            = "loc_server";
+static httpd_handle_t g_server      = NULL;
+static int g_ws_fd                  = -1;
+static SemaphoreHandle_t g_ws_mutex = NULL;
 
 extern const uint8_t INDEX_HTML_START[] asm("_binary_index_html_start");
 extern const uint8_t INDEX_HTML_END[] asm("_binary_index_html_end");
@@ -39,6 +42,17 @@ static const StaticFile G_FILES[] = {
     {"/app.js", APP_JS_START, APP_JS_END, "application/javascript"},
 };
 
+static void on_socket_closed(httpd_handle_t hd, int sockfd) {
+    (void)hd;
+    xSemaphoreTake(g_ws_mutex, portMAX_DELAY);
+    if (sockfd == g_ws_fd) {
+        ESP_LOGI(g_tag, "WS client disconnected, fd=%d", sockfd);
+        g_ws_fd = -1;
+    }
+    xSemaphoreGive(g_ws_mutex);
+    close(sockfd);
+}
+
 static esp_err_t handle_static(httpd_req_t* req) {
     for (int i = 0; i < (int)(sizeof(G_FILES) / sizeof(G_FILES[0])); i++) {
         if (strcmp(req->uri, G_FILES[i].uri) == 0) {
@@ -52,7 +66,10 @@ static esp_err_t handle_static(httpd_req_t* req) {
 }
 
 void loc_server_push_settings(void) {
-    if (g_server == NULL || g_ws_fd < 0) {
+    xSemaphoreTake(g_ws_mutex, portMAX_DELAY);
+    int fd = g_ws_fd;
+    xSemaphoreGive(g_ws_mutex);
+    if (g_server == NULL || fd < 0) {
         return;
     }
 
@@ -97,15 +114,22 @@ void loc_server_push_settings(void) {
         .len     = strlen(buf),
     };
 
-    esp_err_t err = httpd_ws_send_frame_async(g_server, g_ws_fd, &frame);
+    esp_err_t err = httpd_ws_send_frame_async(g_server, fd, &frame);
     if (err != ESP_OK) {
         ESP_LOGW(g_tag, "WS send failed: %s", esp_err_to_name(err));
-        g_ws_fd = -1;
+        xSemaphoreTake(g_ws_mutex, portMAX_DELAY);
+        if (g_ws_fd == fd) {
+            g_ws_fd = -1;
+        }
+        xSemaphoreGive(g_ws_mutex);
     }
 }
 
 static void on_wifi_scan_done(const WifiManagerApInfo* aps, uint16_t count) {
-    if (g_server == NULL || g_ws_fd < 0) {
+    xSemaphoreTake(g_ws_mutex, portMAX_DELAY);
+    int fd = g_ws_fd;
+    xSemaphoreGive(g_ws_mutex);
+    if (g_server == NULL || fd < 0) {
         return;
     }
 
@@ -124,7 +148,7 @@ static void on_wifi_scan_done(const WifiManagerApInfo* aps, uint16_t count) {
         .payload = (uint8_t*)buf,
         .len     = (size_t)pos,
     };
-    httpd_ws_send_frame_async(g_server, g_ws_fd, &frame);
+    httpd_ws_send_frame_async(g_server, fd, &frame);
 }
 
 static void reboot_timer_cb(TimerHandle_t timer) {
@@ -133,12 +157,18 @@ static void reboot_timer_cb(TimerHandle_t timer) {
 }
 
 static void send_text(const char* text) {
+    xSemaphoreTake(g_ws_mutex, portMAX_DELAY);
+    int fd = g_ws_fd;
+    xSemaphoreGive(g_ws_mutex);
+    if (g_server == NULL || fd < 0) {
+        return;
+    }
     httpd_ws_frame_t frame = {
         .type    = HTTPD_WS_TYPE_TEXT,
         .payload = (uint8_t*)text,
         .len     = strlen(text),
     };
-    httpd_ws_send_frame_async(g_server, g_ws_fd, &frame);
+    httpd_ws_send_frame_async(g_server, fd, &frame);
 }
 
 // NOLINTBEGIN(readability-function-size,readability-function-cognitive-complexity)
@@ -252,26 +282,38 @@ static void handle_ws_message(const char* json_str) {
 }
 // NOLINTEND(readability-function-size,readability-function-cognitive-complexity)
 
-static void ws_push_timer_cb(TimerHandle_t timer) {
-    xTimerDelete(timer, 0);
-    loc_server_push_settings();
-}
-
 static esp_err_t handle_ws(httpd_req_t* req) {
     if (req->method == HTTP_GET) {
-        g_ws_fd = httpd_req_to_sockfd(req);
-        ESP_LOGI(g_tag, "Browser connected, fd=%d", g_ws_fd);
-        TimerHandle_t t =
-            xTimerCreate("ws_push", pdMS_TO_TICKS(100), pdFALSE, NULL, ws_push_timer_cb);
-        if (t) {
-            xTimerStart(t, 0);
+        int new_fd = httpd_req_to_sockfd(req);
+        xSemaphoreTake(g_ws_mutex, portMAX_DELAY);
+        int old_fd = g_ws_fd;
+        g_ws_fd    = new_fd;
+        xSemaphoreGive(g_ws_mutex);
+        if (old_fd != -1 && old_fd != new_fd) {
+            httpd_sess_trigger_close(g_server, old_fd);
         }
+        ESP_LOGI(g_tag, "Browser connected, fd=%d", new_fd);
+        loc_server_push_settings();
         return ESP_OK;
     }
 
     httpd_ws_frame_t frame = {.type = HTTPD_WS_TYPE_TEXT};
     esp_err_t ret          = httpd_ws_recv_frame(req, &frame, 0);
-    if (ret != ESP_OK || frame.len == 0) {
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    if (frame.type == HTTPD_WS_TYPE_CLOSE) {
+        httpd_ws_frame_t close_frame = {.type = HTTPD_WS_TYPE_CLOSE, .len = 0};
+        httpd_ws_send_frame(req, &close_frame);
+        xSemaphoreTake(g_ws_mutex, portMAX_DELAY);
+        g_ws_fd = -1;
+        xSemaphoreGive(g_ws_mutex);
+        ESP_LOGI(g_tag, "WS CLOSE frame received");
+        return ESP_OK;
+    }
+
+    if (frame.len == 0) {
         return ret;
     }
 
@@ -289,7 +331,10 @@ static esp_err_t handle_ws(httpd_req_t* req) {
 }
 
 void loc_server_notify_wifi_state(WifiManagerState state) {
-    if (g_server == NULL || g_ws_fd < 0) {
+    xSemaphoreTake(g_ws_mutex, portMAX_DELAY);
+    int fd = g_ws_fd;
+    xSemaphoreGive(g_ws_mutex);
+    if (g_server == NULL || fd < 0) {
         return;
     }
 
@@ -311,7 +356,7 @@ void loc_server_notify_wifi_state(WifiManagerState state) {
         .payload = (uint8_t*)buf,
         .len     = strlen(buf),
     };
-    httpd_ws_send_frame_async(g_server, g_ws_fd, &frame);
+    httpd_ws_send_frame_async(g_server, fd, &frame);
 }
 
 esp_err_t loc_server_start(void) {
@@ -319,12 +364,14 @@ esp_err_t loc_server_start(void) {
         return ESP_OK;
     }
 
-    httpd_config_t config   = HTTPD_DEFAULT_CONFIG();
-    config.server_port      = 80;
-    config.max_open_sockets = 7;
-    config.stack_size       = 8192;
-    config.lru_purge_enable = true;
-    config.max_req_hdr_len  = 2048;
+    httpd_config_t config    = HTTPD_DEFAULT_CONFIG();
+    config.server_port       = 80;
+    config.max_open_sockets  = 7;
+    config.stack_size        = 8192;
+    config.lru_purge_enable  = true;
+    config.recv_wait_timeout = 1;
+    config.max_req_hdr_len   = 2048;
+    config.close_fn          = on_socket_closed;
 
     ESP_RETURN_ON_ERROR(httpd_start(&g_server, &config), g_tag, "httpd_start failed");
 
@@ -364,7 +411,9 @@ void loc_server_stop(void) {
     if (g_server) {
         httpd_stop(g_server);
         g_server = NULL;
-        g_ws_fd  = -1;
+        xSemaphoreTake(g_ws_mutex, portMAX_DELAY);
+        g_ws_fd = -1;
+        xSemaphoreGive(g_ws_mutex);
     }
 }
 
@@ -378,7 +427,18 @@ static void on_settings_changed_from_lvgl_int(int unused) {
     loc_server_push_settings();
 }
 
+static void on_lwc_setting_changed(bool enabled) {
+    settings_manager_save_local_web_client_enabled(enabled);
+    if (enabled) {
+        loc_server_start();
+    } else {
+        loc_server_stop();
+    }
+}
+
 void loc_server_init(void) {
+    ui_binder_on_local_web_client_changed(on_lwc_setting_changed);
+    g_ws_mutex = xSemaphoreCreateMutex();
     ui_binder_on_location_changed2(on_settings_changed_from_lvgl);
     ui_binder_on_price_changed2(on_settings_changed_from_lvgl_int);
     ui_binder_on_timeout_changed2(on_settings_changed_from_lvgl_int);
