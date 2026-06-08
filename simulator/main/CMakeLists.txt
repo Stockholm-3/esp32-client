@@ -11,7 +11,6 @@ idf_component_register(
     ui_binder
     settings_manager
     wifi_manager
-    trigger_manager
     lib
     esp_idf_stubs
     loc_server
