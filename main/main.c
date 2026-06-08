@@ -28,6 +28,7 @@
 #include "smw_http.h"
 #include "squareline/screens/ui_scr_home.h"
 #include "time_manager.h"
+#include "trigger_manager.h"
 #include "ui.h"
 #include "ui_binder.h"
 #include "wifi_manager.h"
@@ -73,11 +74,7 @@ static void smw_worker_task(void* ctx) {
     ESP_LOGI("SMW_TASK", "State machine worker task started.");
 
     while (1) {
-        // Run the state machine process step
         smw_process(&g_smw_worker, get_system_ms());
-
-        // Poll at a steady, responsive 50ms interval
-        // This gives your network driver plenty of CPU breathing room
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
@@ -121,10 +118,10 @@ static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
  * @param password  Network password.
  */
 static void on_wifi_connect(const char* ssid, const char* password) {
+    trigger_manager_set_wifi_name(ssid);
     strncpy(g_current_ssid, ssid, 32);
     g_current_ssid[32] = '\0';
     if (wifi_manager_change_network(ssid, password) != 0) {
-        // Manager not yet initialized (first boot, no saved credentials) — start it, then connect.
         wifi_manager_start(NULL);
         wifi_manager_change_network(ssid, password);
     }
@@ -258,8 +255,10 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     ESP_ERROR_CHECK(display_init(&disp, &touch));
     ESP_LOGI(g_tag, "Display initialized");
 
+    trigger_manager_init();
+
     esp_err_t bme_err =
-        bme280_sensor_init_with_task(ws7b_board_get_i2c_bus(), on_bme280_sample, NULL);
+        bme280_sensor_init_with_task(ws7b_board_get_i2c_bus(), trigger_manager_on_bme280, NULL);
     if (bme_err != ESP_OK) {
         ESP_LOGW(g_tag, "BME280 not found, skipping (%s)", esp_err_to_name(bme_err));
     } else {
@@ -431,6 +430,8 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
 
+        trigger_manager_process();
+
         struct tm timeinfo;
         bool time_is_valid = time_manager_get_time(&timeinfo);
         if (time_is_valid) {
@@ -447,10 +448,8 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
             ui_tab_elpris_update_now();
         }
 
-        // Handle BME280 hot-plug: check if sensor presence changed
         bool bme_present = bme280_probe_i2c();
         if ((int)bme_present && !g_bme_was_present) {
-            // Sensor just connected
             ESP_LOGI(g_tag, "BME280 detected, reinitializing...");
             bme280_sensor_deinit();
             esp_err_t err =
@@ -461,7 +460,6 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
                 g_bme_was_present = true;
             }
         } else if (!bme_present && (int)g_bme_was_present) {
-            // Sensor just disconnected
             ESP_LOGI(g_tag, "BME280 disconnected");
             bme280_sensor_deinit();
             g_bme_was_present = false;
