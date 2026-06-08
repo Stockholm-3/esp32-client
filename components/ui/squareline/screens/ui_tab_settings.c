@@ -1,7 +1,7 @@
 #include "../ui.h"
-#include "kb_swedish.h"
-#include "../ui_theme.h"
 #include "../ui_events.h"
+#include "../ui_theme.h"
+#include "kb_swedish.h"
 #include "ui_scr_home.h"
 
 lv_obj_t* ui_panel_settings_main = NULL;
@@ -28,18 +28,19 @@ lv_obj_t* ui_Keyboard1           = NULL;
 lv_obj_t* ui_sw_alerts           = NULL;
 lv_obj_t* ui_sw_ap_enabled       = NULL;
 lv_obj_t* ui_sw_local_web_client = NULL;
-lv_obj_t* ui_lbl_settings_ip    = NULL;
+lv_obj_t* ui_lbl_settings_ip     = NULL;
 
 void ui_event_ta_locationinput(lv_event_t* e) {
     lv_event_code_t code = lv_event_get_code(e);
-    if (code == LV_EVENT_FOCUSED)   show_keyboard(e);
-    if (code == LV_EVENT_DEFOCUSED) hide_keyboard(e);
+    if (code == LV_EVENT_FOCUSED)
+        show_keyboard(e);
+    if (code == LV_EVENT_DEFOCUSED)
+        hide_keyboard(e);
 }
 
 // Returns a row panel with title+subtitle on the left.
 // Add your control widget(s) directly to the returned object.
-static lv_obj_t* make_setting_row(lv_obj_t* parent,
-                                   const char* title, const char* subtitle) {
+static lv_obj_t* make_setting_row(lv_obj_t* parent, const char* title, const char* subtitle) {
     lv_obj_t* row = lv_obj_create(parent);
     lv_obj_set_width(row, lv_pct(100));
     lv_obj_set_height(row, LV_SIZE_CONTENT);
@@ -61,8 +62,7 @@ static lv_obj_t* make_setting_row(lv_obj_t* parent,
     lv_obj_set_flex_grow(info, 1);
     lv_obj_remove_flag(info, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(info, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(info, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START,
-                          LV_FLEX_ALIGN_START);
+    lv_obj_set_flex_align(info, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     lv_obj_set_style_bg_opa(info, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(info, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(info, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -114,8 +114,8 @@ void ui_tab_settings_init(void) {
     lv_obj_set_style_pad_row(ui_panel_settings_main, 10, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     // ---- WiFi row ----
-    ui_panel_wifi = make_setting_row(ui_panel_settings_main, "WIFI", "Network connection");
-    lv_obj_t* wifi_labels = lv_obj_get_child(ui_panel_wifi, 0);  // info column
+    ui_panel_wifi         = make_setting_row(ui_panel_settings_main, "WIFI", "Network connection");
+    lv_obj_t* wifi_labels = lv_obj_get_child(ui_panel_wifi, 0); // info column
 
     ui_lbl_wifi_title = lv_obj_get_child(wifi_labels, 0);
     ui_lbl_wifi_sub   = lv_obj_get_child(wifi_labels, 1);
@@ -131,8 +131,7 @@ void ui_tab_settings_init(void) {
     lv_obj_set_width(wifi_ctrl, LV_SIZE_CONTENT);
     lv_obj_remove_flag(wifi_ctrl, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(wifi_ctrl, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(wifi_ctrl, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(wifi_ctrl, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_bg_opa(wifi_ctrl, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(wifi_ctrl, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(wifi_ctrl, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -162,8 +161,8 @@ void ui_tab_settings_init(void) {
                                LV_PART_MAIN | LV_STATE_DEFAULT);
 
     // ---- Location row ----
-    ui_panel_location = make_setting_row(ui_panel_settings_main,
-                                         "Location", "City for weather data");
+    ui_panel_location =
+        make_setting_row(ui_panel_settings_main, "Location", "City for weather data");
     ui_lbl_loc_title = lv_obj_get_child(lv_obj_get_child(ui_panel_location, 0), 0);
     ui_lbl_loc_sub   = lv_obj_get_child(lv_obj_get_child(ui_panel_location, 0), 1);
 
@@ -182,46 +181,44 @@ void ui_tab_settings_init(void) {
                                 LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_ta_locationinput, &lv_font_montserrat_14,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_add_event_cb(ui_ta_locationinput, ui_event_ta_locationinput,
-                        LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(ui_ta_locationinput, ui_event_ta_locationinput, LV_EVENT_ALL, NULL);
 
     // ---- Price group row ----
-    ui_panel_price = make_setting_row(ui_panel_settings_main,
-                                      "Price group", "Swedish electricity zone");
+    ui_panel_price =
+        make_setting_row(ui_panel_settings_main, "Price group", "Swedish electricity zone");
     ui_lbl_price_title = lv_obj_get_child(lv_obj_get_child(ui_panel_price, 0), 0);
     ui_lbl_price_sub   = lv_obj_get_child(lv_obj_get_child(ui_panel_price, 0), 1);
-    ui_dd_price = make_dropdown(ui_panel_price, "SE1\nSE2\nSE3\nSE4");
-    lv_dropdown_set_selected(ui_dd_price, 2);  // default SE3
+    ui_dd_price        = make_dropdown(ui_panel_price, "SE1\nSE2\nSE3\nSE4");
+    lv_dropdown_set_selected(ui_dd_price, 2); // default SE3
 
     // ---- Screen timeout row ----
-    ui_panel_timeout = make_setting_row(ui_panel_settings_main,
-                                        "Screen timeout", "Auto dim after inactivity");
+    ui_panel_timeout =
+        make_setting_row(ui_panel_settings_main, "Screen timeout", "Auto dim after inactivity");
     ui_lbl_timeout_title = lv_obj_get_child(lv_obj_get_child(ui_panel_timeout, 0), 0);
     ui_lbl_timeout_sub   = lv_obj_get_child(lv_obj_get_child(ui_panel_timeout, 0), 1);
-    ui_dd_timeout = make_dropdown(ui_panel_timeout, "5 min\n10 min\n15 min\n20 min\nNever");
-    lv_dropdown_set_selected(ui_dd_timeout, 1);  // default 10 min
+    ui_dd_timeout        = make_dropdown(ui_panel_timeout, "5 min\n10 min\n15 min\n20 min\nNever");
+    lv_dropdown_set_selected(ui_dd_timeout, 1); // default 10 min
 
     // ---- Price alerts row (new) ----
-    lv_obj_t* row_alerts = make_setting_row(ui_panel_settings_main,
-                                             "Price alerts", "Notify on cheap hours");
+    lv_obj_t* row_alerts =
+        make_setting_row(ui_panel_settings_main, "Price alerts", "Notify on cheap hours");
     ui_sw_alerts = lv_switch_create(row_alerts);
     lv_obj_set_size(ui_sw_alerts, 50, 26);
     lv_obj_set_style_bg_color(ui_sw_alerts, UI_COLOR_ACCENT, LV_PART_INDICATOR | LV_STATE_CHECKED);
     lv_obj_set_style_bg_opa(ui_sw_alerts, LV_OPA_COVER, LV_PART_INDICATOR | LV_STATE_CHECKED);
 
     // ---- ESP32-Settings AP row ----
-    lv_obj_t* row_ap = make_setting_row(ui_panel_settings_main,
-                                        "ESP32-Settings AP", "Hotspot for initial setup");
+    lv_obj_t* row_ap =
+        make_setting_row(ui_panel_settings_main, "ESP32-Settings AP", "Hotspot for initial setup");
     ui_sw_ap_enabled = lv_switch_create(row_ap);
     lv_obj_set_size(ui_sw_ap_enabled, 50, 26);
     lv_obj_set_style_bg_color(ui_sw_ap_enabled, UI_COLOR_ACCENT,
                               LV_PART_INDICATOR | LV_STATE_CHECKED);
-    lv_obj_set_style_bg_opa(ui_sw_ap_enabled, LV_OPA_COVER,
-                            LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_opa(ui_sw_ap_enabled, LV_OPA_COVER, LV_PART_INDICATOR | LV_STATE_CHECKED);
 
     // ---- Local web client row ----
-    lv_obj_t* row_lwc = make_setting_row(ui_panel_settings_main,
-                                         "Local web client", "Fixed IP for home network");
+    lv_obj_t* row_lwc =
+        make_setting_row(ui_panel_settings_main, "Local web client", "Fixed IP for home network");
     ui_sw_local_web_client = lv_switch_create(row_lwc);
     lv_obj_set_size(ui_sw_local_web_client, 50, 26);
     lv_obj_set_style_bg_color(ui_sw_local_web_client, UI_COLOR_ACCENT,
@@ -251,7 +248,8 @@ void ui_tab_settings_init(void) {
     ui_lbl_settings_ip = lv_label_create(footer);
     lv_label_set_text(ui_lbl_settings_ip, "IP: --");
     lv_obj_set_style_text_color(ui_lbl_settings_ip, UI_COLOR_INK4, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_settings_ip, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_settings_ip, &lv_font_montserrat_12,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_t* lbl_up = lv_label_create(footer);
     lv_label_set_text(lbl_up, "Uptime: --");

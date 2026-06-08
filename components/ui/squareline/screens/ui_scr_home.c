@@ -3,9 +3,9 @@
 // LVGL version: 9.2.2
 // Project name: just-GUI
 
+#include "../images/weather/ui_images_weather.h"
 #include "../ui.h"
 #include "../ui_theme.h"
-#include "../images/weather/ui_images_weather.h"
 
 // Traffic light dots
 lv_obj_t* ui_panel_traffic_light = NULL;
@@ -14,13 +14,24 @@ lv_obj_t* ui_dot_light_amber     = NULL;
 lv_obj_t* ui_dot_light_red       = NULL;
 
 // Home hourly strip
-lv_obj_t* ui_panel_home_h1  = NULL; lv_obj_t* ui_lbl_home_htime1 = NULL; lv_obj_t* ui_lbl_home_htemp1 = NULL;
-lv_obj_t* ui_panel_home_h2  = NULL; lv_obj_t* ui_lbl_home_htime2 = NULL; lv_obj_t* ui_lbl_home_htemp2 = NULL;
-lv_obj_t* ui_panel_home_h3  = NULL; lv_obj_t* ui_lbl_home_htime3 = NULL; lv_obj_t* ui_lbl_home_htemp3 = NULL;
-lv_obj_t* ui_panel_home_h4  = NULL; lv_obj_t* ui_lbl_home_htime4 = NULL; lv_obj_t* ui_lbl_home_htemp4 = NULL;
-lv_obj_t* ui_panel_home_h5  = NULL; lv_obj_t* ui_lbl_home_htime5 = NULL; lv_obj_t* ui_lbl_home_htemp5 = NULL;
-lv_obj_t* ui_panel_home_h6  = NULL; lv_obj_t* ui_lbl_home_htime6 = NULL; lv_obj_t* ui_lbl_home_htemp6 = NULL;
-
+lv_obj_t* ui_panel_home_h1   = NULL;
+lv_obj_t* ui_lbl_home_htime1 = NULL;
+lv_obj_t* ui_lbl_home_htemp1 = NULL;
+lv_obj_t* ui_panel_home_h2   = NULL;
+lv_obj_t* ui_lbl_home_htime2 = NULL;
+lv_obj_t* ui_lbl_home_htemp2 = NULL;
+lv_obj_t* ui_panel_home_h3   = NULL;
+lv_obj_t* ui_lbl_home_htime3 = NULL;
+lv_obj_t* ui_lbl_home_htemp3 = NULL;
+lv_obj_t* ui_panel_home_h4   = NULL;
+lv_obj_t* ui_lbl_home_htime4 = NULL;
+lv_obj_t* ui_lbl_home_htemp4 = NULL;
+lv_obj_t* ui_panel_home_h5   = NULL;
+lv_obj_t* ui_lbl_home_htime5 = NULL;
+lv_obj_t* ui_lbl_home_htemp5 = NULL;
+lv_obj_t* ui_panel_home_h6   = NULL;
+lv_obj_t* ui_lbl_home_htime6 = NULL;
+lv_obj_t* ui_lbl_home_htemp6 = NULL;
 
 lv_obj_t* uic_lbl_elec_price;
 lv_obj_t* uic_lbl_elec_sub;
@@ -97,7 +108,6 @@ lv_obj_t* ui_lbl_wifi_status        = NULL;
 
 // build funtions
 
-
 void ui_scr_home_screen_init(void) {
     ui_scr_home = lv_obj_create(NULL);
     lv_obj_remove_flag(ui_scr_home, LV_OBJ_FLAG_SCROLLABLE); /// Flags
@@ -133,10 +143,8 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_text_color(tab_btns, UI_COLOR_INK1, LV_PART_ITEMS | LV_STATE_CHECKED);
     lv_obj_set_style_bg_color(tab_btns, UI_COLOR_BG0, LV_PART_ITEMS | LV_STATE_CHECKED);
     lv_obj_set_style_bg_opa(tab_btns, 255, LV_PART_ITEMS | LV_STATE_CHECKED);
-    lv_obj_set_style_border_side(tab_btns, LV_BORDER_SIDE_BOTTOM,
-                                 LV_PART_ITEMS | LV_STATE_CHECKED);
-    lv_obj_set_style_border_color(tab_btns, UI_COLOR_ACCENT,
-                                  LV_PART_ITEMS | LV_STATE_CHECKED);
+    lv_obj_set_style_border_side(tab_btns, LV_BORDER_SIDE_BOTTOM, LV_PART_ITEMS | LV_STATE_CHECKED);
+    lv_obj_set_style_border_color(tab_btns, UI_COLOR_ACCENT, LV_PART_ITEMS | LV_STATE_CHECKED);
     lv_obj_set_style_border_width(tab_btns, 3, LV_PART_ITEMS | LV_STATE_CHECKED);
 
     ui_tabhome = lv_tabview_add_tab(ui_TabView, "HOME");
@@ -187,7 +195,8 @@ void ui_scr_home_screen_init(void) {
     lv_obj_t* indoor_title = lv_label_create(indoor_card);
     lv_label_set_text(indoor_title, "INDOOR");
     lv_obj_set_style_text_color(indoor_title, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(indoor_title, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(indoor_title, &lv_font_montserrat_12,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_bottom(indoor_title, 10, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_t* gauges_row = lv_obj_create(indoor_card);
@@ -198,8 +207,8 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_border_width(gauges_row, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(gauges_row, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(gauges_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(gauges_row, LV_FLEX_ALIGN_SPACE_EVENLY,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(gauges_row, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
 
     // Temperature arc
     ui_arc_temp = lv_arc_create(gauges_row);
@@ -221,13 +230,16 @@ void ui_scr_home_screen_init(void) {
     ui_lbl_temp_val = lv_label_create(ui_arc_temp);
     lv_label_set_text(ui_lbl_temp_val, "--");
     lv_obj_set_style_text_color(ui_lbl_temp_val, UI_COLOR_TEMP, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_temp_val, &lv_font_montserrat_22, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_temp_val, &lv_font_montserrat_22,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_align(ui_lbl_temp_val, LV_ALIGN_CENTER, 0, -10);
 
     ui_lbl_temp_unit = lv_label_create(ui_arc_temp);
-    lv_label_set_text(ui_lbl_temp_unit, "\xc2\xb0""C");
+    lv_label_set_text(ui_lbl_temp_unit, "\xc2\xb0"
+                                        "C");
     lv_obj_set_style_text_color(ui_lbl_temp_unit, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_temp_unit, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_temp_unit, &lv_font_montserrat_12,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_align(ui_lbl_temp_unit, LV_ALIGN_CENTER, 0, 18);
 
     // Humidity arc
@@ -250,13 +262,15 @@ void ui_scr_home_screen_init(void) {
     ui_lbl_hum_val = lv_label_create(ui_arc_humidity);
     lv_label_set_text(ui_lbl_hum_val, "--");
     lv_obj_set_style_text_color(ui_lbl_hum_val, UI_COLOR_HUM, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_hum_val, &lv_font_montserrat_22, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_hum_val, &lv_font_montserrat_22,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_align(ui_lbl_hum_val, LV_ALIGN_CENTER, 0, -10);
 
     ui_lbl_hum_unit = lv_label_create(ui_arc_humidity);
     lv_label_set_text(ui_lbl_hum_unit, "RH");
     lv_obj_set_style_text_color(ui_lbl_hum_unit, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_hum_unit, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_hum_unit, &lv_font_montserrat_12,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_align(ui_lbl_hum_unit, LV_ALIGN_CENTER, 0, 18);
 
     // Pressure arc
@@ -270,7 +284,8 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_arc_color(ui_arc_pressure, UI_COLOR_BG3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_width(ui_arc_pressure, 8, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_rounded(ui_arc_pressure, true, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_arc_color(ui_arc_pressure, UI_COLOR_PRES, LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_arc_color(ui_arc_pressure, UI_COLOR_PRES,
+                               LV_PART_INDICATOR | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_width(ui_arc_pressure, 8, LV_PART_INDICATOR | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_rounded(ui_arc_pressure, true, LV_PART_INDICATOR | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_arc_pressure, LV_OPA_TRANSP, LV_PART_KNOB | LV_STATE_DEFAULT);
@@ -279,13 +294,15 @@ void ui_scr_home_screen_init(void) {
     ui_lbl_press_val = lv_label_create(ui_arc_pressure);
     lv_label_set_text(ui_lbl_press_val, "--");
     lv_obj_set_style_text_color(ui_lbl_press_val, UI_COLOR_PRES, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_press_val, &lv_font_montserrat_22, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_press_val, &lv_font_montserrat_22,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_align(ui_lbl_press_val, LV_ALIGN_CENTER, 0, -10);
 
     ui_lbl_press_unit = lv_label_create(ui_arc_pressure);
     lv_label_set_text(ui_lbl_press_unit, "hPa");
     lv_obj_set_style_text_color(ui_lbl_press_unit, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_press_unit, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_press_unit, &lv_font_montserrat_12,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_align(ui_lbl_press_unit, LV_ALIGN_CENTER, 0, 18);
 
     // ── Electricity recommendation card ──────────────────────────────────────
@@ -295,13 +312,14 @@ void ui_scr_home_screen_init(void) {
     lv_obj_remove_flag(ui_panel_elec_rec, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_panel_elec_rec, UI_COLOR_BG1, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_panel_elec_rec, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(ui_panel_elec_rec, UI_COLOR_LINE_SOFT, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(ui_panel_elec_rec, UI_COLOR_LINE_SOFT,
+                                  LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ui_panel_elec_rec, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui_panel_elec_rec, 12, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(ui_panel_elec_rec, 12, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(ui_panel_elec_rec, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(ui_panel_elec_rec, LV_FLEX_ALIGN_START,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(ui_panel_elec_rec, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(ui_panel_elec_rec, 12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     // Traffic light dots
@@ -309,7 +327,8 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_width(ui_panel_traffic_light, 34);
     lv_obj_set_height(ui_panel_traffic_light, lv_pct(100));
     lv_obj_remove_flag(ui_panel_traffic_light, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(ui_panel_traffic_light, UI_COLOR_BG0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui_panel_traffic_light, UI_COLOR_BG0,
+                              LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_panel_traffic_light, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_color(ui_panel_traffic_light, UI_COLOR_LINE_SOFT,
                                   LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -317,8 +336,8 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_radius(ui_panel_traffic_light, 10, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(ui_panel_traffic_light, 6, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(ui_panel_traffic_light, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(ui_panel_traffic_light, LV_FLEX_ALIGN_SPACE_EVENLY,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(ui_panel_traffic_light, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
 
     ui_dot_light_green = lv_obj_create(ui_panel_traffic_light);
     lv_obj_set_size(ui_dot_light_green, 18, 18);
@@ -326,7 +345,8 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_bg_color(ui_dot_light_green, UI_COLOR_GOOD, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_dot_light_green, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ui_dot_light_green, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_shadow_color(ui_dot_light_green, UI_COLOR_GOOD, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_shadow_color(ui_dot_light_green, UI_COLOR_GOOD,
+                                  LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_shadow_width(ui_dot_light_green, 12, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_shadow_spread(ui_dot_light_green, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
 
@@ -353,21 +373,23 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_border_width(elec_text_col, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(elec_text_col, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(elec_text_col, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(elec_text_col, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_set_flex_align(elec_text_col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START,
+                          LV_FLEX_ALIGN_START);
     lv_obj_set_style_pad_row(elec_text_col, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_elec_status = lv_label_create(elec_text_col);
     lv_label_set_text(ui_lbl_elec_status, "--");
     lv_obj_set_width(ui_lbl_elec_status, lv_pct(100));
     lv_obj_set_style_text_color(ui_lbl_elec_status, UI_COLOR_GOOD, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_elec_status, &lv_font_montserrat_16, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_elec_status, &lv_font_montserrat_16,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_elec_sub = lv_label_create(elec_text_col);
     lv_label_set_text(ui_lbl_elec_sub, "--");
     lv_obj_set_width(ui_lbl_elec_sub, lv_pct(100));
     lv_obj_set_style_text_color(ui_lbl_elec_sub, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_elec_sub, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_elec_sub, &lv_font_montserrat_12,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
 
     // Price column
     lv_obj_t* elec_price_col = lv_obj_create(ui_panel_elec_rec);
@@ -378,14 +400,15 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_border_width(elec_price_col, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(elec_price_col, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(elec_price_col, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(elec_price_col, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    lv_obj_set_flex_align(elec_price_col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END,
+                          LV_FLEX_ALIGN_END);
     lv_obj_set_style_pad_row(elec_price_col, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_elec_price = lv_label_create(elec_price_col);
     lv_label_set_text(ui_lbl_elec_price, "--");
     lv_obj_set_style_text_color(ui_lbl_elec_price, UI_COLOR_GOOD, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_elec_price, &lv_font_montserrat_22, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_elec_price, &lv_font_montserrat_22,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_t* elec_unit = lv_label_create(elec_price_col);
     lv_label_set_text(elec_unit, "kr/kWh");
@@ -399,7 +422,8 @@ void ui_scr_home_screen_init(void) {
     lv_obj_remove_flag(ui_panel_right, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_panel_right, UI_COLOR_BG1, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_panel_right, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(ui_panel_right, UI_COLOR_LINE_SOFT, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(ui_panel_right, UI_COLOR_LINE_SOFT,
+                                  LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ui_panel_right, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_radius(ui_panel_right, 12, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(ui_panel_right, 16, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -409,7 +433,8 @@ void ui_scr_home_screen_init(void) {
     lv_obj_t* outdoor_title = lv_label_create(ui_panel_right);
     lv_label_set_text(outdoor_title, "OUTDOOR | ");
     lv_obj_set_style_text_color(outdoor_title, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(outdoor_title, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(outdoor_title, &lv_font_montserrat_12,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_bottom(outdoor_title, 10, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     // Current weather row
@@ -417,12 +442,13 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_width(ui_panel__current_weather, lv_pct(100));
     lv_obj_set_height(ui_panel__current_weather, LV_SIZE_CONTENT);
     lv_obj_remove_flag(ui_panel__current_weather, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_opa(ui_panel__current_weather, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui_panel__current_weather, LV_OPA_TRANSP,
+                            LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ui_panel__current_weather, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(ui_panel__current_weather, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(ui_panel__current_weather, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(ui_panel__current_weather, LV_FLEX_ALIGN_START,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(ui_panel__current_weather, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(ui_panel__current_weather, 18, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     // Current weather icon
@@ -444,17 +470,20 @@ void ui_scr_home_screen_init(void) {
     ui_lbl_w_temp = lv_label_create(wx_info_col);
     lv_label_set_text(ui_lbl_w_temp, "--");
     lv_obj_set_style_text_color(ui_lbl_w_temp, UI_COLOR_INK1, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_w_temp, &lv_font_montserrat_40, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_w_temp, &lv_font_montserrat_40,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_w_desc = lv_label_create(wx_info_col);
     lv_label_set_text(ui_lbl_w_desc, "--");
     lv_obj_set_style_text_color(ui_lbl_w_desc, UI_COLOR_INK1, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_w_desc, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_w_desc, &lv_font_montserrat_14,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_w_loc = lv_label_create(wx_info_col);
     lv_label_set_text(ui_lbl_w_loc, "--");
     lv_obj_set_style_text_color(ui_lbl_w_loc, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_w_loc, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_w_loc, &lv_font_montserrat_12,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_t* extremes_row = lv_obj_create(wx_info_col);
     lv_obj_set_width(extremes_row, LV_SIZE_CONTENT);
@@ -470,12 +499,14 @@ void ui_scr_home_screen_init(void) {
     ui_lbl_w_temp_hi = lv_label_create(extremes_row);
     lv_label_set_text(ui_lbl_w_temp_hi, "Hi --");
     lv_obj_set_style_text_color(ui_lbl_w_temp_hi, UI_COLOR_BAD, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_w_temp_hi, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_w_temp_hi, &lv_font_montserrat_12,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_lbl_w_temp_lo = lv_label_create(extremes_row);
     lv_label_set_text(ui_lbl_w_temp_lo, "Lo --");
     lv_obj_set_style_text_color(ui_lbl_w_temp_lo, UI_COLOR_HUM, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_lbl_w_temp_lo, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_lbl_w_temp_lo, &lv_font_montserrat_12,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
 
     // ── Stat boxes (2 rows × 2 cols) ─────────────────────────────────────────
     lv_obj_t* stats_block = lv_obj_create(ui_panel_right);
@@ -509,39 +540,39 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_flex_flow(stats_row2, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_column(stats_row2, 10, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-#define MAKE_STAT_BOX(parent, box_var, lbl_title_var, lbl_val_var, title_txt, val_txt)   \
-    box_var = lv_obj_create(parent);                                                      \
-    lv_obj_set_flex_grow(box_var, 1);                                                     \
-    lv_obj_set_height(box_var, 60);                                                       \
-    lv_obj_remove_flag(box_var, LV_OBJ_FLAG_SCROLLABLE);                                 \
-    lv_obj_set_style_bg_color(box_var, UI_COLOR_BG2, LV_PART_MAIN | LV_STATE_DEFAULT);  \
-    lv_obj_set_style_bg_opa(box_var, 255, LV_PART_MAIN | LV_STATE_DEFAULT);             \
-    lv_obj_set_style_border_color(box_var, UI_COLOR_LINE_SOFT, LV_PART_MAIN | LV_STATE_DEFAULT); \
-    lv_obj_set_style_border_width(box_var, 1, LV_PART_MAIN | LV_STATE_DEFAULT);         \
-    lv_obj_set_style_radius(box_var, 10, LV_PART_MAIN | LV_STATE_DEFAULT);              \
-    lv_obj_set_style_pad_hor(box_var, 12, LV_PART_MAIN | LV_STATE_DEFAULT);             \
-    lv_obj_set_style_pad_ver(box_var, 10, LV_PART_MAIN | LV_STATE_DEFAULT);             \
-    lbl_title_var = lv_label_create(box_var);                                             \
-    lv_label_set_text(lbl_title_var, title_txt);                                          \
-    lv_obj_set_style_text_color(lbl_title_var, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT); \
-    lv_obj_set_style_text_font(lbl_title_var, &lv_font_montserrat_12,                    \
-                               LV_PART_MAIN | LV_STATE_DEFAULT);                          \
-    lv_obj_align(lbl_title_var, LV_ALIGN_TOP_LEFT, 0, 0);                                \
-    lbl_val_var = lv_label_create(box_var);                                               \
-    lv_label_set_text(lbl_val_var, val_txt);                                              \
-    lv_obj_set_style_text_color(lbl_val_var, UI_COLOR_INK1, LV_PART_MAIN | LV_STATE_DEFAULT); \
-    lv_obj_set_style_text_font(lbl_val_var, &lv_font_montserrat_16,                      \
-                               LV_PART_MAIN | LV_STATE_DEFAULT);                          \
+#define MAKE_STAT_BOX(parent, box_var, lbl_title_var, lbl_val_var, title_txt, val_txt)             \
+    box_var = lv_obj_create(parent);                                                               \
+    lv_obj_set_flex_grow(box_var, 1);                                                              \
+    lv_obj_set_height(box_var, 60);                                                                \
+    lv_obj_remove_flag(box_var, LV_OBJ_FLAG_SCROLLABLE);                                           \
+    lv_obj_set_style_bg_color(box_var, UI_COLOR_BG2, LV_PART_MAIN | LV_STATE_DEFAULT);             \
+    lv_obj_set_style_bg_opa(box_var, 255, LV_PART_MAIN | LV_STATE_DEFAULT);                        \
+    lv_obj_set_style_border_color(box_var, UI_COLOR_LINE_SOFT, LV_PART_MAIN | LV_STATE_DEFAULT);   \
+    lv_obj_set_style_border_width(box_var, 1, LV_PART_MAIN | LV_STATE_DEFAULT);                    \
+    lv_obj_set_style_radius(box_var, 10, LV_PART_MAIN | LV_STATE_DEFAULT);                         \
+    lv_obj_set_style_pad_hor(box_var, 12, LV_PART_MAIN | LV_STATE_DEFAULT);                        \
+    lv_obj_set_style_pad_ver(box_var, 10, LV_PART_MAIN | LV_STATE_DEFAULT);                        \
+    lbl_title_var = lv_label_create(box_var);                                                      \
+    lv_label_set_text(lbl_title_var, title_txt);                                                   \
+    lv_obj_set_style_text_color(lbl_title_var, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);    \
+    lv_obj_set_style_text_font(lbl_title_var, &lv_font_montserrat_12,                              \
+                               LV_PART_MAIN | LV_STATE_DEFAULT);                                   \
+    lv_obj_align(lbl_title_var, LV_ALIGN_TOP_LEFT, 0, 0);                                          \
+    lbl_val_var = lv_label_create(box_var);                                                        \
+    lv_label_set_text(lbl_val_var, val_txt);                                                       \
+    lv_obj_set_style_text_color(lbl_val_var, UI_COLOR_INK1, LV_PART_MAIN | LV_STATE_DEFAULT);      \
+    lv_obj_set_style_text_font(lbl_val_var, &lv_font_montserrat_16,                                \
+                               LV_PART_MAIN | LV_STATE_DEFAULT);                                   \
     lv_obj_align(lbl_val_var, LV_ALIGN_BOTTOM_LEFT, 0, 0);
 
-    MAKE_STAT_BOX(stats_row1, ui_panel_stat_wind,
-                  ui_labl_stat_wind_, ui_labl_stat_wind_val, "WIND", "--")
-    MAKE_STAT_BOX(stats_row1, ui_panel_stat_feels,
-                  ui_labl_stat_feels, ui_labl_stat_feels_val, "FEELS LIKE", "--")
-    MAKE_STAT_BOX(stats_row2, ui_panel_stat_sunrise,
-                  ui_labl_stat_sunrise, ui_lbl_stat_sunrise_val, "SUNRISE", "--")
-    MAKE_STAT_BOX(stats_row2, ui_panel_stat_sunset,
-                  ui_labl_stat_sunset, ui_lbl_stat_sunset_val, "SUNSET", "--")
+    MAKE_STAT_BOX(stats_row1, ui_panel_stat_wind, ui_labl_stat_wind_, ui_labl_stat_wind_val, "WIND",
+                  "--")
+    MAKE_STAT_BOX(stats_row1, ui_panel_stat_feels, ui_labl_stat_feels, ui_labl_stat_feels_val,
+                  "FEELS LIKE", "--")
+    MAKE_STAT_BOX(stats_row2, ui_panel_stat_sunrise, ui_labl_stat_sunrise, ui_lbl_stat_sunrise_val,
+                  "SUNRISE", "--")
+    MAKE_STAT_BOX(stats_row2, ui_panel_stat_sunset, ui_labl_stat_sunset, ui_lbl_stat_sunset_val,
+                  "SUNSET", "--")
 
     // ── Hourly strip (fills remaining space) ─────────────────────────────────
     lv_obj_t* hourly_section = lv_obj_create(ui_panel_right);
@@ -553,14 +584,15 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_pad_all(hourly_section, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_top(hourly_section, 14, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_flex_flow(hourly_section, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(hourly_section, LV_FLEX_ALIGN_END,
-                          LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_set_flex_align(hourly_section, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_START,
+                          LV_FLEX_ALIGN_START);
     lv_obj_set_style_pad_row(hourly_section, 8, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_t* lbl_next_hours = lv_label_create(hourly_section);
     lv_label_set_text(lbl_next_hours, "NEXT HOURS");
     lv_obj_set_style_text_color(lbl_next_hours, UI_COLOR_INK3, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(lbl_next_hours, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(lbl_next_hours, &lv_font_montserrat_12,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_t* hourly_strip = lv_obj_create(hourly_section);
     lv_obj_set_width(hourly_strip, lv_pct(100));
@@ -574,19 +606,15 @@ void ui_scr_home_screen_init(void) {
 
     static const char* hour_times[] = {"--", "--", "--", "--", "--", "--"};
     static const char* hour_temps[] = {"--", "--", "--", "--", "--", "--"};
-    lv_obj_t** cell_panels[] = {&ui_panel_home_h1, &ui_panel_home_h2, &ui_panel_home_h3,
-                                 &ui_panel_home_h4, &ui_panel_home_h5, &ui_panel_home_h6};
-    lv_obj_t** cell_times[]  = {&ui_lbl_home_htime1, &ui_lbl_home_htime2, &ui_lbl_home_htime3,
-                                 &ui_lbl_home_htime4, &ui_lbl_home_htime5, &ui_lbl_home_htime6};
-    lv_obj_t** cell_temps[]  = {&ui_lbl_home_htemp1, &ui_lbl_home_htemp2, &ui_lbl_home_htemp3,
-                                 &ui_lbl_home_htemp4, &ui_lbl_home_htemp5, &ui_lbl_home_htemp6};
+    lv_obj_t** cell_panels[]        = {&ui_panel_home_h1, &ui_panel_home_h2, &ui_panel_home_h3,
+                                       &ui_panel_home_h4, &ui_panel_home_h5, &ui_panel_home_h6};
+    lv_obj_t** cell_times[] = {&ui_lbl_home_htime1, &ui_lbl_home_htime2, &ui_lbl_home_htime3,
+                               &ui_lbl_home_htime4, &ui_lbl_home_htime5, &ui_lbl_home_htime6};
+    lv_obj_t** cell_temps[] = {&ui_lbl_home_htemp1, &ui_lbl_home_htemp2, &ui_lbl_home_htemp3,
+                               &ui_lbl_home_htemp4, &ui_lbl_home_htemp5, &ui_lbl_home_htemp6};
     const lv_image_dsc_t* hour_icons[] = {
-        &UI_IMG_WX_SUNNY_PNG,
-        &UI_IMG_WX_PARTLY_PNG,
-        &UI_IMG_WX_PARTLY_PNG,
-        &UI_IMG_WX_CLOUDY_PNG,
-        &UI_IMG_WMO_RAIN_SLIGHT_PNG,
-        &UI_IMG_WX_RAIN_PNG,
+        &UI_IMG_WX_SUNNY_PNG,  &UI_IMG_WX_PARTLY_PNG,       &UI_IMG_WX_PARTLY_PNG,
+        &UI_IMG_WX_CLOUDY_PNG, &UI_IMG_WMO_RAIN_SLIGHT_PNG, &UI_IMG_WX_RAIN_PNG,
     };
 
     for (int i = 0; i < 6; i++) {
@@ -602,8 +630,8 @@ void ui_scr_home_screen_init(void) {
         lv_obj_set_style_radius(*cell_panels[i], 8, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_pad_all(*cell_panels[i], 6, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_flex_flow(*cell_panels[i], LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(*cell_panels[i], LV_FLEX_ALIGN_SPACE_EVENLY,
-                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_flex_align(*cell_panels[i], LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER,
+                              LV_FLEX_ALIGN_CENTER);
 
         *cell_times[i] = lv_label_create(*cell_panels[i]);
         lv_label_set_text(*cell_times[i], hour_times[i]);
@@ -630,7 +658,6 @@ void ui_scr_home_screen_init(void) {
     lv_obj_set_style_pad_bottom(ui_tabweather, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_tab_weather_init();
-
 
     ui_tabelpris = lv_tabview_add_tab(ui_TabView, "ELPRIS");
     lv_obj_set_style_pad_left(ui_tabelpris, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -707,7 +734,7 @@ void ui_scr_home_screen_init(void) {
 void ui_scr_home_screen_destroy(void) {
     if (ui_scr_home) {
         lv_obj_del(ui_scr_home);
-}
+    }
 
     // NULL screen variables
     uic_scr_home               = NULL;

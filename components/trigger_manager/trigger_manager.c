@@ -54,8 +54,8 @@ void trigger_manager_process(void) {
             break;
 
         case EVENT_BME280:
-            ESP_LOGI("TRIGGER", "BME280 — temp: %.2f", (double)s_bme_reading.temperature_c);
-            ui_binder_update_bme280(&s_bme_reading);
+            ESP_LOGI("TRIGGER", "BME280 — temp: %.2f", (double)g_bme_reading.temperature_c);
+            ui_binder_update_bme280(&g_bme_reading);
             break;
         }
     }
