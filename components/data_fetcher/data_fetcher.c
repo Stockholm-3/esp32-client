@@ -283,6 +283,9 @@ static void fetch_task(void* arg) {
                 if (!(bool)g_dns_ready) {
                     break;
                 }
+                if ((bool)job->force_now) {
+                    break;
+                }
             }
         } else {
             /* Daily jobs or failed windows: just let the outer loop re-check. */

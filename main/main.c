@@ -55,6 +55,8 @@ static Bme280Reading g_bme_reading = {0};
 static volatile bool g_bme_updated = false;
 /** @brief Tracks whether BME280 was present in the last check. */
 static bool g_bme_was_present = false;
+/** @brief Set to true after first successful time sync to rebuild weather URL once. */
+static bool g_time_synced = false;
 
 /** @brief SMW scheduler instance. */
 static SmwWorker g_smw_worker;
@@ -205,8 +207,12 @@ static void on_data_cached(const FetchDescriptor* desc, void* user_ctx) {
     ESP_LOGI(g_tag, "[%s] Fresh data ready — %zu bytes", desc->id, len);
     ESP_LOGI(g_tag, "[%s] Preview: %.200s%s", desc->id, (const char*)data, len > 200U ? "…" : "");
 
-    if (strcmp(desc->id, "weather_min") == 0 || strcmp(desc->id, "weather_hr") == 0) {
-        ui_binder_update_weather((const char*)data, len);
+    if (strcmp(desc->id, "weather_min") == 0) {
+        ui_binder_update_weather_min((const char*)data, len);
+    } else if (strcmp(desc->id, "weather_hr") == 0) {
+        ui_binder_update_weather_hr((const char*)data, len);
+    } else if (strcmp(desc->id, "elpris") == 0) {
+        ui_binder_update_elpris((const char*)data, len);
     }
 
     cache_free(data);
@@ -238,9 +244,6 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
 
     CacheConfig cfg = cache_fs_config("/storage/cache", 3600);
     cache_init(&cfg);
-    // since esp can loose power its a huge hassle to try to wait for wifi reconnect and clean
-    // cache only then. so we just purge all
-    cache_purge_all();
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -342,10 +345,10 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     snprintf(s_elpris_url, sizeof(s_elpris_url), "https://just-dev.freeduck.dev/v1/elpris?price=%s",
              price_zone);
     snprintf(s_weather_min_url, sizeof(s_weather_min_url),
-             "https://just-dev.freeduck.dev/v1/minutely?city=%s", city);
+             "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=24", city);
 
-    snprintf(s_weather_hr_url, sizeof(s_weather_min_url),
-             "https://just-dev.freeduck.dev/v1/hourly?city=%s", city);
+    snprintf(s_weather_hr_url, sizeof(s_weather_hr_url),
+             "https://just-dev.freeduck.dev/v1/hourly?city=%s&hours=168", city);
 
     snprintf(s_energy_plan_url, sizeof(s_energy_plan_url),
              "https://just-dev.freeduck.dev/v1/get_plan?price=%s&city=%s", price_zone, city);
@@ -365,7 +368,7 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .id                    = "weather_min",
         .url                   = s_weather_min_url,
         .cache_key             = "fetch:weather_min",
-        .cache_ttl_sec         = 30U * 60U,
+        .cache_ttl_sec         = 24U * 3600U,
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
         .fetch_on_startup      = true,
@@ -376,7 +379,7 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .id                    = "weather_hr",
         .url                   = s_weather_hr_url,
         .cache_key             = "fetch:weather_hr",
-        .cache_ttl_sec         = 30U * 60U,
+        .cache_ttl_sec         = 24U * 3600U,
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
         .fetch_on_startup      = true,
@@ -399,7 +402,31 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     df_cfg.descriptor_count  = 4;
     df_cfg.on_cached         = on_data_cached;
 
+#ifndef CONFIG_IDF_TARGET_LINUX
     data_fetcher_init(&df_cfg);
+#endif
+
+    if (display_lvgl_lock(-1)) {
+        void* cached_data = NULL;
+        size_t cached_len = 0;
+        if (cache_get_alloc("fetch:elpris", &cached_data, &cached_len) == CACHE_OK) {
+            ui_tab_elpris_handle_server_response((const char*)cached_data, cached_len);
+            cache_free(cached_data);
+        }
+        cached_data = NULL;
+        cached_len  = 0;
+        if (cache_get_alloc("fetch:weather_min", &cached_data, &cached_len) == CACHE_OK) {
+            ui_tab_weather_handle_server_response((const char*)cached_data, cached_len, 0);
+            cache_free(cached_data);
+        }
+        cached_data = NULL;
+        cached_len  = 0;
+        if (cache_get_alloc("fetch:weather_hr", &cached_data, &cached_len) == CACHE_OK) {
+            ui_tab_weather_handle_server_response((const char*)cached_data, cached_len, 1);
+            cache_free(cached_data);
+        }
+        display_lvgl_unlock();
+    }
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -407,6 +434,15 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         struct tm timeinfo;
         bool time_is_valid = time_manager_get_time(&timeinfo);
         if (time_is_valid) {
+            if (!g_time_synced) {
+                g_time_synced = true;
+                snprintf(s_weather_min_url, sizeof(s_weather_min_url),
+                         "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=%d",
+                         city, timeinfo.tm_hour + 1);
+                ESP_LOGI(g_tag, "Time synced, updating weather_min URL with past_hours=%d",
+                         timeinfo.tm_hour + 1);
+                data_fetcher_request_now("weather_min");
+            }
             ui_binder_update_localtime(&timeinfo);
             ui_tab_elpris_update_now();
         }

@@ -241,6 +241,30 @@ void ui_binder_update_bme280(const Bme280Reading *reading);
 void ui_binder_update_weather(const char* json, size_t len);
 
 /**
+ * @brief Pass a raw electricity price JSON response to the Elpris tab.
+ *
+ * @param json  Pointer to the JSON payload.
+ * @param len   Length of the JSON buffer in bytes.
+ */
+void ui_binder_update_elpris(const char* json, size_t len);
+
+/**
+ * @brief Pass minute-resolution weather JSON to the Weather tab.
+ *
+ * @param json  Pointer to the JSON payload.
+ * @param len   Length of the JSON buffer in bytes.
+ */
+void ui_binder_update_weather_min(const char* json, size_t len);
+
+/**
+ * @brief Pass hourly weather JSON to the Weather tab.
+ *
+ * @param json  Pointer to the JSON payload.
+ * @param len   Length of the JSON buffer in bytes.
+ */
+void ui_binder_update_weather_hr(const char* json, size_t len);
+
+/**
  * @brief Programmatically trigger the weather-refresh callback.
  *
  * Behaves identically to the user pressing the Refresh button on the

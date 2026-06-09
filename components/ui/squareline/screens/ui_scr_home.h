@@ -146,7 +146,7 @@ extern void ui_tab_weather_init(void);
  * @param json  Pointer to a null-terminated JSON string.
  * @param len   Length of @p json in bytes (excluding null terminator).
  */
-extern void ui_tab_weather_handle_server_response(const char* json, size_t len);
+extern void ui_tab_weather_handle_server_response(const char* json, size_t len, int skip_days);
 
 /** @brief Initialise the Electricity Price (Elpris) tab widgets and layout. */
 extern void ui_tab_elpris_init(void);
