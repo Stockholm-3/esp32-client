@@ -10,7 +10,7 @@ if(IDF_TARGET STREQUAL "linux")
     target_link_libraries(${COMPONENT_LIB} PRIVATE CURL::libcurl)
 else()
     set(SRC "http_client_esp.c")
-    set(REQS log esp_http_client mbedtls)
+    set(REQS log esp_http_client mbedtls esp-tls)
     idf_component_register(
         SRCS ${SRC}
         INCLUDE_DIRS "include"
