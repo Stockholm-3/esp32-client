@@ -2,41 +2,22 @@
  * @file data_fetcher.h
  * @brief Generic scheduled HTTP data fetcher with LittleFS-backed caching.
  *
- * Each registered @ref FetchDescriptor spawns one FreeRTOS task that loops
- * independently, sleeping between fetches.  There is no shared scheduler —
- * jobs cannot block each other.
+ * Each registered FetchDescriptor spawns one FreeRTOS task. Tasks are
+ * independent — no shared scheduler, no blocking each other.
  *
- * Two schedule modes are supported:
- *   - @c FETCH_SCHEDULE_INTERVAL — re-fetches every N seconds after the last
- *                                  successful fetch.
- *   - @c FETCH_SCHEDULE_DAILY    — fires once per calendar day at a
- *                                  configurable wall-clock hour.
+ * Two schedule modes:
+ *   FETCH_SCHEDULE_INTERVAL — re-fetch every N seconds after last success.
+ *   FETCH_SCHEDULE_DAILY    — fire once per day at a given wall-clock hour.
  *
- * Network activity is gated on DNS availability.  Call
- * @ref data_fetcher_notify_wifi_state from your Wi-Fi manager callback.
- * Individual jobs can also be triggered immediately via
- * @ref data_fetcher_request_now.
+ * Two gates must both be open before any fetch attempt:
+ *   1. DNS — call data_fetcher_notify_wifi_state() from your Wi-Fi callback.
+ *   2. Clock — call data_fetcher_notify_time_sync() from your SNTP callback.
  *
- * @par Minimal usage
- * @code
- *   static const FetchDescriptor descs[] = {
- *       {
- *           .id                    = "weather",
- *           .url                   = "https://api.example.com/weather",
- *           .cache_key             = "fetch:weather",
- *           .cache_ttl_sec         = 30 * 60,
- *           .schedule.type         = FETCH_SCHEDULE_INTERVAL,
- *           .schedule.interval_sec = 15 * 60,
- *           .fetch_on_startup      = true,
- *       },
- *   };
- *
- *   DataFetcherConfig cfg  = data_fetcher_default_config();
- *   cfg.descriptors        = descs;
- *   cfg.descriptor_count   = ARRAY_SIZE(descs);
- *   cfg.on_cached          = my_on_cached_cb;
- *   data_fetcher_init(&cfg);
- * @endcode
+ * The clock gate exists because mbedTLS validates certificate validity windows
+ * against time(NULL). If the clock is still at epoch every TLS handshake fails
+ * with MBEDTLS_ERR_X509_CERT_VERIFY_FAILED (-0x2700), which fragments heap and
+ * causes all subsequent connections to fail with MBEDTLS_ERR_SSL_ALLOC_FAILED
+ * (-0x008D). Both gates must be open before a single TLS connection is made.
  */
 
 #ifndef DATA_FETCHER_H
@@ -55,7 +36,7 @@ extern "C" {
 #endif
 
 /* ---------------------------------------------------------------------------
- * Schedule descriptor
+ * Schedule
  * ------------------------------------------------------------------------- */
 
 typedef enum {
@@ -65,43 +46,23 @@ typedef enum {
 
 typedef struct {
     FetchScheduleType type;
-    uint32_t interval_sec; /**< Used when type == FETCH_SCHEDULE_INTERVAL. */
-    uint8_t daily_hour;    /**< Local hour (0–23), used when type == FETCH_SCHEDULE_DAILY. */
+    uint32_t interval_sec; /* FETCH_SCHEDULE_INTERVAL: seconds between fetches */
+    uint8_t  daily_hour;   /* FETCH_SCHEDULE_DAILY: local hour 0-23            */
 } FetchSchedule;
 
 /* ---------------------------------------------------------------------------
  * Per-endpoint descriptor
+ * All pointer fields must remain valid for the lifetime of the module.
  * ------------------------------------------------------------------------- */
 
-/**
- * Describes a single HTTP endpoint to fetch and cache.
- * All pointer fields must remain valid for the lifetime of the module.
- */
 typedef struct {
-    /**
-     * Short identifier used in log messages (e.g. "weather").
-     * Must be unique across all descriptors passed to @ref data_fetcher_init.
-     */
-    const char* id;
-
-    const char* url;       /**< Fully-qualified HTTP/HTTPS URL. */
-    const char* cache_key; /**< Key passed to cache_put() on success. */
-    uint32_t cache_ttl_sec;
-
+    const char*   id;            /* Unique short name used in logs, e.g. "weather" */
+    const char*   url;           /* Fully-qualified HTTPS URL                       */
+    const char*   cache_key;     /* Key passed to cache_put() on success            */
+    uint32_t      cache_ttl_sec;
     FetchSchedule schedule;
-
-    /**
-     * If true, fetch as soon as DNS is available after boot regardless of the
-     * normal schedule.
-     */
-    bool fetch_on_startup;
-
-    /**
-     * Milliseconds to wait after DNS becomes available before the startup
-     * fetch.  Lets multiple descriptors stagger their initial requests.
-     * Ignored when fetch_on_startup is false.
-     */
-    uint32_t startup_delay_ms;
+    bool          fetch_on_startup;  /* Fetch as soon as both gates open at boot    */
+    uint32_t      startup_delay_ms;  /* Stagger delay before startup fetch          */
 } FetchDescriptor;
 
 /* ---------------------------------------------------------------------------
@@ -109,97 +70,75 @@ typedef struct {
  * ------------------------------------------------------------------------- */
 
 /**
- * Called after a successful fetch, before the data is written to the cache.
- *
- * The implementation may inspect or rewrite the payload.  To replace the
- * buffer, free *buf, allocate a new one, and update both *buf and *len.
- * The module will free *buf after cache_put() returns, so the returned
- * pointer must be heap-allocated.
- *
- * Return true to proceed with caching, false to discard the response
- * (the fetch is still considered successful and the retry counter resets).
- *
- * @param desc      Descriptor whose fetch just completed.
- * @param buf       Pointer to the response buffer pointer (may be replaced).
- * @param len       Pointer to the buffer length (must be updated if replaced).
- * @param user_ctx  The on_transform_ctx value from @ref DataFetcherConfig.
+ * Called after a successful fetch, before caching.
+ * May inspect or replace the buffer (free old, alloc new, update *buf/len).
+ * Return true to cache, false to discard (still counts as success, no retry).
  */
-typedef bool (*DataFetcherTransformCb)(const FetchDescriptor* desc, uint8_t** buf, size_t* len,
+typedef bool (*DataFetcherTransformCb)(const FetchDescriptor* desc,
+                                       uint8_t** buf, size_t* len,
                                        void* user_ctx);
 
-/**
- * Called after the payload has been written to the cache.
- *
- * @param desc      Descriptor whose fetch just completed.
- * @param user_ctx  The on_cached_ctx value from @ref DataFetcherConfig.
- */
+/** Called after the payload has been written to the cache. */
 typedef void (*DataFetcherOnCachedCb)(const FetchDescriptor* desc, void* user_ctx);
 
 /* ---------------------------------------------------------------------------
- * Module configuration
+ * Configuration
  * ------------------------------------------------------------------------- */
 
-#define DATA_FETCHER_MAX_RETRIES_DEFAULT 5U
-#define DATA_FETCHER_RETRY_BASE_MS_DEFAULT 5000U
-#define DATA_FETCHER_RETRY_MAX_MS_DEFAULT (5U * 60U * 1000U)
-
-/** Stack size (bytes) allocated for each fetch task. */
-#define DATA_FETCHER_TASK_STACK_DEFAULT 4096U
-
-/** FreeRTOS priority for fetch tasks. */
-#define DATA_FETCHER_TASK_PRIORITY_DEFAULT 5U
+#define DATA_FETCHER_MAX_RETRIES_DEFAULT    5U
+#define DATA_FETCHER_RETRY_BASE_MS_DEFAULT  5000U
+#define DATA_FETCHER_RETRY_MAX_MS_DEFAULT   (5U * 60U * 1000U)
+#define DATA_FETCHER_TASK_STACK_DEFAULT     4096U
+#define DATA_FETCHER_TASK_PRIORITY_DEFAULT  5U
 
 typedef struct {
     const FetchDescriptor* descriptors;
-    size_t descriptor_count;
+    size_t                 descriptor_count;
 
-    uint32_t max_retries;
-    uint32_t retry_base_ms;
-    uint32_t retry_max_ms;
+    uint32_t    max_retries;
+    uint32_t    retry_base_ms;
+    uint32_t    retry_max_ms;
+    uint32_t    task_stack_size; /* 0 = default */
+    UBaseType_t task_priority;   /* 0 = default */
 
-    uint32_t task_stack_size;  /**< Per-task stack in bytes. 0 = use default. */
-    UBaseType_t task_priority; /**< FreeRTOS task priority. 0 = use default. */
-
-    /** Optional: called before caching to inspect or rewrite the payload. */
     DataFetcherTransformCb on_transform;
-    void* on_transform_ctx;
-
-    /** Optional: called after each successful cache write. */
-    DataFetcherOnCachedCb on_cached;
-    void* on_cached_ctx;
+    void*                  on_transform_ctx;
+    DataFetcherOnCachedCb  on_cached;
+    void*                  on_cached_ctx;
 } DataFetcherConfig;
 
 /* ---------------------------------------------------------------------------
  * Public API
  * ------------------------------------------------------------------------- */
 
-/**
- * Returns a @ref DataFetcherConfig with all fields set to their defaults.
- * Populate descriptors and descriptor_count before calling
- * @ref data_fetcher_init.
- */
+/** Returns a DataFetcherConfig with all fields set to built-in defaults. */
 DataFetcherConfig data_fetcher_default_config(void);
 
 /**
- * Initialises the module and spawns one FreeRTOS task per descriptor.
- * May only be called once.
- *
- * @param config  Fully populated configuration.  The descriptors array must
- *                remain valid for the lifetime of the module.
- * @return 0 on success, -1 on invalid arguments or task creation failure.
+ * Initialise the module and spawn one task per descriptor. Call once.
+ * @return 0 on success, -1 on failure.
  */
 int data_fetcher_init(const DataFetcherConfig* config);
 
 /**
- * Notifies the module of a Wi-Fi manager state change.
- * Fetching is enabled only while state is WIFI_MANAGER_STATE_CONNECTED_WITH_DNS.
+ * Notify the module of a Wi-Fi state change.
+ * The DNS gate is open only while state == WIFI_MANAGER_STATE_CONNECTED_WITH_DNS.
  */
 void data_fetcher_notify_wifi_state(WifiManagerState state);
 
 /**
- * Triggers an immediate out-of-schedule fetch for the descriptor whose id
- * matches descriptor_id.  Has no effect if the job is already fetching or
- * DNS is unavailable.
+ * Notify the module that the system clock has been synchronised (e.g. SNTP).
+ * Opens the clock gate and allows TLS connections to proceed.
+ *
+ * MUST be called from your SNTP/time_manager sync callback — NOT from the
+ * Wi-Fi connected callback. The clock may not be valid yet at that point.
+ * Safe to call multiple times; only the first call has any effect.
+ */
+void data_fetcher_notify_time_sync(void);
+
+/**
+ * Trigger an immediate out-of-schedule fetch for the given descriptor id.
+ * No effect if either gate is closed or the id is not found.
  */
 void data_fetcher_request_now(const char* descriptor_id);
 
