@@ -8,6 +8,14 @@
  *   - Cache miss/expired: fetch now, then cache and fire on_cached.
  *   This means a reboot with fresh cached data costs zero network traffic.
  *
+ * URL resolution:
+ *   If FetchDescriptor.build_url is NULL, the static .url field is used.
+ *   If build_url is set it is called just before every fetch (and before
+ *   cache checks on startup). Returning NULL means "not ready yet" — the
+ *   task sleeps POLL_MS and retries without making any network attempt.
+ *   This lets descriptors whose URLs depend on runtime state (e.g. a time-
+ *   dependent parameter) defer their first fetch until that state is known.
+ *
  * Scheduling after startup:
  *   INTERVAL jobs sleep for interval_sec after each successful fetch.
  *   DAILY jobs fire once per calendar day at the configured local hour.
@@ -138,13 +146,39 @@ static uint32_t secs_until_daily_hour(uint8_t target_hour) {
 }
 
 /* ---------------------------------------------------------------------------
+ * URL resolution
+ *
+ * If the descriptor has a build_url callback, call it. A NULL return means
+ * the URL is not yet determinable (e.g. clock not synced) — callers treat
+ * this as "try again later". Otherwise return the static .url field.
+ * ------------------------------------------------------------------------- */
+
+static const char* resolve_url(const FetchDescriptor* desc) {
+    if (desc->build_url) {
+        return desc->build_url(desc, desc->url_buf, desc->url_buf_size, desc->build_url_ctx);
+    }
+    return desc->url;
+}
+
+/* ---------------------------------------------------------------------------
  * Cache-first startup check
  *
  * Returns true if a fresh (non-expired) cache entry exists and on_cached was
  * fired. Returns false if the cache is missing or expired (caller must fetch).
+ *
+ * Also returns false (deferring) if resolve_url() returns NULL — the task
+ * will sleep and retry the whole startup block.
  * ------------------------------------------------------------------------- */
 
 static bool serve_from_cache_if_fresh(const FetchDescriptor* desc) {
+    /* Resolve the URL first so we know the descriptor is ready. A dynamic
+     * descriptor whose URL isn't available yet shouldn't be served from cache
+     * either — on success we'd fire on_cached but on miss we'd fetch with the
+     * wrong (or NULL) URL. */
+    if (desc->build_url && !resolve_url(desc)) {
+        return false; /* not ready yet */
+    }
+
     void* data = NULL;
     size_t len = 0;
     int rc     = cache_get_alloc(desc->cache_key, &data, &len);
@@ -168,12 +202,23 @@ static bool serve_from_cache_if_fresh(const FetchDescriptor* desc) {
 
 /* ---------------------------------------------------------------------------
  * Fetch + cache
+ *
+ * Returns false on network/HTTP error (triggers retry).
+ * Returns true on success OR on a deliberate discard by on_transform (no
+ * retry needed).
+ * Returns false with a LOGW when the URL isn't ready yet (caller will sleep).
  * ------------------------------------------------------------------------- */
 
 static bool do_fetch(const FetchDescriptor* desc) {
-    ESP_LOGI(g_tag, "[%s] Fetching %s", desc->id, desc->url);
+    const char* url = resolve_url(desc);
+    if (!url) {
+        ESP_LOGW(g_tag, "[%s] URL not ready — deferring fetch", desc->id);
+        return false;
+    }
 
-    HttpClientRequest req   = {.url = desc->url, .method = HTTP_CLIENT_METHOD_GET};
+    ESP_LOGI(g_tag, "[%s] Fetching %s", desc->id, url);
+
+    HttpClientRequest req   = {.url = url, .method = HTTP_CLIENT_METHOD_GET};
     HttpClientResponse resp = {0};
 
     if (http_client_perform(&req, &resp) != 0) {
@@ -234,19 +279,23 @@ static void fetch_task(void* arg) {
         /* 1. Gate: wait for DNS + synced clock. */
         wait_for_ready(d->id);
 
-        /* 2. Startup: serve from cache if fresh, fetch only if stale/missing. */
+        /* 2. Startup: serve from cache if fresh, fetch only if stale/missing.
+         *    If the URL isn't ready yet (build_url returns NULL) both helpers
+         *    return false — we sleep POLL_MS and retry the entire startup
+         *    block until the URL becomes available. */
         if ((int)first_run && (int)d->fetch_on_startup) {
             if (serve_from_cache_if_fresh(d)) {
-                /*
-                 * Cache was fresh — mark first_run done so the scheduler
-                 * sets the next window from now, not from epoch.
-                 */
                 last_fetch_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
                 first_run     = false;
-                /* Fall through to the normal schedule loop. */
                 goto schedule_loop;
             }
-            /* Cache miss or expired — fetch immediately. */
+
+            /* If URL not ready yet, spin here until it is. */
+            if (d->build_url && !resolve_url(d)) {
+                sleep_ms(POLL_MS);
+                continue; /* back to top: re-check gates, then retry startup */
+            }
+
             goto do_fetch_now;
         }
 
@@ -389,11 +438,13 @@ int data_fetcher_init(const DataFetcherConfig* config) {
         if (g_jobs[i].desc->schedule.type == FETCH_SCHEDULE_INTERVAL) {
             ESP_LOGI(g_tag, "[%s] interval %lu s%s → %s", g_jobs[i].desc->id,
                      (unsigned long)g_jobs[i].desc->schedule.interval_sec,
-                     g_jobs[i].desc->fetch_on_startup ? " (startup)" : "", g_jobs[i].desc->url);
+                     g_jobs[i].desc->fetch_on_startup ? " (startup)" : "",
+                     g_jobs[i].desc->build_url ? "<dynamic URL>" : g_jobs[i].desc->url);
         } else {
             ESP_LOGI(g_tag, "[%s] daily %02u:00%s → %s", g_jobs[i].desc->id,
                      (unsigned)g_jobs[i].desc->schedule.daily_hour,
-                     g_jobs[i].desc->fetch_on_startup ? " (startup)" : "", g_jobs[i].desc->url);
+                     g_jobs[i].desc->fetch_on_startup ? " (startup)" : "",
+                     g_jobs[i].desc->build_url ? "<dynamic URL>" : g_jobs[i].desc->url);
         }
     }
 

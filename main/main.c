@@ -57,8 +57,8 @@ static bool g_bme_was_present = false;
 /**
  * @brief Set to true after the first successful time sync.
  *
- * Used to rebuild the weather_min URL with the correct past_hours offset once
- * wall-clock time is known, then trigger an immediate re-fetch.
+ * Used to open the clock gate exactly once, which unblocks all fetch tasks
+ * that are waiting to make TLS connections.
  */
 static bool g_time_synced = false;
 
@@ -209,6 +209,39 @@ static void on_data_cached(const FetchDescriptor* desc, void* user_ctx) {
     cache_free(data);
 }
 
+/* ---------------------------------------------------------------------------
+ * weather_min dynamic URL builder
+ *
+ * past_hours should reflect the current local hour so the API returns data
+ * aligned to the start of the current day. This is only knowable after time
+ * sync, so the builder returns NULL until the clock is ready — causing the
+ * fetch task to defer its first attempt rather than fetching with a wrong
+ * (or placeholder) value.
+ *
+ * ctx points to the null-terminated city string.
+ * ------------------------------------------------------------------------- */
+
+static char* build_weather_min_url(const FetchDescriptor* desc,
+                                   char* buf, size_t buf_size,
+                                   void* ctx) {
+    (void)desc;
+    const char* city = (const char*)ctx;
+
+    /* time(NULL) returns 0 or a near-epoch value until the clock is synced.
+     * We treat anything before year 2020 as "not ready". */
+    time_t t = time(NULL);
+    struct tm tm;
+    localtime_r(&t, &tm);
+    if (tm.tm_year + 1900 < 2020) {
+        return NULL; /* clock not synced yet — defer */
+    }
+
+    snprintf(buf, buf_size,
+             "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=%d",
+             city, tm.tm_hour + 1);
+    return buf;
+}
+
 /**
  * @brief Application main function (FreeRTOS entry point).
  */
@@ -318,23 +351,25 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
 
     /* ---- Data fetcher descriptors ----
      *
-     * These URL buffers live on the stack for the lifetime of app_main (which
-     * never returns), so it is safe for data_fetcher to hold pointers into them.
-     * The weather_min URL is rewritten once after time sync to include the
-     * correct past_hours value for the current local hour.
+     * URL buffers live on the stack of app_main (which never returns), so
+     * pointers into them remain valid for the lifetime of the fetcher.
+     *
+     * weather_min uses a build_url callback instead of a static URL because
+     * its past_hours parameter depends on the current local hour, which is
+     * only known after time sync. The callback returns NULL until the clock
+     * is ready, causing the fetch task to defer its first attempt rather than
+     * fetching (and immediately re-fetching) with a wrong value.
      */
     const char* price_zone = settings_manager_get_price_zone_as_string();
     const char* city       = settings_manager_get_location();
 
     char s_elpris_url[256];
-    char s_weather_min_url[256];
+    char s_weather_min_url[256];  /* written by build_weather_min_url each fetch */
     char s_weather_hr_url[256];
     char s_energy_plan_url[256];
 
-    snprintf(s_elpris_url, sizeof(s_elpris_url), "https://just-dev.freeduck.dev/v1/elpris?price=%s",
-             price_zone);
-    snprintf(s_weather_min_url, sizeof(s_weather_min_url),
-             "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=24", city);
+    snprintf(s_elpris_url, sizeof(s_elpris_url),
+             "https://just-dev.freeduck.dev/v1/elpris?price=%s", price_zone);
     snprintf(s_weather_hr_url, sizeof(s_weather_hr_url),
              "https://just-dev.freeduck.dev/v1/hourly?city=%s&hours=168", city);
     snprintf(s_energy_plan_url, sizeof(s_energy_plan_url),
@@ -352,13 +387,18 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .fetch_on_startup    = true,
     };
     s_fetch_descs[1] = (FetchDescriptor){
-        .id                    = "weather_min",
-        .url                   = s_weather_min_url,
-        .cache_key             = "fetch:weather_min",
-        .cache_ttl_sec         = 24U * 3600U,
+        .id              = "weather_min",
+        .cache_key       = "fetch:weather_min",
+        .cache_ttl_sec   = 24U * 3600U,
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
         .fetch_on_startup      = true,
+        /* Dynamic URL: past_hours is set from the current local hour.
+         * The builder defers (returns NULL) until the clock is synced. */
+        .build_url       = build_weather_min_url,
+        .url_buf         = s_weather_min_url,
+        .url_buf_size    = sizeof(s_weather_min_url),
+        .build_url_ctx   = (void*)city,
     };
     s_fetch_descs[2] = (FetchDescriptor){
         .id                    = "weather_hr",
@@ -392,33 +432,21 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
 
-        /* Clock and time-sync URL fixup */
+        /* Clock sync: open the data_fetcher clock gate exactly once.
+         * No URL rewriting or manual request_now needed — the weather_min
+         * build_url callback reads the live clock on every fetch attempt. */
         struct tm timeinfo;
         if (time_manager_get_time(&timeinfo)) {
             if (!g_time_synced) {
                 g_time_synced = true;
-                /*
-                 * Open the clock gate so fetch tasks are now allowed to make
-                 * TLS connections. This MUST happen before request_now() below
-                 * — otherwise the tasks would race to connect with an unsynced
-                 * clock and get MBEDTLS_ERR_X509_CERT_VERIFY_FAILED (-0x2700).
-                 */
+                ESP_LOGI(g_tag, "Time synced (local hour=%d)", timeinfo.tm_hour);
                 data_fetcher_notify_time_sync();
-                /*
-                 * Rebuild the weather_min URL with the correct past_hours now
-                 * that we know the local hour. The char array is on the stack
-                 * of app_main (which never returns) so the pointer stored in
-                 * s_fetch_descs[1].url remains valid after the snprintf.
-                 */
-                snprintf(s_weather_min_url, sizeof(s_weather_min_url),
-                         "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=%d",
-                         city, timeinfo.tm_hour + 1);
-                ESP_LOGI(g_tag, "Time synced — updating weather_min URL (past_hours=%d)",
-                         timeinfo.tm_hour + 1);
-                data_fetcher_request_now("weather_min");
             }
-            ui_binder_update_localtime(&timeinfo);
-            ui_tab_elpris_update_now();
+            if (display_lvgl_lock(0)) {
+                ui_binder_update_localtime(&timeinfo);
+                ui_tab_elpris_update_now();
+                display_lvgl_unlock();
+            }
         }
 
         /* BME280 hot-plug detection */
