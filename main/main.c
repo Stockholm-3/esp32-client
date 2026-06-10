@@ -350,8 +350,14 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
 
     /* ---- Data fetcher descriptors ----
      *
-     * URL buffers live on the stack of app_main (which never returns), so
-     * pointers into them remain valid for the lifetime of the fetcher.
+     * URL and cache-key buffers live on the stack of app_main (which never
+     * returns), so pointers into them remain valid for the lifetime of the
+     * fetcher.
+     *
+     * Cache keys include the settings parameters (city, price zone) that
+     * determine the response content. This means a cached entry for a
+     * different city or zone is never served — changing settings and rebooting
+     * always results in a fresh fetch rather than a stale hit.
      *
      * weather_min uses a build_url callback instead of a static URL because
      * its past_hours parameter depends on the current local hour, which is
@@ -374,12 +380,24 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     snprintf(s_energy_plan_url, sizeof(s_energy_plan_url),
              "https://just-dev.freeduck.dev/v1/get_plan?price=%s&city=%s", price_zone, city);
 
+    /* Cache keys — sized to hold "fetch:<name>:<price_zone>:<city>" comfortably. */
+    char s_elpris_key[128];
+    char s_weather_min_key[128];
+    char s_weather_hr_key[128];
+    char s_energy_plan_key[128];
+
+    snprintf(s_elpris_key, sizeof(s_elpris_key), "fetch:elpris:%s", price_zone);
+    snprintf(s_weather_min_key, sizeof(s_weather_min_key), "fetch:weather_min:%s", city);
+    snprintf(s_weather_hr_key, sizeof(s_weather_hr_key), "fetch:weather_hr:%s", city);
+    snprintf(s_energy_plan_key, sizeof(s_energy_plan_key), "fetch:energy_plan:%s:%s", price_zone,
+             city);
+
     FetchDescriptor s_fetch_descs[4];
 
     s_fetch_descs[0] = (FetchDescriptor){
         .id                  = "elpris",
         .url                 = s_elpris_url,
-        .cache_key           = "fetch:elpris",
+        .cache_key           = s_elpris_key,
         .cache_ttl_sec       = 24U * 3600U,
         .schedule.type       = FETCH_SCHEDULE_DAILY,
         .schedule.daily_hour = 14,
@@ -387,7 +405,7 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     };
     s_fetch_descs[1] = (FetchDescriptor){
         .id                    = "weather_min",
-        .cache_key             = "fetch:weather_min",
+        .cache_key             = s_weather_min_key,
         .cache_ttl_sec         = 24U * 3600U,
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
@@ -402,7 +420,7 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     s_fetch_descs[2] = (FetchDescriptor){
         .id                    = "weather_hr",
         .url                   = s_weather_hr_url,
-        .cache_key             = "fetch:weather_hr",
+        .cache_key             = s_weather_hr_key,
         .cache_ttl_sec         = 24U * 3600U,
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
@@ -411,7 +429,7 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     s_fetch_descs[3] = (FetchDescriptor){
         .id                    = "energy_plan",
         .url                   = s_energy_plan_url,
-        .cache_key             = "fetch:energy_plan",
+        .cache_key             = s_energy_plan_key,
         .cache_ttl_sec         = 24U * 3600U,
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
