@@ -2,20 +2,24 @@
  * @file data_fetcher.c
  * @brief Generic scheduled HTTP data fetcher — FreeRTOS task-based implementation.
  *
- * Each descriptor gets one task running a simple loop:
- *   1. Wait until both DNS and clock gates are open.
- *   2. On first run with fetch_on_startup: honour startup_delay_ms, then fetch.
- *   3. On subsequent runs: wait until the schedule is due or force_now is set.
- *   4. Fetch with exponential back-off on failure up to max_retries.
- *   5. Sleep until next window, checking force_now every POLL_MS.
- *   6. Repeat.
+ * Startup behaviour (fetch_on_startup = true):
+ *   After both gates open (DNS + clock), the cache is checked first.
+ *   - Cache hit (fresh):  on_cached is fired immediately, no network request.
+ *   - Cache miss/expired: fetch now, then cache and fire on_cached.
+ *   This means a reboot with fresh cached data costs zero network traffic.
  *
- * The clock gate (g_clock_ready) is critical. mbedTLS verifies certificate
- * validity dates against time(NULL). If the clock is still at epoch, every TLS
- * handshake fails with -0x2700 (MBEDTLS_ERR_X509_CERT_VERIFY_FAILED), which
- * leaves heap fragmented and causes all subsequent connections to fail with
- * -0x008D (MBEDTLS_ERR_SSL_ALLOC_FAILED). Call data_fetcher_notify_time_sync()
- * from your SNTP callback to open this gate.
+ * Scheduling after startup:
+ *   INTERVAL jobs sleep for interval_sec after each successful fetch.
+ *   DAILY jobs fire once per calendar day at the configured local hour.
+ *   force_now (via data_fetcher_request_now) bypasses both.
+ *
+ * Gates:
+ *   g_dns_ready  — set by data_fetcher_notify_wifi_state()
+ *   g_clock_ready — set by data_fetcher_notify_time_sync()
+ *   Both must be true before any TLS connection. The clock gate prevents
+ *   MBEDTLS_ERR_X509_CERT_VERIFY_FAILED (-0x2700) from an unsynced clock,
+ *   which otherwise fragments heap and cascades into -0x008D on all subsequent
+ *   connections.
  */
 
 #include "data_fetcher.h"
@@ -65,9 +69,9 @@ static void sleep_ms(uint32_t ms) {
 }
 
 /**
- * Sleep for total_ms in POLL_MS chunks.
- * Returns true immediately if force_now fires.
- * Returns false if DNS is lost during the sleep.
+ * Sleep total_ms in POLL_MS chunks.
+ * Returns true if force_now fired during sleep.
+ * Returns false if DNS was lost during sleep.
  */
 static bool interruptible_sleep(FetchJob* job, uint32_t total_ms) {
     uint32_t remaining = total_ms;
@@ -75,8 +79,8 @@ static bool interruptible_sleep(FetchJob* job, uint32_t total_ms) {
         uint32_t chunk = remaining < POLL_MS ? remaining : POLL_MS;
         sleep_ms(chunk);
         remaining -= chunk;
-        if (job->force_now)  return true;
-        if (!g_dns_ready)    return false;
+        if (job->force_now) return true;
+        if (!g_dns_ready)   return false;
     }
     return false;
 }
@@ -91,8 +95,8 @@ static uint32_t compute_backoff_ms(uint32_t retry_index) {
 }
 
 /**
- * Block until both DNS is available and the clock is synchronised.
- * Logs once per condition so the reason for waiting is always visible.
+ * Block until both DNS and clock are ready.
+ * Logs once per condition so the reason for waiting is always clear.
  */
 static void wait_for_ready(const char* id) {
     bool logged_dns = false, logged_clk = false;
@@ -112,7 +116,7 @@ static void wait_for_ready(const char* id) {
     }
 }
 
-/** Seconds until the next occurrence of target_hour (always > 0). */
+/** Returns seconds until the next occurrence of target_hour (always > 0). */
 static uint32_t secs_until_daily_hour(uint8_t target_hour) {
     time_t t = time(NULL);
     struct tm tm;
@@ -120,6 +124,33 @@ static uint32_t secs_until_daily_hour(uint8_t target_hour) {
     int diff = (int)target_hour * 3600 - (tm.tm_hour * 3600 + tm.tm_min * 60 + tm.tm_sec);
     if (diff <= 0) diff += 24 * 3600;
     return (uint32_t)diff;
+}
+
+/* ---------------------------------------------------------------------------
+ * Cache-first startup check
+ *
+ * Returns true if a fresh (non-expired) cache entry exists and on_cached was
+ * fired. Returns false if the cache is missing or expired (caller must fetch).
+ * ------------------------------------------------------------------------- */
+
+static bool serve_from_cache_if_fresh(const FetchDescriptor* desc) {
+    void*  data = NULL;
+    size_t len  = 0;
+    int rc = cache_get_alloc(desc->cache_key, &data, &len);
+
+    if (rc == CACHE_OK) {
+        ESP_LOGI(TAG, "[%s] Cache hit — %zu B fresh, skipping network fetch", desc->id, len);
+        if (g_cfg.on_cached) g_cfg.on_cached(desc, g_cfg.on_cached_ctx);
+        cache_free(data);
+        return true;
+    }
+
+    if (rc == CACHE_ERR_EXPIRED) {
+        ESP_LOGI(TAG, "[%s] Cache expired — will fetch", desc->id);
+    } else {
+        ESP_LOGI(TAG, "[%s] No cache entry — will fetch", desc->id);
+    }
+    return false;
 }
 
 /* ---------------------------------------------------------------------------
@@ -154,7 +185,7 @@ static bool do_fetch(const FetchDescriptor* desc) {
         if (!g_cfg.on_transform(desc, &buf, &len, g_cfg.on_transform_ctx)) {
             ESP_LOGI(TAG, "[%s] Transform discarded response", desc->id);
             free(buf);
-            return true; /* discard counts as success, no retry */
+            return true; /* discard = success, no retry */
         }
     }
 
@@ -185,37 +216,43 @@ static void fetch_task(void* arg) {
     int      last_trigger_day = -1;
 
     while (1) {
-        /* 1. Gate: wait for DNS + synced clock before any TLS attempt. */
+        /* 1. Gate: wait for DNS + synced clock. */
         wait_for_ready(d->id);
 
-        /* 2. Startup fetch — run immediately (after optional stagger delay). */
+        /* 2. Startup: serve from cache if fresh, fetch only if stale/missing. */
         if (first_run && d->fetch_on_startup) {
-            if (d->startup_delay_ms > 0) {
-                ESP_LOGI(TAG, "[%s] Startup delay %lu ms", d->id,
-                         (unsigned long)d->startup_delay_ms);
-                interruptible_sleep(job, d->startup_delay_ms);
+            if (serve_from_cache_if_fresh(d)) {
+                /*
+                 * Cache was fresh — mark first_run done so the scheduler
+                 * sets the next window from now, not from epoch.
+                 */
+                last_fetch_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+                first_run     = false;
+                /* Fall through to the normal schedule loop. */
+                goto schedule_loop;
             }
+            /* Cache miss or expired — fetch immediately. */
             goto do_fetch_now;
         }
 
+schedule_loop:
         /* 3. Wait until scheduled or force_now. */
         while (!job->force_now) {
-            if (!g_dns_ready) break; /* DNS lost — restart outer loop */
+            if (!g_dns_ready) break;
 
             if (d->schedule.type == FETCH_SCHEDULE_INTERVAL) {
                 uint32_t elapsed     = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS)
                                        - last_fetch_ms;
                 uint32_t interval_ms = d->schedule.interval_sec * 1000U;
-                if (first_run || elapsed >= interval_ms) break; /* due */
+                if (first_run || elapsed >= interval_ms) break;
                 uint32_t wait = interval_ms - elapsed;
                 interruptible_sleep(job, wait < POLL_MS ? wait : POLL_MS);
 
             } else if (d->schedule.type == FETCH_SCHEDULE_DAILY) {
                 struct tm tm; time_t t = time(NULL); localtime_r(&t, &tm);
                 if (tm.tm_hour == (int)d->schedule.daily_hour
-                    && tm.tm_yday != last_trigger_day) break; /* due */
+                    && tm.tm_yday != last_trigger_day) break;
                 uint32_t secs = secs_until_daily_hour(d->schedule.daily_hour);
-                /* Sleep up to 60 s at a time so force_now is responsive. */
                 interruptible_sleep(job, secs * 1000U < 60000U ? secs * 1000U : 60000U);
 
             } else {
@@ -223,7 +260,7 @@ static void fetch_task(void* arg) {
             }
         }
 
-        if (!g_dns_ready) continue; /* restart outer loop */
+        if (!g_dns_ready) continue;
 
 do_fetch_now:
         job->force_now = false;
@@ -261,9 +298,11 @@ do_fetch_now:
                     last_trigger_day = tm.tm_yday;
                 }
             } else {
-                sleep_ms(POLL_MS); /* brief pause before re-entering schedule loop */
+                sleep_ms(POLL_MS);
             }
         }
+
+        goto schedule_loop;
     }
 }
 

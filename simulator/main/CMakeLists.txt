@@ -17,7 +17,6 @@ idf_component_register(
     fs
     cache_fs
     http_client
-    smw_http
     clock
     data_fetcher
     console_cli

@@ -352,7 +352,6 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .schedule.type       = FETCH_SCHEDULE_DAILY,
         .schedule.daily_hour = 14,
         .fetch_on_startup    = true,
-        .startup_delay_ms    = 0U,
     };
     s_fetch_descs[1] = (FetchDescriptor){
         .id                    = "weather_min",
@@ -362,7 +361,6 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
         .fetch_on_startup      = true,
-        .startup_delay_ms      = 0U,
     };
     s_fetch_descs[2] = (FetchDescriptor){
         .id                    = "weather_hr",
@@ -372,7 +370,6 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
         .fetch_on_startup      = true,
-        .startup_delay_ms      = 0U, /* slight stagger so startup fetches don't all queue at t=0 */
     };
     s_fetch_descs[3] = (FetchDescriptor){
         .id                    = "energy_plan",
@@ -382,7 +379,6 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
         .fetch_on_startup      = true,
-        .startup_delay_ms      = 0U, /* staggered by 2 s from weather_hr */
     };
 
     DataFetcherConfig df_cfg  = data_fetcher_default_config();
@@ -393,28 +389,6 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
 #ifndef CONFIG_IDF_TARGET_LINUX
     data_fetcher_init(&df_cfg);
 #endif
-
-    /* ---- Warm UI from cache ---- */
-    if (display_lvgl_lock(-1)) {
-        void*  cached_data = NULL;
-        size_t cached_len  = 0;
-
-        if (cache_get_alloc("fetch:elpris", &cached_data, &cached_len) == CACHE_OK) {
-            ui_tab_elpris_handle_server_response((const char*)cached_data, cached_len);
-            cache_free(cached_data);
-        }
-        cached_data = NULL; cached_len = 0;
-        if (cache_get_alloc("fetch:weather_min", &cached_data, &cached_len) == CACHE_OK) {
-            ui_tab_weather_handle_server_response((const char*)cached_data, cached_len, 0);
-            cache_free(cached_data);
-        }
-        cached_data = NULL; cached_len = 0;
-        if (cache_get_alloc("fetch:weather_hr", &cached_data, &cached_len) == CACHE_OK) {
-            ui_tab_weather_handle_server_response((const char*)cached_data, cached_len, 1);
-            cache_free(cached_data);
-        }
-        display_lvgl_unlock();
-    }
 
     /* ---- Main loop (1 s tick) ---- */
     while (1) {

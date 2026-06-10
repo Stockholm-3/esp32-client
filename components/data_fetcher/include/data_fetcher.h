@@ -10,14 +10,14 @@
  *   FETCH_SCHEDULE_DAILY    — fire once per day at a given wall-clock hour.
  *
  * Two gates must both be open before any fetch attempt:
- *   1. DNS — call data_fetcher_notify_wifi_state() from your Wi-Fi callback.
+ *   1. DNS  — call data_fetcher_notify_wifi_state() from your Wi-Fi callback.
  *   2. Clock — call data_fetcher_notify_time_sync() from your SNTP callback.
  *
- * The clock gate exists because mbedTLS validates certificate validity windows
- * against time(NULL). If the clock is still at epoch every TLS handshake fails
- * with MBEDTLS_ERR_X509_CERT_VERIFY_FAILED (-0x2700), which fragments heap and
- * causes all subsequent connections to fail with MBEDTLS_ERR_SSL_ALLOC_FAILED
- * (-0x008D). Both gates must be open before a single TLS connection is made.
+ * Startup behaviour (fetch_on_startup = true):
+ *   The cache is checked first. If a valid (non-expired) entry exists it is
+ *   served immediately via on_cached without hitting the network. A fetch is
+ *   only made if the cache is missing or expired. This avoids redundant
+ *   network traffic on every reboot when the cached data is still fresh.
  */
 
 #ifndef DATA_FETCHER_H
@@ -56,13 +56,18 @@ typedef struct {
  * ------------------------------------------------------------------------- */
 
 typedef struct {
-    const char*   id;            /* Unique short name used in logs, e.g. "weather" */
-    const char*   url;           /* Fully-qualified HTTPS URL                       */
-    const char*   cache_key;     /* Key passed to cache_put() on success            */
+    const char*   id;           /* Unique short name used in logs, e.g. "weather" */
+    const char*   url;          /* Fully-qualified HTTPS URL                       */
+    const char*   cache_key;    /* Key passed to cache_put() on success            */
     uint32_t      cache_ttl_sec;
     FetchSchedule schedule;
-    bool          fetch_on_startup;  /* Fetch as soon as both gates open at boot    */
-    uint32_t      startup_delay_ms;  /* Stagger delay before startup fetch          */
+
+    /**
+     * If true: on startup, serve from cache if fresh; fetch only if stale or
+     * missing. This avoids a network hit on every reboot when data is recent.
+     * If false: never fetch on startup, only on the normal schedule.
+     */
+    bool fetch_on_startup;
 } FetchDescriptor;
 
 /* ---------------------------------------------------------------------------
@@ -71,14 +76,17 @@ typedef struct {
 
 /**
  * Called after a successful fetch, before caching.
- * May inspect or replace the buffer (free old, alloc new, update *buf/len).
+ * May replace the buffer (free old, alloc new, update *buf/len).
  * Return true to cache, false to discard (still counts as success, no retry).
  */
 typedef bool (*DataFetcherTransformCb)(const FetchDescriptor* desc,
                                        uint8_t** buf, size_t* len,
                                        void* user_ctx);
 
-/** Called after the payload has been written to the cache. */
+/**
+ * Called after data is ready in cache — either because a fresh fetch just
+ * completed, or because a valid cached entry was found on startup.
+ */
 typedef void (*DataFetcherOnCachedCb)(const FetchDescriptor* desc, void* user_ctx);
 
 /* ---------------------------------------------------------------------------
@@ -103,6 +111,8 @@ typedef struct {
 
     DataFetcherTransformCb on_transform;
     void*                  on_transform_ctx;
+
+    /** Called when data is available in cache (fresh fetch or cache hit). */
     DataFetcherOnCachedCb  on_cached;
     void*                  on_cached_ctx;
 } DataFetcherConfig;
@@ -121,24 +131,22 @@ DataFetcherConfig data_fetcher_default_config(void);
 int data_fetcher_init(const DataFetcherConfig* config);
 
 /**
- * Notify the module of a Wi-Fi state change.
- * The DNS gate is open only while state == WIFI_MANAGER_STATE_CONNECTED_WITH_DNS.
+ * Notify of Wi-Fi state change.
+ * DNS gate is open only while state == WIFI_MANAGER_STATE_CONNECTED_WITH_DNS.
  */
 void data_fetcher_notify_wifi_state(WifiManagerState state);
 
 /**
- * Notify the module that the system clock has been synchronised (e.g. SNTP).
- * Opens the clock gate and allows TLS connections to proceed.
- *
- * MUST be called from your SNTP/time_manager sync callback — NOT from the
- * Wi-Fi connected callback. The clock may not be valid yet at that point.
- * Safe to call multiple times; only the first call has any effect.
+ * Notify that the system clock has been synchronised (SNTP).
+ * Opens the clock gate — required before any TLS connection is attempted.
+ * Safe to call multiple times; only the first call has effect.
  */
 void data_fetcher_notify_time_sync(void);
 
 /**
  * Trigger an immediate out-of-schedule fetch for the given descriptor id.
- * No effect if either gate is closed or the id is not found.
+ * If a fetch is already in progress the flag is set and fires immediately
+ * after the current fetch completes.
  */
 void data_fetcher_request_now(const char* descriptor_id);
 
