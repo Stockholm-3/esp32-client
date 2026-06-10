@@ -304,7 +304,7 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         strncpy(wifi_cfg.sta_netmask, settings_manager_get_sta_netmask(),
                 sizeof(wifi_cfg.sta_netmask) - 1);
     }
-    wifi_manager_start(lwc_enabled ? &wifi_cfg : NULL);
+    wifi_manager_start((int)lwc_enabled ? &wifi_cfg : NULL);
     wifi_manager_connect_to_saved_wifi();
 
     /* ---- SMW scheduler ---- */
@@ -423,7 +423,7 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
 
         /* BME280 hot-plug detection */
         bool bme_present = bme280_probe_i2c();
-        if (bme_present && !g_bme_was_present) {
+        if ((int)bme_present && !g_bme_was_present) {
             ESP_LOGI(g_tag, "BME280 detected — reinitializing");
             bme280_sensor_deinit();
             if (bme280_sensor_init_with_task(ws7b_board_get_i2c_bus(), on_bme280_sample, NULL) ==
@@ -432,7 +432,7 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
             } else {
                 ESP_LOGW(g_tag, "BME280 reinit failed");
             }
-        } else if (!bme_present && g_bme_was_present) {
+        } else if (!bme_present && (int)g_bme_was_present) {
             ESP_LOGI(g_tag, "BME280 disconnected");
             bme280_sensor_deinit();
             g_bme_was_present = false;
