@@ -36,8 +36,9 @@ void settings_manager_save_location(const char* city) {
         nvs_commit(h);
         nvs_close(h);
     }
-    if (g_location_saved_cb)
+    if (g_location_saved_cb) {
         g_location_saved_cb(g_s_location);
+    }
 }
 
 void settings_manager_on_location_saved(settings_manager_location_cb_t cb) {

@@ -58,11 +58,11 @@ static bool g_bme_was_present = false;
 /** @brief Set to true after first successful time sync to rebuild weather URL once. */
 static bool g_time_synced = false;
 
-static char s_elpris_url[256];
-static char s_weather_min_url[256];
-static char s_weather_hr_url[256];
-static char s_energy_plan_url[256];
-static FetchDescriptor s_fetch_descs[4];
+static char g_s_elpris_url[256];
+static char g_s_weather_min_url[256];
+static char g_s_weather_hr_url[256];
+static char g_s_energy_plan_url[256];
+static FetchDescriptor g_s_fetch_descs[4];
 
 /** @brief SMW scheduler instance. */
 static SmwWorker g_smw_worker;
@@ -193,17 +193,17 @@ static void on_location_saved(const char* city) {
     const char* price_zone = settings_manager_get_price_zone_as_string();
     struct tm timeinfo;
     bool time_valid = time_manager_get_time(&timeinfo);
-    if (time_valid && g_time_synced) {
-        snprintf(s_weather_min_url, sizeof(s_weather_min_url),
+    if ((int)time_valid && (int)g_time_synced) {
+        snprintf(g_s_weather_min_url, sizeof(g_s_weather_min_url),
                  "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=%d", city,
                  timeinfo.tm_hour + 1);
     } else {
-        snprintf(s_weather_min_url, sizeof(s_weather_min_url),
+        snprintf(g_s_weather_min_url, sizeof(g_s_weather_min_url),
                  "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=24", city);
     }
-    snprintf(s_weather_hr_url, sizeof(s_weather_hr_url),
+    snprintf(g_s_weather_hr_url, sizeof(g_s_weather_hr_url),
              "https://just-dev.freeduck.dev/v1/hourly?city=%s&hours=168", city);
-    snprintf(s_energy_plan_url, sizeof(s_energy_plan_url),
+    snprintf(g_s_energy_plan_url, sizeof(g_s_energy_plan_url),
              "https://just-dev.freeduck.dev/v1/get_plan?price=%s&city=%s", price_zone, city);
     data_fetcher_request_now("weather_min");
     data_fetcher_request_now("weather_hr");
@@ -362,20 +362,20 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     const char* price_zone = settings_manager_get_price_zone_as_string();
     const char* city       = settings_manager_get_location();
 
-    snprintf(s_elpris_url, sizeof(s_elpris_url), "https://just-dev.freeduck.dev/v1/elpris?price=%s",
-             price_zone);
-    snprintf(s_weather_min_url, sizeof(s_weather_min_url),
+    snprintf(g_s_elpris_url, sizeof(g_s_elpris_url),
+             "https://just-dev.freeduck.dev/v1/elpris?price=%s", price_zone);
+    snprintf(g_s_weather_min_url, sizeof(g_s_weather_min_url),
              "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=24", city);
 
-    snprintf(s_weather_hr_url, sizeof(s_weather_hr_url),
+    snprintf(g_s_weather_hr_url, sizeof(g_s_weather_hr_url),
              "https://just-dev.freeduck.dev/v1/hourly?city=%s&hours=168", city);
 
-    snprintf(s_energy_plan_url, sizeof(s_energy_plan_url),
+    snprintf(g_s_energy_plan_url, sizeof(g_s_energy_plan_url),
              "https://just-dev.freeduck.dev/v1/get_plan?price=%s&city=%s", price_zone, city);
 
-    s_fetch_descs[0] = (FetchDescriptor){
+    g_s_fetch_descs[0] = (FetchDescriptor){
         .id                  = "elpris",
-        .url                 = s_elpris_url,
+        .url                 = g_s_elpris_url,
         .cache_key           = "fetch:elpris",
         .cache_ttl_sec       = 24U * 3600U,
         .schedule.type       = FETCH_SCHEDULE_DAILY,
@@ -384,9 +384,9 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .startup_delay_ms    = 0U,
     };
 
-    s_fetch_descs[1] = (FetchDescriptor){
+    g_s_fetch_descs[1] = (FetchDescriptor){
         .id                    = "weather_min",
-        .url                   = s_weather_min_url,
+        .url                   = g_s_weather_min_url,
         .cache_key             = "fetch:weather_min",
         .cache_ttl_sec         = 24U * 3600U,
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
@@ -395,9 +395,9 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .startup_delay_ms      = 0U,
     };
 
-    s_fetch_descs[2] = (FetchDescriptor){
+    g_s_fetch_descs[2] = (FetchDescriptor){
         .id                    = "weather_hr",
-        .url                   = s_weather_hr_url,
+        .url                   = g_s_weather_hr_url,
         .cache_key             = "fetch:weather_hr",
         .cache_ttl_sec         = 24U * 3600U,
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
@@ -406,9 +406,9 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .startup_delay_ms      = 0U,
     };
 
-    s_fetch_descs[3] = (FetchDescriptor){
+    g_s_fetch_descs[3] = (FetchDescriptor){
         .id                    = "energy_plan",
-        .url                   = s_energy_plan_url,
+        .url                   = g_s_energy_plan_url,
         .cache_key             = "fetch:energy_plan",
         .cache_ttl_sec         = 24U * 3600U,
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
@@ -418,7 +418,7 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     };
 
     DataFetcherConfig df_cfg = data_fetcher_default_config();
-    df_cfg.descriptors       = s_fetch_descs;
+    df_cfg.descriptors       = g_s_fetch_descs;
     df_cfg.descriptor_count  = 4;
     df_cfg.on_cached         = on_data_cached;
 
@@ -457,7 +457,7 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         if (time_is_valid) {
             if (!g_time_synced) {
                 g_time_synced = true;
-                snprintf(s_weather_min_url, sizeof(s_weather_min_url),
+                snprintf(g_s_weather_min_url, sizeof(g_s_weather_min_url),
                          "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=%d",
                          city, timeinfo.tm_hour + 1);
                 ESP_LOGI(g_tag, "Time synced, updating weather_min URL with past_hours=%d",
