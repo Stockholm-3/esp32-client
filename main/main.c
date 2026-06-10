@@ -58,6 +58,12 @@ static bool g_bme_was_present = false;
 /** @brief Set to true after first successful time sync to rebuild weather URL once. */
 static bool g_time_synced = false;
 
+static char s_elpris_url[256];
+static char s_weather_min_url[256];
+static char s_weather_hr_url[256];
+static char s_energy_plan_url[256];
+static FetchDescriptor s_fetch_descs[4];
+
 /** @brief SMW scheduler instance. */
 static SmwWorker g_smw_worker;
 /** @brief Task array for the SMW scheduler. */
@@ -181,6 +187,27 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
         wifi_popup_set_connected_ssid("");
     }
     loc_server_notify_wifi_state(state);
+}
+
+static void on_location_saved(const char* city) {
+    const char* price_zone = settings_manager_get_price_zone_as_string();
+    struct tm timeinfo;
+    bool time_valid = time_manager_get_time(&timeinfo);
+    if (time_valid && g_time_synced) {
+        snprintf(s_weather_min_url, sizeof(s_weather_min_url),
+                 "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=%d", city,
+                 timeinfo.tm_hour + 1);
+    } else {
+        snprintf(s_weather_min_url, sizeof(s_weather_min_url),
+                 "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=24", city);
+    }
+    snprintf(s_weather_hr_url, sizeof(s_weather_hr_url),
+             "https://just-dev.freeduck.dev/v1/hourly?city=%s&hours=168", city);
+    snprintf(s_energy_plan_url, sizeof(s_energy_plan_url),
+             "https://just-dev.freeduck.dev/v1/get_plan?price=%s&city=%s", price_zone, city);
+    data_fetcher_request_now("weather_min");
+    data_fetcher_request_now("weather_hr");
+    data_fetcher_request_now("energy_plan");
 }
 
 static void request_weather_now(void) {
@@ -332,13 +359,6 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
 
     console_cli_start();
 
-    char s_elpris_url[256];
-    char s_weather_min_url[256];
-    char s_weather_hr_url[256];
-    char s_energy_plan_url[256];
-
-    FetchDescriptor s_fetch_descs[4];
-
     const char* price_zone = settings_manager_get_price_zone_as_string();
     const char* city       = settings_manager_get_location();
 
@@ -404,6 +424,7 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
 
 #ifndef CONFIG_IDF_TARGET_LINUX
     data_fetcher_init(&df_cfg);
+    settings_manager_on_location_saved(on_location_saved);
 #endif
 
     if (display_lvgl_lock(-1)) {
@@ -444,7 +465,10 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
                 data_fetcher_request_now("weather_min");
             }
             ui_binder_update_localtime(&timeinfo);
-            ui_tab_elpris_update_now();
+            if (display_lvgl_lock(100)) {
+                ui_tab_elpris_update_now();
+                display_lvgl_unlock();
+            }
         }
 
         // Handle BME280 hot-plug: check if sensor presence changed

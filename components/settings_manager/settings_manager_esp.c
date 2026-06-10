@@ -12,9 +12,10 @@
 #define TAG "SETTINGS_MGR"
 
 // Global in-memory settings variables
-static char g_s_location[128] = "";
-static int g_s_price_zone     = 0;
-static int g_s_timeout        = 0;
+static char g_s_location[128]                             = "";
+static settings_manager_location_cb_t g_location_saved_cb = NULL;
+static int g_s_price_zone                                 = 0;
+static int g_s_timeout                                    = 0;
 
 // The structure array holding up to 5 profiles
 static SavedWifiNetwork g_wifi_list[MAX_SAVED_NETWORKS];
@@ -35,6 +36,12 @@ void settings_manager_save_location(const char* city) {
         nvs_commit(h);
         nvs_close(h);
     }
+    if (g_location_saved_cb)
+        g_location_saved_cb(g_s_location);
+}
+
+void settings_manager_on_location_saved(settings_manager_location_cb_t cb) {
+    g_location_saved_cb = cb;
 }
 void settings_manager_save_price_zone(int index) {
     g_s_price_zone = index;
