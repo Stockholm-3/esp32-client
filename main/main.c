@@ -88,8 +88,8 @@ static void smw_worker_task(void* ctx) {
  * @return true if BME280 is detected at either 0x76 or 0x77, false otherwise.
  */
 static bool bme280_probe_i2c(void) {
-    i2c_master_bus_handle_t bus    = ws7b_board_get_i2c_bus();
-    const uint8_t           ADDRS[] = {BME280_I2C_ADDR_PRIMARY, BME280_I2C_ADDR_SECONDARY};
+    i2c_master_bus_handle_t bus = ws7b_board_get_i2c_bus();
+    const uint8_t ADDRS[]       = {BME280_I2C_ADDR_PRIMARY, BME280_I2C_ADDR_SECONDARY};
 
     for (size_t i = 0; i < sizeof(ADDRS) / sizeof(ADDRS[0]); i++) {
         if (i2c_master_probe(bus, ADDRS[i], 100) == ESP_OK) {
@@ -189,15 +189,14 @@ static void on_ap_toggled(bool enabled) {
 static void on_data_cached(const FetchDescriptor* desc, void* user_ctx) {
     (void)user_ctx;
 
-    void*  data = NULL;
-    size_t len  = 0;
+    void* data = NULL;
+    size_t len = 0;
     if (cache_get_alloc(desc->cache_key, &data, &len) != CACHE_OK) {
         return;
     }
 
     ESP_LOGI(g_tag, "[%s] Fresh data ready — %zu bytes", desc->id, len);
-    ESP_LOGI(g_tag, "[%s] Preview: %.200s%s", desc->id, (const char*)data,
-             len > 200U ? "…" : "");
+    ESP_LOGI(g_tag, "[%s] Preview: %.200s%s", desc->id, (const char*)data, len > 200U ? "…" : "");
 
     if (strcmp(desc->id, "weather_min") == 0) {
         ui_binder_update_weather_min((const char*)data, len);
@@ -241,8 +240,8 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     ESP_ERROR_CHECK_WITHOUT_ABORT(http_client_init(&http_cfg));
 
     /* ---- Display ---- */
-    lv_display_t* disp  = NULL;
-    lv_indev_t*   touch = NULL;
+    lv_display_t* disp = NULL;
+    lv_indev_t* touch  = NULL;
     ESP_ERROR_CHECK(display_init(&disp, &touch));
     ESP_LOGI(g_tag, "Display initialized");
 
@@ -295,12 +294,11 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     }
 #endif
 
-    bool               lwc_enabled = settings_manager_get_local_web_client_enabled();
-    WifiManagerConfig  wifi_cfg    = {0};
+    bool lwc_enabled           = settings_manager_get_local_web_client_enabled();
+    WifiManagerConfig wifi_cfg = {0};
     if (lwc_enabled) {
         wifi_cfg.sta_static_ip_enabled = true;
-        strncpy(wifi_cfg.sta_ip,      settings_manager_get_sta_static_ip(),
-                sizeof(wifi_cfg.sta_ip) - 1);
+        strncpy(wifi_cfg.sta_ip, settings_manager_get_sta_static_ip(), sizeof(wifi_cfg.sta_ip) - 1);
         strncpy(wifi_cfg.sta_gateway, settings_manager_get_sta_gateway(),
                 sizeof(wifi_cfg.sta_gateway) - 1);
         strncpy(wifi_cfg.sta_netmask, settings_manager_get_sta_netmask(),
@@ -333,8 +331,8 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     char s_weather_hr_url[256];
     char s_energy_plan_url[256];
 
-    snprintf(s_elpris_url, sizeof(s_elpris_url),
-             "https://just-dev.freeduck.dev/v1/elpris?price=%s", price_zone);
+    snprintf(s_elpris_url, sizeof(s_elpris_url), "https://just-dev.freeduck.dev/v1/elpris?price=%s",
+             price_zone);
     snprintf(s_weather_min_url, sizeof(s_weather_min_url),
              "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=24", city);
     snprintf(s_weather_hr_url, sizeof(s_weather_hr_url),
@@ -381,10 +379,10 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .fetch_on_startup      = true,
     };
 
-    DataFetcherConfig df_cfg  = data_fetcher_default_config();
-    df_cfg.descriptors        = s_fetch_descs;
-    df_cfg.descriptor_count   = 4;
-    df_cfg.on_cached          = on_data_cached;
+    DataFetcherConfig df_cfg = data_fetcher_default_config();
+    df_cfg.descriptors       = s_fetch_descs;
+    df_cfg.descriptor_count  = 4;
+    df_cfg.on_cached         = on_data_cached;
 
 #ifndef CONFIG_IDF_TARGET_LINUX
     data_fetcher_init(&df_cfg);
@@ -428,8 +426,8 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         if (bme_present && !g_bme_was_present) {
             ESP_LOGI(g_tag, "BME280 detected — reinitializing");
             bme280_sensor_deinit();
-            if (bme280_sensor_init_with_task(ws7b_board_get_i2c_bus(),
-                                              on_bme280_sample, NULL) == ESP_OK) {
+            if (bme280_sensor_init_with_task(ws7b_board_get_i2c_bus(), on_bme280_sample, NULL) ==
+                ESP_OK) {
                 g_bme_was_present = true;
             } else {
                 ESP_LOGW(g_tag, "BME280 reinit failed");
