@@ -221,8 +221,7 @@ static void on_data_cached(const FetchDescriptor* desc, void* user_ctx) {
  * ctx points to the null-terminated city string.
  * ------------------------------------------------------------------------- */
 
-static char* build_weather_min_url(const FetchDescriptor* desc,
-                                   char* buf, size_t buf_size,
+static char* build_weather_min_url(const FetchDescriptor* desc, char* buf, size_t buf_size,
                                    void* ctx) {
     (void)desc;
     const char* city = (const char*)ctx;
@@ -237,8 +236,8 @@ static char* build_weather_min_url(const FetchDescriptor* desc,
     }
 
     snprintf(buf, buf_size,
-             "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=%d",
-             city, tm.tm_hour + 1);
+             "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=%d", city,
+             tm.tm_hour + 1);
     return buf;
 }
 
@@ -364,12 +363,12 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     const char* city       = settings_manager_get_location();
 
     char s_elpris_url[256];
-    char s_weather_min_url[256];  /* written by build_weather_min_url each fetch */
+    char s_weather_min_url[256]; /* written by build_weather_min_url each fetch */
     char s_weather_hr_url[256];
     char s_energy_plan_url[256];
 
-    snprintf(s_elpris_url, sizeof(s_elpris_url),
-             "https://just-dev.freeduck.dev/v1/elpris?price=%s", price_zone);
+    snprintf(s_elpris_url, sizeof(s_elpris_url), "https://just-dev.freeduck.dev/v1/elpris?price=%s",
+             price_zone);
     snprintf(s_weather_hr_url, sizeof(s_weather_hr_url),
              "https://just-dev.freeduck.dev/v1/hourly?city=%s&hours=168", city);
     snprintf(s_energy_plan_url, sizeof(s_energy_plan_url),
@@ -387,18 +386,18 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .fetch_on_startup    = true,
     };
     s_fetch_descs[1] = (FetchDescriptor){
-        .id              = "weather_min",
-        .cache_key       = "fetch:weather_min",
-        .cache_ttl_sec   = 24U * 3600U,
+        .id                    = "weather_min",
+        .cache_key             = "fetch:weather_min",
+        .cache_ttl_sec         = 24U * 3600U,
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
         .fetch_on_startup      = true,
         /* Dynamic URL: past_hours is set from the current local hour.
          * The builder defers (returns NULL) until the clock is synced. */
-        .build_url       = build_weather_min_url,
-        .url_buf         = s_weather_min_url,
-        .url_buf_size    = sizeof(s_weather_min_url),
-        .build_url_ctx   = (void*)city,
+        .build_url     = build_weather_min_url,
+        .url_buf       = s_weather_min_url,
+        .url_buf_size  = sizeof(s_weather_min_url),
+        .build_url_ctx = (void*)city,
     };
     s_fetch_descs[2] = (FetchDescriptor){
         .id                    = "weather_hr",
