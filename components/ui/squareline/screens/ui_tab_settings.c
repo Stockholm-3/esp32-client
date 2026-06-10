@@ -1,35 +1,72 @@
+/**
+ * @file ui_tab_settings.c
+ * @ingroup ui
+ * @brief Settings tab — layout and widget event handlers.
+ *
+ * Builds the Settings tab content inside the home-screen TabView:
+ * - WiFi section: current network name, Connect button, WiFi on/off switch.
+ * - Location section: text area with Swedish keyboard support for city entry.
+ * - Price zone section: SE1–SE4 dropdown wired to @ref ui_binder_on_price_changed().
+ * - Screen timeout section: 5/10/15/20 min / never dropdown.
+ * - Access Point toggle and local web client toggle.
+ * - IP address label updated via @ref ui_binder_update_local_ip().
+ *
+ * Widget event handlers in this file are called directly by LVGL and forward
+ * events to the binder layer via @c ui_binder callbacks.
+ */
 #include "../ui.h"
 #include "kb_swedish.h"
 #include "../ui_theme.h"
 #include "../ui_events.h"
 #include "ui_scr_home.h"
 
-lv_obj_t* ui_panel_settings_main = NULL;
-lv_obj_t* ui_panel_wifi          = NULL;
-lv_obj_t* ui_lbl_wifi_title      = NULL;
-lv_obj_t* ui_lbl_wifi_sub        = NULL;
-lv_obj_t* ui_lbl_wifi_name       = NULL;
-lv_obj_t* ui_btn_wifi_change     = NULL;
-lv_obj_t* ui_lbl_btn_wifi_change = NULL;
-lv_obj_t* ui_sw_wifi             = NULL;
-lv_obj_t* ui_panel_location      = NULL;
-lv_obj_t* ui_lbl_loc_title       = NULL;
-lv_obj_t* ui_lbl_loc_sub         = NULL;
-lv_obj_t* ui_ta_locationinput    = NULL;
-lv_obj_t* ui_panel_price         = NULL;
-lv_obj_t* ui_lbl_price_title     = NULL;
-lv_obj_t* ui_lbl_price_sub       = NULL;
-lv_obj_t* ui_dd_price            = NULL;
-lv_obj_t* ui_panel_timeout       = NULL;
-lv_obj_t* ui_lbl_timeout_title   = NULL;
-lv_obj_t* ui_lbl_timeout_sub     = NULL;
-lv_obj_t* ui_dd_timeout          = NULL;
-lv_obj_t* ui_Keyboard1           = NULL;
-lv_obj_t* ui_sw_alerts           = NULL;
-lv_obj_t* ui_sw_ap_enabled       = NULL;
-lv_obj_t* ui_sw_local_web_client = NULL;
-lv_obj_t* ui_lbl_settings_ip    = NULL;
+/* Top-level layout */
+lv_obj_t* ui_panel_settings_main = NULL; /**< Root scrollable panel containing all settings sections. */
 
+/* WiFi section */
+lv_obj_t* ui_panel_wifi          = NULL; /**< Container card for the WiFi settings group. */
+lv_obj_t* ui_lbl_wifi_title      = NULL; /**< "WiFi" section heading label. */
+lv_obj_t* ui_lbl_wifi_sub        = NULL; /**< WiFi section subtitle / description label. */
+lv_obj_t* ui_lbl_wifi_name       = NULL; /**< Currently connected SSID, updated by ui_binder_update_wifi_name(). */
+lv_obj_t* ui_btn_wifi_change     = NULL; /**< Button that opens the WiFi network selection popup. */
+lv_obj_t* ui_lbl_btn_wifi_change = NULL; /**< Text label on the WiFi change button. */
+lv_obj_t* ui_sw_wifi             = NULL; /**< Toggle switch to enable / disable the WiFi radio entirely. */
+
+/* Location section */
+lv_obj_t* ui_panel_location      = NULL; /**< Container card for the location / city setting. */
+lv_obj_t* ui_lbl_loc_title       = NULL; /**< "Location" section heading label. */
+lv_obj_t* ui_lbl_loc_sub         = NULL; /**< Location section subtitle explaining the purpose of the field. */
+lv_obj_t* ui_ta_locationinput    = NULL; /**< Text area for entering the city name used for weather queries. */
+
+/* Electricity price zone section */
+lv_obj_t* ui_panel_price         = NULL; /**< Container card for the Swedish price-zone selector. */
+lv_obj_t* ui_lbl_price_title     = NULL; /**< "Price zone" section heading label. */
+lv_obj_t* ui_lbl_price_sub       = NULL; /**< Price zone subtitle (SE1–SE4 explanation). */
+lv_obj_t* ui_dd_price            = NULL; /**< Dropdown selecting the Swedish electricity zone (SE1/SE2/SE3/SE4). */
+
+/* Screen timeout section */
+lv_obj_t* ui_panel_timeout       = NULL; /**< Container card for the screen-timeout selector. */
+lv_obj_t* ui_lbl_timeout_title   = NULL; /**< "Screen timeout" section heading label. */
+lv_obj_t* ui_lbl_timeout_sub     = NULL; /**< Timeout subtitle / hint label. */
+lv_obj_t* ui_dd_timeout          = NULL; /**< Dropdown selecting inactivity timeout (5/10/15/20 min or never). */
+
+/* Keyboard and toggles */
+lv_obj_t* ui_Keyboard1           = NULL; /**< On-screen keyboard shown when the location text area is focused. */
+lv_obj_t* ui_sw_alerts           = NULL; /**< Reserved toggle (not yet wired to application logic). */
+lv_obj_t* ui_sw_ap_enabled       = NULL; /**< Toggle switch enabling the ESP32 Access Point (SoftAP) mode. */
+lv_obj_t* ui_sw_local_web_client = NULL; /**< Toggle switch enabling the built-in local web UI client. */
+
+/* Status */
+lv_obj_t* ui_lbl_settings_ip    = NULL; /**< Read-only label displaying the current local IP address. */
+
+/**
+ * @brief LVGL event handler for the location text area.
+ *
+ * Shows the on-screen keyboard on @c LV_EVENT_FOCUSED and hides it on
+ * @c LV_EVENT_DEFOCUSED. Registered during @ref ui_tab_settings_init().
+ *
+ * @param e  LVGL event object passed by the framework.
+ */
 void ui_event_ta_locationinput(lv_event_t* e) {
     lv_event_code_t code = lv_event_get_code(e);
     if (code == LV_EVENT_FOCUSED)   show_keyboard(e);
