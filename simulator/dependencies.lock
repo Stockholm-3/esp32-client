@@ -14,7 +14,7 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 6.1.0
+    version: 6.0.0
   lvgl/lvgl:
     dependencies: []
     source:
@@ -26,6 +26,6 @@ direct_dependencies:
 - espressif/esp_lcd_touch
 - idf
 - lvgl/lvgl
-manifest_hash: 7d211127944b30fe6ce6a3cab420cf480fa1e07b8a26e723addff24da387cac3
+manifest_hash: 3156cb1519b837bd71a9eb0e88827768d4631d8a2b1aea14da92ae2a69c1c97b
 target: linux
 version: 3.0.0

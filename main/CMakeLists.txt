@@ -16,7 +16,6 @@ idf_component_register(
         mdns
         fs
         cache_fs
-        smw_http
         http_client
         data_fetcher
         console_cli
