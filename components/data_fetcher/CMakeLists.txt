@@ -7,5 +7,4 @@ idf_component_register(
     cache_fs
     wifi_manager
     log
-    smw_http
 )

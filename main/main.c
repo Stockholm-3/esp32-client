@@ -25,7 +25,6 @@
 #include "screen_timeout.h"
 #include "settings_manager.h"
 #include "smw.h"
-#include "smw_http.h"
 #include "squareline/screens/ui_scr_home.h"
 #include "time_manager.h"
 #include "ui.h"
@@ -55,7 +54,12 @@ static Bme280Reading g_bme_reading = {0};
 static volatile bool g_bme_updated = false;
 /** @brief Tracks whether BME280 was present in the last check. */
 static bool g_bme_was_present = false;
-/** @brief Set to true after first successful time sync to rebuild weather URL once. */
+/**
+ * @brief Set to true after the first successful time sync.
+ *
+ * Used to rebuild the weather_min URL with the correct past_hours offset once
+ * wall-clock time is known, then trigger an immediate re-fetch.
+ */
 static bool g_time_synced = false;
 
 static char g_s_elpris_url[256];
@@ -76,14 +80,10 @@ static SmwTask g_smw_tasks[SMW_MAX_TASKS];
 uint32_t get_system_ms(void) { return (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS); }
 
 static void smw_worker_task(void* ctx) {
+    (void)ctx;
     ESP_LOGI("SMW_TASK", "State machine worker task started.");
-
     while (1) {
-        // Run the state machine process step
         smw_process(&g_smw_worker, get_system_ms());
-
-        // Poll at a steady, responsive 50ms interval
-        // This gives your network driver plenty of CPU breathing room
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
@@ -107,9 +107,6 @@ static bool bme280_probe_i2c(void) {
 
 /**
  * @brief Callback invoked when a new BME280 sample is ready.
- *
- * @param reading   Pointer to the latest sensor reading (temperature, pressure, humidity).
- * @param user_ctx  User-supplied context pointer (unused).
  */
 static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
     (void)user_ctx;
@@ -122,15 +119,11 @@ static void on_bme280_sample(const Bme280Reading* reading, void* user_ctx) {
 
 /**
  * @brief Callback invoked when the user submits Wi-Fi credentials via the popup.
- *
- * @param ssid      Network SSID to connect to.
- * @param password  Network password.
  */
 static void on_wifi_connect(const char* ssid, const char* password) {
-    strncpy(g_current_ssid, ssid, 32);
-    g_current_ssid[32] = '\0';
+    strncpy(g_current_ssid, ssid, sizeof(g_current_ssid) - 1);
+    g_current_ssid[sizeof(g_current_ssid) - 1] = '\0';
     if (wifi_manager_change_network(ssid, password) != 0) {
-        // Manager not yet initialized (first boot, no saved credentials) — start it, then connect.
         wifi_manager_start(NULL);
         wifi_manager_change_network(ssid, password);
     }
@@ -139,24 +132,19 @@ static void on_wifi_connect(const char* ssid, const char* password) {
 
 /**
  * @brief Callback invoked on Wi-Fi manager state changes.
- *
- * Safely initializes time manager on first connection and resyncs on reconnection.
- *
- * @param state   New connection state.
- * @param reason  Failure reason (AUTH, NO_AP, or UNKNOWN).
  */
 static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) {
     ui_binder_update_wifi_status(state);
     data_fetcher_notify_wifi_state(state);
+
     if (state == WIFI_MANAGER_STATE_CONNECTED) {
         wifi_popup_set_connected_ssid(g_current_ssid);
         wifi_popup_notify_result(WIFI_POPUP_RESULT_CONNECTED);
         ui_binder_update_wifi_name(g_current_ssid);
-
         time_manager_init(NULL);
     }
-    if (state == WIFI_MANAGER_STATE_CONNECTED_WITH_DNS) {
 
+    if (state == WIFI_MANAGER_STATE_CONNECTED_WITH_DNS) {
         if (settings_manager_get_local_web_client_enabled()) {
             loc_server_start();
         }
@@ -172,7 +160,9 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
         }
 #endif
         ui_binder_update_local_ip(ip_str);
-    } else if (state == WIFI_MANAGER_STATE_FAILED) {
+    }
+
+    if (state == WIFI_MANAGER_STATE_FAILED) {
         wifi_popup_set_connected_ssid("");
         WifiPopupConnectResult r;
         if (reason == WIFI_MANAGER_FAIL_REASON_AUTH) {
@@ -186,6 +176,7 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     } else if (state == WIFI_MANAGER_STATE_DISCONNECTED) {
         wifi_popup_set_connected_ssid("");
     }
+
     loc_server_notify_wifi_state(state);
 }
 
@@ -247,19 +238,9 @@ static void on_data_cached(const FetchDescriptor* desc, void* user_ctx) {
 
 /**
  * @brief Application main function (FreeRTOS entry point).
- *
- * @details Initialisation sequence:
- *  1. NVS Flash
- *  2. Network interface and default event loop
- *  3. Display (LVGL)
- *  4. BME280 sensor (non-fatal if absent)
- *  5. UI, screen timeout, ui_binder
- *  6. Settings manager
- *  7. Wi-Fi manager (restores saved credentials)
- *  8. SMW scheduler
- *  9. Main loop (1 s tick: SMW processing, clock update, BME280 UI refresh)
  */
 void app_main(void) { // NOLINT(readability-function-size,readability-function-cognitive-complexity)
+    /* ---- NVS ---- */
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -267,11 +248,12 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     }
     ESP_ERROR_CHECK(ret);
 
+    /* ---- Filesystem / cache ---- */
     ESP_ERROR_CHECK(fs_mount_littlefs("storage", "/storage", true));
+    CacheConfig cache_cfg = cache_fs_config("/storage/cache", 3600);
+    cache_init(&cache_cfg);
 
-    CacheConfig cfg = cache_fs_config("/storage/cache", 3600);
-    cache_init(&cfg);
-
+    /* ---- Network stack ---- */
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
@@ -280,28 +262,36 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     mdns_instance_name_set("ESP32 Settings");
 #endif
 
+    /* ---- HTTP client (must be up before data_fetcher_init) ---- */
+    HttpClientConfig http_cfg = {0};
+    ESP_ERROR_CHECK_WITHOUT_ABORT(http_client_init(&http_cfg));
+
+    /* ---- Display ---- */
     lv_display_t* disp = NULL;
     lv_indev_t* touch  = NULL;
     ESP_ERROR_CHECK(display_init(&disp, &touch));
     ESP_LOGI(g_tag, "Display initialized");
 
+    /* ---- BME280 (non-fatal) ---- */
     esp_err_t bme_err =
         bme280_sensor_init_with_task(ws7b_board_get_i2c_bus(), on_bme280_sample, NULL);
     if (bme_err != ESP_OK) {
         ESP_LOGW(g_tag, "BME280 not found, skipping (%s)", esp_err_to_name(bme_err));
     } else {
+        g_bme_was_present = true;
         ESP_LOGI(g_tag, "BME280 initialized");
     }
 
+    /* ---- UI ---- */
     if (!display_lvgl_lock(-1)) {
         ESP_LOGE(g_tag, "Failed to acquire LVGL lock");
         return;
     }
     ui_build(disp);
     ScreenTimeoutConfig timeout_cfg = {
-        .dim_timeout_seconds           = (5 * 60 * 50U) / 100U, // 150s — matches UI minimum (5 min)
-        .screensaver_timeout_seconds   = (5 * 60 * 75U) / 100U, // 225s
-        .backlight_off_timeout_seconds = 5 * 60,                // 300s
+        .dim_timeout_seconds           = (5 * 60 * 50U) / 100U,
+        .screensaver_timeout_seconds   = (5 * 60 * 75U) / 100U,
+        .backlight_off_timeout_seconds = 5 * 60,
     };
     screen_timeout_init(&timeout_cfg);
     display_set_activity_callback(screen_timeout_record_activity);
@@ -312,29 +302,24 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     clock_init();
     display_lvgl_unlock();
 
+    /* ---- Settings / location server ---- */
     settings_manager_init();
     loc_server_init();
 
+    /* ---- Wi-Fi ---- */
     wifi_popup_on_connect(on_wifi_connect);
     wifi_manager_register_callback(on_wifi_state);
     ui_binder_on_ap_enabled_changed2(on_ap_toggled);
 
 #ifndef CONFIG_IDF_TARGET_LINUX
     const char* mdns_host = settings_manager_get_mdns_hostname();
-    if (mdns_host[0] != '\0') {
-        mdns_hostname_set(mdns_host);
-    } else {
-        mdns_hostname_set("esp32-client");
-    }
+    mdns_hostname_set(mdns_host[0] != '\0' ? mdns_host : "esp32-client");
 
     if (settings_manager_get_ap_enabled()) {
         wifi_manager_set_ap_enabled(true);
         loc_server_start();
     }
 #endif
-
-    HttpClientConfig http_cfg = {0};
-    http_client_init(&http_cfg);
 
     bool lwc_enabled           = settings_manager_get_local_web_client_enabled();
     WifiManagerConfig wifi_cfg = {0};
@@ -349,12 +334,11 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     wifi_manager_start((int)lwc_enabled ? &wifi_cfg : NULL);
     wifi_manager_connect_to_saved_wifi();
 
+    /* ---- SMW scheduler ---- */
     smw_init(&g_smw_worker, g_smw_tasks, SMW_MAX_TASKS);
-
     BaseType_t task_ret = xTaskCreate(smw_worker_task, "smw_worker_task", 4096, NULL, 5, NULL);
-
     if (task_ret != pdPASS) {
-        ESP_LOGE("MAIN", "Failed to create SMW background task!");
+        ESP_LOGE(g_tag, "Failed to create SMW background task!");
     }
 
     console_cli_start();
@@ -366,10 +350,8 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
              "https://just-dev.freeduck.dev/v1/elpris?price=%s", price_zone);
     snprintf(g_s_weather_min_url, sizeof(g_s_weather_min_url),
              "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=24", city);
-
     snprintf(g_s_weather_hr_url, sizeof(g_s_weather_hr_url),
              "https://just-dev.freeduck.dev/v1/hourly?city=%s&hours=168", city);
-
     snprintf(g_s_energy_plan_url, sizeof(g_s_energy_plan_url),
              "https://just-dev.freeduck.dev/v1/get_plan?price=%s&city=%s", price_zone, city);
 
@@ -381,7 +363,6 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .schedule.type       = FETCH_SCHEDULE_DAILY,
         .schedule.daily_hour = 14,
         .fetch_on_startup    = true,
-        .startup_delay_ms    = 0U,
     };
 
     g_s_fetch_descs[1] = (FetchDescriptor){
@@ -392,7 +373,6 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
         .fetch_on_startup      = true,
-        .startup_delay_ms      = 0U,
     };
 
     g_s_fetch_descs[2] = (FetchDescriptor){
@@ -403,7 +383,6 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
         .fetch_on_startup      = true,
-        .startup_delay_ms      = 0U,
     };
 
     g_s_fetch_descs[3] = (FetchDescriptor){
@@ -414,7 +393,6 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
         .fetch_on_startup      = true,
-        .startup_delay_ms      = 0U,
     };
 
     DataFetcherConfig df_cfg = data_fetcher_default_config();
@@ -427,40 +405,20 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     settings_manager_on_location_saved(on_location_saved);
 #endif
 
-    if (display_lvgl_lock(-1)) {
-        void* cached_data = NULL;
-        size_t cached_len = 0;
-        if (cache_get_alloc("fetch:elpris", &cached_data, &cached_len) == CACHE_OK) {
-            ui_tab_elpris_handle_server_response((const char*)cached_data, cached_len);
-            cache_free(cached_data);
-        }
-        cached_data = NULL;
-        cached_len  = 0;
-        if (cache_get_alloc("fetch:weather_min", &cached_data, &cached_len) == CACHE_OK) {
-            ui_tab_weather_handle_server_response((const char*)cached_data, cached_len, 0);
-            cache_free(cached_data);
-        }
-        cached_data = NULL;
-        cached_len  = 0;
-        if (cache_get_alloc("fetch:weather_hr", &cached_data, &cached_len) == CACHE_OK) {
-            ui_tab_weather_handle_server_response((const char*)cached_data, cached_len, 1);
-            cache_free(cached_data);
-        }
-        display_lvgl_unlock();
-    }
-
+    /* ---- Main loop (1 s tick) ---- */
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
 
+        /* Clock and time-sync URL fixup */
         struct tm timeinfo;
-        bool time_is_valid = time_manager_get_time(&timeinfo);
-        if (time_is_valid) {
+        if (time_manager_get_time(&timeinfo)) {
             if (!g_time_synced) {
                 g_time_synced = true;
+                data_fetcher_notify_time_sync();
                 snprintf(g_s_weather_min_url, sizeof(g_s_weather_min_url),
                          "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=%d",
                          city, timeinfo.tm_hour + 1);
-                ESP_LOGI(g_tag, "Time synced, updating weather_min URL with past_hours=%d",
+                ESP_LOGI(g_tag, "Time synced — updating weather_min URL (past_hours=%d)",
                          timeinfo.tm_hour + 1);
                 data_fetcher_request_now("weather_min");
             }
@@ -471,26 +429,24 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
             }
         }
 
-        // Handle BME280 hot-plug: check if sensor presence changed
+        /* BME280 hot-plug detection */
         bool bme_present = bme280_probe_i2c();
         if ((int)bme_present && !g_bme_was_present) {
-            // Sensor just connected
-            ESP_LOGI(g_tag, "BME280 detected, reinitializing...");
+            ESP_LOGI(g_tag, "BME280 detected — reinitializing");
             bme280_sensor_deinit();
-            esp_err_t err =
-                bme280_sensor_init_with_task(ws7b_board_get_i2c_bus(), on_bme280_sample, NULL);
-            if (err != ESP_OK) {
-                ESP_LOGW(g_tag, "BME280 reinit failed: %s", esp_err_to_name(err));
-            } else {
+            if (bme280_sensor_init_with_task(ws7b_board_get_i2c_bus(), on_bme280_sample, NULL) ==
+                ESP_OK) {
                 g_bme_was_present = true;
+            } else {
+                ESP_LOGW(g_tag, "BME280 reinit failed");
             }
         } else if (!bme_present && (int)g_bme_was_present) {
-            // Sensor just disconnected
             ESP_LOGI(g_tag, "BME280 disconnected");
             bme280_sensor_deinit();
             g_bme_was_present = false;
         }
 
+        /* Dispatch pending BME280 reading to UI */
         if (g_bme_updated) {
             g_bme_updated = false;
             ui_binder_update_bme280(&g_bme_reading);
