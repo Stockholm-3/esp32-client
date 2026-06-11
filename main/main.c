@@ -43,6 +43,15 @@
 /** @brief Maximum number of tasks in the SMW scheduler queue. */
 #define SMW_MAX_TASKS 100
 
+/**
+ * @brief Base URL for all API requests (no trailing slash).
+ *
+ * Switch between environments by changing this single define:
+ *   - Production:  "https://just-dev.freeduck.dev"
+ *   - Local:       "http://localhost:8080"
+ */
+#define API_BASE_URL "http://192.168.1.18:10680"
+
 /** @brief Log tag for this module. */
 static const char* g_tag = "main";
 
@@ -228,7 +237,7 @@ static char* build_elpris_url(const FetchDescriptor* desc, char* url_buf, size_t
     (void)desc;
     (void)ctx;
     const char* zone = settings_manager_get_price_zone_as_string();
-    snprintf(url_buf, url_buf_size, "https://just-dev.freeduck.dev/v1/elpris?price=%s", zone);
+    snprintf(url_buf, url_buf_size, API_BASE_URL "/v1/elpris?price=%s", zone);
     snprintf(key_buf, key_buf_size, "fetch:elpris:%s", zone);
     return url_buf;
 }
@@ -248,7 +257,7 @@ static char* build_weather_min_url(const FetchDescriptor* desc, char* url_buf, s
 
     const char* city = settings_manager_get_location();
     snprintf(url_buf, url_buf_size,
-             "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=%d", city,
+             API_BASE_URL "/v1/minutely?city=%s&hours=24&past_hours=%d", city,
              tm.tm_hour + 1);
     snprintf(key_buf, key_buf_size, "fetch:weather_min:%s", city);
     return url_buf;
@@ -259,8 +268,7 @@ static char* build_weather_hr_url(const FetchDescriptor* desc, char* url_buf, si
     (void)desc;
     (void)ctx;
     const char* city = settings_manager_get_location();
-    snprintf(url_buf, url_buf_size, "https://just-dev.freeduck.dev/v1/hourly?city=%s&hours=168",
-             city);
+    snprintf(url_buf, url_buf_size, API_BASE_URL "/v1/hourly?city=%s&hours=168", city);
     snprintf(key_buf, key_buf_size, "fetch:weather_hr:%s", city);
     return url_buf;
 }
@@ -271,8 +279,7 @@ static char* build_energy_plan_url(const FetchDescriptor* desc, char* url_buf, s
     (void)ctx;
     const char* zone = settings_manager_get_price_zone_as_string();
     const char* city = settings_manager_get_location();
-    snprintf(url_buf, url_buf_size, "https://just-dev.freeduck.dev/v1/get_plan?price=%s&city=%s",
-             zone, city);
+    snprintf(url_buf, url_buf_size, API_BASE_URL "/v1/get_plan?price=%s&city=%s", zone, city);
     snprintf(key_buf, key_buf_size, "fetch:energy_plan:%s:%s", zone, city);
     return url_buf;
 }
