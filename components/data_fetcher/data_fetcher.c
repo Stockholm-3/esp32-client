@@ -55,7 +55,7 @@ static const char* g_tag = "data_fetcher";
  * ------------------------------------------------------------------------- */
 
 typedef struct {
-    FetchDescriptor* desc;  /* Mutable so we can update resolved_cache_key */
+    FetchDescriptor* desc; /* Mutable so we can update resolved_cache_key */
     volatile bool force_now;
 
     /*
@@ -64,7 +64,7 @@ typedef struct {
      * For dynamic descriptors it points at desc->url_buf after each successful resolution.
      * Using this in do_fetch / serve_from_cache_if_fresh ensures URL always reflects
      * the current settings.
-     * 
+     *
      * NOTE: resolved_cache_key is now stored in desc->resolved_cache_key instead,
      * so callbacks can access it.
      */
@@ -175,7 +175,7 @@ static bool resolve(FetchJob* job) {
 
     if (!d->build_url) {
         /* Static descriptor — pointers never change. */
-        job->resolved_url = d->url;
+        job->resolved_url     = d->url;
         d->resolved_cache_key = d->cache_key;
         return true;
     }
@@ -186,7 +186,7 @@ static bool resolve(FetchJob* job) {
         return false; /* not ready yet */
     }
 
-    job->resolved_url = d->url_buf;
+    job->resolved_url     = d->url_buf;
     d->resolved_cache_key = d->cache_key_buf;
     return true;
 }
@@ -230,7 +230,7 @@ static bool serve_from_cache_if_fresh(FetchJob* job) {
  *
  * Returns false on network/HTTP error (triggers retry) or if URL not ready.
  * Returns true on success OR deliberate discard by on_transform (no retry).
- * 
+ *
  * IMPORTANT: Only cache on success. Failed requests (HTTP error, connection
  * error, empty body) must return false so they retry and don't leave stale
  * data in cache. Only successful responses with data are cached.
@@ -294,8 +294,8 @@ static bool do_fetch(FetchJob* job) {
  * ------------------------------------------------------------------------- */
 
 static void fetch_task(void* arg) {
-    FetchJob* job            = (FetchJob*)arg;
-    FetchDescriptor* d       = job->desc;
+    FetchJob* job      = (FetchJob*)arg;
+    FetchDescriptor* d = job->desc;
 
     bool first_run         = true;
     uint32_t last_fetch_ms = 0;
