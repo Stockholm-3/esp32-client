@@ -69,8 +69,8 @@ lv_obj_t* ui_lbl_settings_ip    = NULL; /**< Read-only label displaying the curr
  */
 void ui_event_ta_locationinput(lv_event_t* e) {
     lv_event_code_t code = lv_event_get_code(e);
-    if (code == LV_EVENT_FOCUSED)   show_keyboard(e);
-    if (code == LV_EVENT_DEFOCUSED) hide_keyboard(e);
+    if (code == LV_EVENT_FOCUSED)                              show_keyboard(e);
+    if (code == LV_EVENT_DEFOCUSED || code == LV_EVENT_READY) hide_keyboard(e);
 }
 
 // Returns a row panel with title+subtitle on the left.
