@@ -80,6 +80,12 @@ typedef struct {
  *   caller-owned storage that outlives the fetcher (stack of a never-returning
  *   task, or static/global memory). The static .url and .cache_key fields are
  *   unused when build_url is set.
+ *
+ * IMPORTANT: resolved_cache_key is set by the data_fetcher on each fetch.
+ *   For dynamic descriptors, it points to the most recent cache key written
+ *   by build_url. For static descriptors, it points to .cache_key.
+ *   Callbacks MUST use resolved_cache_key, not .cache_key, to ensure they
+ *   access the correct cached data.
  */
 typedef struct FetchDescriptor {
     const char* id;          /**< Short identifier used for logs and request_now(). */
@@ -109,6 +115,9 @@ typedef struct FetchDescriptor {
     char*  cache_key_buf;     /**< Buffer for the dynamic cache key. */
     size_t cache_key_buf_size;/**< Size of cache_key_buf. */
     void*  build_url_ctx;     /**< Passed through to build_url unchanged. */
+
+    /* Resolved at runtime by the fetcher. Callbacks must use this, not .cache_key */
+    const char* resolved_cache_key;
 } FetchDescriptor;
 
 /* ---------------------------------------------------------------------------

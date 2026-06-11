@@ -55,19 +55,20 @@ static const char* g_tag = "data_fetcher";
  * ------------------------------------------------------------------------- */
 
 typedef struct {
-    const FetchDescriptor* desc;
+    FetchDescriptor* desc;  /* Mutable so we can update resolved_cache_key */
     volatile bool force_now;
 
     /*
-     * Resolved URL and cache key from the most recent build_url call.
-     * For static descriptors these point directly at desc->url / desc->cache_key
-     * and are never written. For dynamic descriptors they point at the
-     * descriptor's url_buf / cache_key_buf after each successful resolution.
-     * Using these in do_fetch / serve_from_cache_if_fresh ensures URL and key
-     * are always in sync and always reflect the current settings.
+     * Resolved URL from the most recent build_url call.
+     * For static descriptors this points directly at desc->url and is never written.
+     * For dynamic descriptors it points at desc->url_buf after each successful resolution.
+     * Using this in do_fetch / serve_from_cache_if_fresh ensures URL always reflects
+     * the current settings.
+     * 
+     * NOTE: resolved_cache_key is now stored in desc->resolved_cache_key instead,
+     * so callbacks can access it.
      */
     const char* resolved_url;
-    const char* resolved_key;
 } FetchJob;
 
 /* ---------------------------------------------------------------------------
@@ -162,21 +163,20 @@ static uint32_t secs_until_daily_hour(uint8_t target_hour) {
  * URL + cache-key resolution
  *
  * For dynamic descriptors, calls build_url() which writes both the URL and
- * the cache key into their respective buffers. Stores the results in the job
- * so they remain consistent for the duration of one fetch window.
+ * the cache key into their respective buffers. Updates job->resolved_url and
+ * desc->resolved_cache_key so both are always in sync.
  *
- * Returns true if resolution succeeded (job->resolved_url and
- * job->resolved_key are valid). Returns false if the descriptor is not ready
- * yet (build_url returned NULL) — callers should sleep and retry.
+ * Returns true if resolution succeeded. Returns false if the descriptor is not
+ * ready yet (build_url returned NULL) — callers should sleep and retry.
  * ------------------------------------------------------------------------- */
 
 static bool resolve(FetchJob* job) {
-    const FetchDescriptor* d = job->desc;
+    FetchDescriptor* d = job->desc;
 
     if (!d->build_url) {
         /* Static descriptor — pointers never change. */
         job->resolved_url = d->url;
-        job->resolved_key = d->cache_key;
+        d->resolved_cache_key = d->cache_key;
         return true;
     }
 
@@ -187,7 +187,7 @@ static bool resolve(FetchJob* job) {
     }
 
     job->resolved_url = d->url_buf;
-    job->resolved_key = d->cache_key_buf;
+    d->resolved_cache_key = d->cache_key_buf;
     return true;
 }
 
@@ -206,7 +206,7 @@ static bool serve_from_cache_if_fresh(FetchJob* job) {
 
     void* data = NULL;
     size_t len = 0;
-    int rc     = cache_get_alloc(job->resolved_key, &data, &len);
+    int rc     = cache_get_alloc(job->desc->resolved_cache_key, &data, &len);
 
     if (rc == CACHE_OK) {
         ESP_LOGI(g_tag, "[%s] Cache hit — %zu B fresh, skipping network fetch", job->desc->id, len);
@@ -230,6 +230,10 @@ static bool serve_from_cache_if_fresh(FetchJob* job) {
  *
  * Returns false on network/HTTP error (triggers retry) or if URL not ready.
  * Returns true on success OR deliberate discard by on_transform (no retry).
+ * 
+ * IMPORTANT: Only cache on success. Failed requests (HTTP error, connection
+ * error, empty body) must return false so they retry and don't leave stale
+ * data in cache. Only successful responses with data are cached.
  * ------------------------------------------------------------------------- */
 
 static bool do_fetch(FetchJob* job) {
@@ -247,7 +251,7 @@ static bool do_fetch(FetchJob* job) {
         ESP_LOGE(g_tag, "[%s] http_client_perform failed", job->desc->id);
         return false;
     }
-    if (resp.status < 200 || resp.status >= 300) {
+    if (!(resp.status >= 200 && resp.status <= 299)) {
         ESP_LOGE(g_tag, "[%s] HTTP %d", job->desc->id, resp.status);
         free(resp.buffer);
         return false;
@@ -269,7 +273,7 @@ static bool do_fetch(FetchJob* job) {
         }
     }
 
-    int rc = cache_put(job->resolved_key, buf, len, job->desc->cache_ttl_sec);
+    int rc = cache_put(job->desc->resolved_cache_key, buf, len, job->desc->cache_ttl_sec);
     free(buf);
 
     if (rc != CACHE_OK) {
@@ -291,7 +295,7 @@ static bool do_fetch(FetchJob* job) {
 
 static void fetch_task(void* arg) {
     FetchJob* job            = (FetchJob*)arg;
-    const FetchDescriptor* d = job->desc;
+    FetchDescriptor* d       = job->desc;
 
     bool first_run         = true;
     uint32_t last_fetch_ms = 0;
@@ -441,10 +445,9 @@ int data_fetcher_init(const DataFetcherConfig* config) {
     g_job_count = config->descriptor_count;
 
     for (size_t i = 0; i < g_job_count; i++) {
-        g_jobs[i].desc         = &config->descriptors[i];
+        g_jobs[i].desc         = (FetchDescriptor*)&config->descriptors[i];
         g_jobs[i].force_now    = false;
         g_jobs[i].resolved_url = NULL;
-        g_jobs[i].resolved_key = NULL;
 
         char name[16];
         snprintf(name, sizeof(name), "df_%s", g_jobs[i].desc->id);

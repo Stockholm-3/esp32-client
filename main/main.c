@@ -200,12 +200,19 @@ static void on_data_cached(const FetchDescriptor* desc, void* user_ctx) {
 
     void* data = NULL;
     size_t len = 0;
-    if (cache_get_alloc(desc->cache_key, &data, &len) != CACHE_OK) {
+    if (cache_get_alloc(desc->resolved_cache_key, &data, &len) != CACHE_OK) {
         return;
     }
 
     ESP_LOGI(g_tag, "[%s] Fresh data ready — %zu bytes", desc->id, len);
     ESP_LOGI(g_tag, "[%s] Preview: %.200s%s", desc->id, (const char*)data, len > 200U ? "…" : "");
+
+    /* Acquire LVGL lock with longer timeout since we're in a background task */
+    if (!display_lvgl_lock(1000)) {
+        ESP_LOGW(g_tag, "[%s] Failed to acquire LVGL lock for UI update", desc->id);
+        cache_free(data);
+        return;
+    }
 
     if (strcmp(desc->id, "weather_min") == 0) {
         ui_binder_update_weather_min((const char*)data, len);
@@ -215,6 +222,7 @@ static void on_data_cached(const FetchDescriptor* desc, void* user_ctx) {
         ui_binder_update_elpris((const char*)data, len);
     }
 
+    display_lvgl_unlock();
     cache_free(data);
 }
 
@@ -256,9 +264,8 @@ static char* build_weather_min_url(const FetchDescriptor* desc, char* url_buf, s
     }
 
     const char* city = settings_manager_get_location();
-    snprintf(url_buf, url_buf_size,
-             API_BASE_URL "/v1/minutely?city=%s&hours=24&past_hours=%d", city,
-             tm.tm_hour + 1);
+    snprintf(url_buf, url_buf_size, API_BASE_URL "/v1/minutely?city=%s&hours=24&past_hours=%d",
+             city, tm.tm_hour + 1);
     snprintf(key_buf, key_buf_size, "fetch:weather_min:%s", city);
     return url_buf;
 }
@@ -304,6 +311,7 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     if (cleaned > 0) {
         ESP_LOGI(g_tag, "Cache: removed %d expired entry/entries", cleaned);
     }
+    cache_purge_all();
 
     /* ---- Network stack ---- */
     ESP_ERROR_CHECK(esp_netif_init());
