@@ -61,46 +61,54 @@ typedef struct {
 /**
  * @brief Describes one HTTP resource to fetch on a schedule.
  *
- * URL resolution (evaluated just before every fetch attempt):
+ * Static descriptors (build_url == NULL):
+ *   .url and .cache_key are used as-is and must remain valid for the
+ *   lifetime of the fetcher.
  *
- *   If build_url is NULL:
- *     The static @p url pointer is used as-is (must remain valid for the
- *     lifetime of the fetcher).
+ * Dynamic descriptors (build_url != NULL):
+ *   build_url() is called just before every fetch attempt (and before cache
+ *   checks on startup). It must write a NUL-terminated URL into url_buf and
+ *   a NUL-terminated cache key into cache_key_buf, then return url_buf.
+ *   Returning NULL means "not ready yet" — the task sleeps POLL_MS and
+ *   retries, making no network attempt.
  *
- *   If build_url is non-NULL:
- *     build_url(desc, url_buf, url_buf_size, ctx) is called. It must write a
- *     NUL-terminated URL into url_buf and return url_buf, or return NULL if
- *     the URL cannot be determined yet (e.g. clock not synced). Returning NULL
- *     causes the task to sleep POLL_MS and retry — no network attempt is made.
+ *   Combining URL and key in one callback means both are always computed from
+ *   the same live settings values, so a city change takes effect on the very
+ *   next fetch without any restart or manual invalidation.
  *
- *     url_buf and url_buf_size must point to caller-owned storage that outlives
- *     the fetcher (stack of a never-returning task, or static/global memory).
- *     The static @p url field is unused when build_url is set.
+ *   url_buf, url_buf_size, cache_key_buf, cache_key_buf_size must point to
+ *   caller-owned storage that outlives the fetcher (stack of a never-returning
+ *   task, or static/global memory). The static .url and .cache_key fields are
+ *   unused when build_url is set.
  */
 typedef struct FetchDescriptor {
-    const char* id;          /**< Short identifier, used for logs and request_now(). */
-    const char* url;         /**< Static URL, used when build_url is NULL. */
-    const char* cache_key;   /**< Cache key, e.g. "fetch:weather_min". */
+    const char* id;          /**< Short identifier used for logs and request_now(). */
+    const char* url;         /**< Static URL — used when build_url is NULL. */
+    const char* cache_key;   /**< Static cache key — used when build_url is NULL. */
     uint32_t    cache_ttl_sec;
 
     FetchSchedule schedule;
-    bool          fetch_on_startup; /**< Fetch (or serve from cache) immediately after gates open. */
+    bool          fetch_on_startup; /**< Fetch (or serve from cache) on first gate-open. */
 
     /**
-     * @brief Optional dynamic URL builder.
+     * @brief Optional dynamic URL + cache-key builder.
      *
-     * Called just before each fetch attempt (and before cache checks on
-     * startup). Write the URL into @p buf (size @p buf_size) and return @p buf.
-     * Return NULL to defer — the task will sleep and retry.
+     * Write the URL into @p url_buf (size @p url_buf_size) and the cache key
+     * into @p key_buf (size @p key_buf_size). Return @p url_buf on success,
+     * or NULL to defer (clock not synced, settings not ready, etc.).
      *
      * @p ctx receives build_url_ctx from this descriptor.
      */
     char* (*build_url)(const struct FetchDescriptor* desc,
-                       char* buf, size_t buf_size,
+                       char* url_buf,  size_t url_buf_size,
+                       char* key_buf,  size_t key_buf_size,
                        void* ctx);
-    char*  url_buf;      /**< Buffer passed to build_url. */
-    size_t url_buf_size; /**< Size of url_buf. */
-    void*  build_url_ctx;
+
+    char*  url_buf;           /**< Buffer for the dynamic URL. */
+    size_t url_buf_size;      /**< Size of url_buf. */
+    char*  cache_key_buf;     /**< Buffer for the dynamic cache key. */
+    size_t cache_key_buf_size;/**< Size of cache_key_buf. */
+    void*  build_url_ctx;     /**< Passed through to build_url unchanged. */
 } FetchDescriptor;
 
 /* ---------------------------------------------------------------------------
