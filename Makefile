@@ -301,6 +301,8 @@ docs-open:
 	@echo "Documentation opened in default browser."
 
 # --------------------------------------------------------------------------
+# NOTE:LEGACY! WE CAN JUST USE 'make monitor' for cli interface!
+#
 # SERIAL INTERFACE
 #
 #  USB port  (Espressif JTAG) — normal daily use:
