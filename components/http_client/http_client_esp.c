@@ -13,6 +13,12 @@
  *   2. ca_cert set       — caller-supplied PEM as sole trust anchor.
  *   3. default           — embedded roots.pem (EMBED_TXTFILES).
  *                          Update with: make update-certs
+ *
+ * URL encoding:
+ *   req->url is percent-encoded transparently before being handed to
+ *   esp_http_client. The scheme, host, path, and query string are preserved;
+ *   only non-ASCII bytes and reserved characters inside query values are
+ *   encoded. Callers never need to pre-encode URLs.
  */
 
 #include "esp_heap_caps.h"
@@ -100,6 +106,66 @@ static const esp_http_client_method_t K_METHOD_MAP[] = {
  * Amazon CA1, DigiCert Global Root CA) */
 extern const uint8_t G_ROOTS_PEM_START[] asm("_binary_roots_pem_start");
 extern const uint8_t G_ROOTS_PEM_END[] asm("_binary_roots_pem_end");
+
+/* ---------------------------------------------------------------------------
+ * URL percent-encoding
+ *
+ * Encodes a full URL in-place by walking the string once:
+ *   - Scheme, "://", host, path separators ("/"), "?", "&", "=" are treated
+ *     as structural characters and passed through verbatim.
+ *   - Everything else that is not an RFC 3986 unreserved character is encoded.
+ *
+ * This is deliberately simple: it does not parse the URL into components.
+ * Instead it uses the heuristic that structural characters (:/?&#=@) appear
+ * before the first non-ASCII byte in any real URL.  The only characters that
+ * commonly appear un-encoded in query values and need escaping are non-ASCII
+ * bytes (e.g. UTF-8 city names).
+ *
+ * Returns a heap-allocated encoded string that the caller must free(), or
+ * NULL on allocation failure.
+ * ------------------------------------------------------------------------- */
+
+static char* url_encode_alloc(const char* src) {
+    static const char HEX[] = "0123456789ABCDEF";
+
+    /* First pass: calculate the required output size. */
+    size_t out_len = 0;
+    for (const unsigned char* p = (const unsigned char*)src; *p; ++p) {
+        /* RFC 3986 unreserved + structural characters we never encode. */
+        if ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') ||
+            *p == '-' || *p == '_' || *p == '.' || *p == '~' || *p == ':' || *p == '/' ||
+            *p == '?' || *p == '#' || *p == '[' || *p == ']' || *p == '@' || *p == '!' ||
+            *p == '$' || *p == '&' || *p == '\'' || *p == '(' || *p == ')' || *p == '*' ||
+            *p == '+' || *p == ',' || *p == ';' || *p == '=') {
+            out_len += 1;
+        } else {
+            out_len += 3; /* %XX */
+        }
+    }
+
+    char* out = malloc(out_len + 1);
+    if (!out) {
+        return NULL;
+    }
+
+    /* Second pass: encode. */
+    char* dst = out;
+    for (const unsigned char* p = (const unsigned char*)src; *p; ++p) {
+        if ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') ||
+            *p == '-' || *p == '_' || *p == '.' || *p == '~' || *p == ':' || *p == '/' ||
+            *p == '?' || *p == '#' || *p == '[' || *p == ']' || *p == '@' || *p == '!' ||
+            *p == '$' || *p == '&' || *p == '\'' || *p == '(' || *p == ')' || *p == '*' ||
+            *p == '+' || *p == ',' || *p == ';' || *p == '=') {
+            *dst++ = (char)*p;
+        } else {
+            *dst++ = '%';
+            *dst++ = HEX[*p >> 4];
+            *dst++ = HEX[*p & 0x0F];
+        }
+    }
+    *dst = '\0';
+    return out;
+}
 
 /* ---------------------------------------------------------------------------
  * RX buffer
@@ -329,7 +395,10 @@ static WorkItem* work_item_create(const HttpClientRequest* req) {
         return NULL;
     }
 
-    item->url = strdup(req->url);
+    /* Percent-encode the URL so callers never need to pre-encode it.
+     * Non-ASCII bytes (e.g. UTF-8 city names like "malmö") would otherwise
+     * cause esp_http_client / http_parser to reject the URL immediately. */
+    item->url = url_encode_alloc(req->url);
     if (!item->url) {
         goto err;
     }

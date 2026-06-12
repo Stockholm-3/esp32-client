@@ -43,6 +43,15 @@
 /** @brief Maximum number of tasks in the SMW scheduler queue. */
 #define SMW_MAX_TASKS 100
 
+/**
+ * @brief Base URL for all API requests (no trailing slash).
+ *
+ * Switch between environments by changing this single define:
+ *   - Production:  "https://just-dev.freeduck.dev"
+ *   - Local:       "http://localhost:8080"
+ */
+#define API_BASE_URL "http://192.168.1.18:10680"
+
 /** @brief Log tag for this module. */
 static const char* g_tag = "main";
 
@@ -57,16 +66,10 @@ static bool g_bme_was_present = false;
 /**
  * @brief Set to true after the first successful time sync.
  *
- * Used to rebuild the weather_min URL with the correct past_hours offset once
- * wall-clock time is known, then trigger an immediate re-fetch.
+ * Used to open the clock gate exactly once, which unblocks all fetch tasks
+ * that are waiting to make TLS connections.
  */
 static bool g_time_synced = false;
-
-static char g_s_elpris_url[256];
-static char g_s_weather_min_url[256];
-static char g_s_weather_hr_url[256];
-static char g_s_energy_plan_url[256];
-static FetchDescriptor g_s_fetch_descs[4];
 
 /** @brief SMW scheduler instance. */
 static SmwWorker g_smw_worker;
@@ -180,27 +183,6 @@ static void on_wifi_state(WifiManagerState state, WifiManagerFailReason reason) 
     loc_server_notify_wifi_state(state);
 }
 
-static void on_location_saved(const char* city) {
-    const char* price_zone = settings_manager_get_price_zone_as_string();
-    struct tm timeinfo;
-    bool time_valid = time_manager_get_time(&timeinfo);
-    if ((int)time_valid && (int)g_time_synced) {
-        snprintf(g_s_weather_min_url, sizeof(g_s_weather_min_url),
-                 "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=%d", city,
-                 timeinfo.tm_hour + 1);
-    } else {
-        snprintf(g_s_weather_min_url, sizeof(g_s_weather_min_url),
-                 "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=24", city);
-    }
-    snprintf(g_s_weather_hr_url, sizeof(g_s_weather_hr_url),
-             "https://just-dev.freeduck.dev/v1/hourly?city=%s&hours=168", city);
-    snprintf(g_s_energy_plan_url, sizeof(g_s_energy_plan_url),
-             "https://just-dev.freeduck.dev/v1/get_plan?price=%s&city=%s", price_zone, city);
-    data_fetcher_request_now("weather_min");
-    data_fetcher_request_now("weather_hr");
-    data_fetcher_request_now("energy_plan");
-}
-
 static void request_weather_now(void) {
     data_fetcher_request_now("weather_min");
     data_fetcher_request_now("weather_hr");
@@ -218,12 +200,19 @@ static void on_data_cached(const FetchDescriptor* desc, void* user_ctx) {
 
     void* data = NULL;
     size_t len = 0;
-    if (cache_get_alloc(desc->cache_key, &data, &len) != CACHE_OK) {
+    if (cache_get_alloc(desc->resolved_cache_key, &data, &len) != CACHE_OK) {
         return;
     }
 
     ESP_LOGI(g_tag, "[%s] Fresh data ready — %zu bytes", desc->id, len);
     ESP_LOGI(g_tag, "[%s] Preview: %.200s%s", desc->id, (const char*)data, len > 200U ? "…" : "");
+
+    /* Acquire LVGL lock with longer timeout since we're in a background task */
+    if (!display_lvgl_lock(1000)) {
+        ESP_LOGW(g_tag, "[%s] Failed to acquire LVGL lock for UI update", desc->id);
+        cache_free(data);
+        return;
+    }
 
     if (strcmp(desc->id, "weather_min") == 0) {
         ui_binder_update_weather_min((const char*)data, len);
@@ -233,7 +222,73 @@ static void on_data_cached(const FetchDescriptor* desc, void* user_ctx) {
         ui_binder_update_elpris((const char*)data, len);
     }
 
+    display_lvgl_unlock();
     cache_free(data);
+}
+
+/* ---------------------------------------------------------------------------
+ * Dynamic URL + cache-key builders
+ *
+ * All four builders read city and price_zone directly from settings_manager
+ * on every invocation. This means a settings change takes effect on the very
+ * next fetch — force_now or the normal schedule — without any restart.
+ *
+ * weather_min additionally reads the live clock for past_hours and returns
+ * NULL until the clock is synced (year < 2020), deferring the first fetch
+ * rather than fetching with a wrong value.
+ *
+ * The ctx argument is unused; settings are read via their own API.
+ * ------------------------------------------------------------------------- */
+
+static char* build_elpris_url(const FetchDescriptor* desc, char* url_buf, size_t url_buf_size,
+                              char* key_buf, size_t key_buf_size, void* ctx) {
+    (void)desc;
+    (void)ctx;
+    const char* zone = settings_manager_get_price_zone_as_string();
+    snprintf(url_buf, url_buf_size, API_BASE_URL "/v1/elpris?price=%s", zone);
+    snprintf(key_buf, key_buf_size, "fetch:elpris:%s", zone);
+    return url_buf;
+}
+
+static char* build_weather_min_url(const FetchDescriptor* desc, char* url_buf, size_t url_buf_size,
+                                   char* key_buf, size_t key_buf_size, void* ctx) {
+    (void)desc;
+    (void)ctx;
+
+    /* Treat anything before 2020 as "clock not synced yet" — defer. */
+    time_t t = time(NULL);
+    struct tm tm;
+    localtime_r(&t, &tm);
+    if (tm.tm_year + 1900 < 2020) {
+        return NULL;
+    }
+
+    const char* city = settings_manager_get_location();
+    snprintf(url_buf, url_buf_size, API_BASE_URL "/v1/minutely?city=%s&hours=24&past_hours=%d",
+             city, tm.tm_hour + 1);
+    snprintf(key_buf, key_buf_size, "fetch:weather_min:%s", city);
+    return url_buf;
+}
+
+static char* build_weather_hr_url(const FetchDescriptor* desc, char* url_buf, size_t url_buf_size,
+                                  char* key_buf, size_t key_buf_size, void* ctx) {
+    (void)desc;
+    (void)ctx;
+    const char* city = settings_manager_get_location();
+    snprintf(url_buf, url_buf_size, API_BASE_URL "/v1/hourly?city=%s&hours=168", city);
+    snprintf(key_buf, key_buf_size, "fetch:weather_hr:%s", city);
+    return url_buf;
+}
+
+static char* build_energy_plan_url(const FetchDescriptor* desc, char* url_buf, size_t url_buf_size,
+                                   char* key_buf, size_t key_buf_size, void* ctx) {
+    (void)desc;
+    (void)ctx;
+    const char* zone = settings_manager_get_price_zone_as_string();
+    const char* city = settings_manager_get_location();
+    snprintf(url_buf, url_buf_size, API_BASE_URL "/v1/get_plan?price=%s&city=%s", zone, city);
+    snprintf(key_buf, key_buf_size, "fetch:energy_plan:%s:%s", zone, city);
+    return url_buf;
 }
 
 /**
@@ -252,6 +307,11 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
     ESP_ERROR_CHECK(fs_mount_littlefs("storage", "/storage", true));
     CacheConfig cache_cfg = cache_fs_config("/storage/cache", 3600);
     cache_init(&cache_cfg);
+    int cleaned = cache_cleanup();
+    if (cleaned > 0) {
+        ESP_LOGI(g_tag, "Cache: removed %d expired entry/entries", cleaned);
+    }
+    cache_purge_all();
 
     /* ---- Network stack ---- */
     ESP_ERROR_CHECK(esp_netif_init());
@@ -343,87 +403,105 @@ void app_main(void) { // NOLINT(readability-function-size,readability-function-c
 
     console_cli_start();
 
-    const char* price_zone = settings_manager_get_price_zone_as_string();
-    const char* city       = settings_manager_get_location();
+    /* ---- Data fetcher descriptors ----
+     *
+     * All four descriptors use build_url callbacks that read city and
+     * price_zone directly from settings_manager on every invocation.
+     * This means a settings change (city, price zone) takes effect on the
+     * very next fetch — scheduled or force_now — without any restart.
+     *
+     * The URL and cache-key buffers live on the stack of app_main (which
+     * never returns), so pointers into them remain valid for the lifetime
+     * of the fetcher.
+     *
+     * weather_min also defers (returns NULL) until the clock is synced so
+     * past_hours is always correct on the first fetch.
+     */
+    char s_elpris_url[256];
+    char s_elpris_key[128];
+    char s_weather_min_url[256];
+    char s_weather_min_key[128];
+    char s_weather_hr_url[256];
+    char s_weather_hr_key[128];
+    char s_energy_plan_url[256];
+    char s_energy_plan_key[128];
 
-    snprintf(g_s_elpris_url, sizeof(g_s_elpris_url),
-             "https://just-dev.freeduck.dev/v1/elpris?price=%s", price_zone);
-    snprintf(g_s_weather_min_url, sizeof(g_s_weather_min_url),
-             "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=24", city);
-    snprintf(g_s_weather_hr_url, sizeof(g_s_weather_hr_url),
-             "https://just-dev.freeduck.dev/v1/hourly?city=%s&hours=168", city);
-    snprintf(g_s_energy_plan_url, sizeof(g_s_energy_plan_url),
-             "https://just-dev.freeduck.dev/v1/get_plan?price=%s&city=%s", price_zone, city);
+    FetchDescriptor s_fetch_descs[4];
 
-    g_s_fetch_descs[0] = (FetchDescriptor){
+    s_fetch_descs[0] = (FetchDescriptor){
         .id                  = "elpris",
-        .url                 = g_s_elpris_url,
-        .cache_key           = "fetch:elpris",
         .cache_ttl_sec       = 24U * 3600U,
         .schedule.type       = FETCH_SCHEDULE_DAILY,
         .schedule.daily_hour = 14,
         .fetch_on_startup    = true,
+        .build_url           = build_elpris_url,
+        .url_buf             = s_elpris_url,
+        .url_buf_size        = sizeof(s_elpris_url),
+        .cache_key_buf       = s_elpris_key,
+        .cache_key_buf_size  = sizeof(s_elpris_key),
     };
-
-    g_s_fetch_descs[1] = (FetchDescriptor){
+    s_fetch_descs[1] = (FetchDescriptor){
         .id                    = "weather_min",
-        .url                   = g_s_weather_min_url,
-        .cache_key             = "fetch:weather_min",
         .cache_ttl_sec         = 24U * 3600U,
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
         .fetch_on_startup      = true,
+        .build_url             = build_weather_min_url,
+        .url_buf               = s_weather_min_url,
+        .url_buf_size          = sizeof(s_weather_min_url),
+        .cache_key_buf         = s_weather_min_key,
+        .cache_key_buf_size    = sizeof(s_weather_min_key),
     };
-
-    g_s_fetch_descs[2] = (FetchDescriptor){
+    s_fetch_descs[2] = (FetchDescriptor){
         .id                    = "weather_hr",
-        .url                   = g_s_weather_hr_url,
-        .cache_key             = "fetch:weather_hr",
         .cache_ttl_sec         = 24U * 3600U,
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
         .fetch_on_startup      = true,
+        .build_url             = build_weather_hr_url,
+        .url_buf               = s_weather_hr_url,
+        .url_buf_size          = sizeof(s_weather_hr_url),
+        .cache_key_buf         = s_weather_hr_key,
+        .cache_key_buf_size    = sizeof(s_weather_hr_key),
     };
-
-    g_s_fetch_descs[3] = (FetchDescriptor){
+    s_fetch_descs[3] = (FetchDescriptor){
         .id                    = "energy_plan",
-        .url                   = g_s_energy_plan_url,
-        .cache_key             = "fetch:energy_plan",
         .cache_ttl_sec         = 24U * 3600U,
         .schedule.type         = FETCH_SCHEDULE_INTERVAL,
         .schedule.interval_sec = 15U * 60U,
         .fetch_on_startup      = true,
+        .build_url             = build_energy_plan_url,
+        .url_buf               = s_energy_plan_url,
+        .url_buf_size          = sizeof(s_energy_plan_url),
+        .cache_key_buf         = s_energy_plan_key,
+        .cache_key_buf_size    = sizeof(s_energy_plan_key),
     };
 
     DataFetcherConfig df_cfg = data_fetcher_default_config();
-    df_cfg.descriptors       = g_s_fetch_descs;
+    df_cfg.descriptors       = s_fetch_descs;
     df_cfg.descriptor_count  = 4;
     df_cfg.on_cached         = on_data_cached;
 
 #ifndef CONFIG_IDF_TARGET_LINUX
     data_fetcher_init(&df_cfg);
-    settings_manager_on_location_saved(on_location_saved);
 #endif
 
     /* ---- Main loop (1 s tick) ---- */
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
 
-        /* Clock and time-sync URL fixup */
+        /* Clock sync: open the data_fetcher clock gate exactly once.
+         * No URL rewriting or manual request_now needed — the weather_min
+         * build_url callback reads the live clock on every fetch attempt. */
         struct tm timeinfo;
         if (time_manager_get_time(&timeinfo)) {
             if (!g_time_synced) {
                 g_time_synced = true;
+                ESP_LOGI(g_tag, "Time synced (local hour=%d)", timeinfo.tm_hour);
                 data_fetcher_notify_time_sync();
-                snprintf(g_s_weather_min_url, sizeof(g_s_weather_min_url),
-                         "https://just-dev.freeduck.dev/v1/minutely?city=%s&hours=24&past_hours=%d",
-                         city, timeinfo.tm_hour + 1);
-                ESP_LOGI(g_tag, "Time synced — updating weather_min URL (past_hours=%d)",
-                         timeinfo.tm_hour + 1);
-                data_fetcher_request_now("weather_min");
             }
-            ui_binder_update_localtime(&timeinfo);
-            if (display_lvgl_lock(100)) {
+            if (display_lvgl_lock(0)) {
+                ui_binder_update_localtime(&timeinfo);
                 ui_tab_elpris_update_now();
                 display_lvgl_unlock();
             }
