@@ -1,3 +1,19 @@
+/**
+ * @file ui_tab_weather.c
+ * @ingroup ui
+ * @brief Weather tab — layout, 7-day forecast carousel and JSON data parsing.
+ *
+ * Builds the Weather tab content inside the home-screen TabView:
+ * - 7-day forecast carousel with day cards (name, WMO weather icon,
+ *   high/low temperatures) selectable via tap.
+ * - Hourly chart for the selected day (temperature, precipitation or wind)
+ *   with a draggable time cursor.
+ * - Manual refresh button wired to @ref ui_binder_on_weather_refresh().
+ *
+ * Weather data is supplied as a raw JSON string from the Open-Meteo API via
+ * @ref ui_tab_weather_handle_server_response(). Icons are resolved from WMO
+ * weather-interpretation codes using the table in @c ui_images_weather.h.
+ */
 #include "../ui.h"
 #include "../ui_theme.h"
 #include "../images/weather/ui_images_weather.h"
@@ -9,10 +25,21 @@
 #include <string.h>
 #include <time.h>
 
+/* Carousel controls */
+lv_obj_t* ui_panel_carousel      = NULL; /**< Horizontal flex container holding the 7 day-card buttons. */
+lv_obj_t* ui_btn_weather_refresh = NULL; /**< Button that triggers a manual weather data refresh. */
 
-lv_obj_t* ui_panel_carousel    = NULL;
-lv_obj_t* ui_btn_weather_refresh = NULL;
-
+/**
+ * @name 7-day forecast day cards (N = 1 … 7)
+ *
+ * Each day is represented by a tappable button card with four child widgets:
+ * - @c ui_btn_dayN         — tappable card button; tap selects the day and shows hourly detail.
+ * - @c ui_lbl_day_nameN    — abbreviated weekday name (e.g. "Mon").
+ * - @c ui_img_day_iconN    — weather icon resolved from the WMO interpretation code.
+ * - @c ui_lbl_day_hiN      — daily high temperature.
+ * - @c ui_lbl_day_loN      — daily low temperature.
+ * @{
+ */
 lv_obj_t* ui_btn_day1          = NULL;
 lv_obj_t* ui_lbl_day_name1     = NULL;
 lv_obj_t* ui_img_day_icon1     = NULL;
@@ -48,9 +75,11 @@ lv_obj_t* ui_lbl_day_name7     = NULL;
 lv_obj_t* ui_img_day_icon7     = NULL;
 lv_obj_t* ui_lbl_day_hi7       = NULL;
 lv_obj_t* ui_lbl_day_lo7       = NULL;
+/** @} */
 
-lv_obj_t* ui_panel_detail      = NULL;
-lv_obj_t* ui_lbl_detail_name   = NULL;
+/* Hourly detail panel (shown below the carousel when a day is selected) */
+lv_obj_t* ui_panel_detail      = NULL; /**< Container panel for the hourly chart and metadata. */
+lv_obj_t* ui_lbl_detail_name   = NULL; /**< Selected day name displayed above the hourly chart. */
 
 static const lv_image_dsc_t* weather_code_to_icon(int code) {
     if (code == 0 || code == 1 || code == 2) {
@@ -98,9 +127,9 @@ static void weather_date_to_weekday(const char* iso_date, char* out, size_t out_
     }
 }
 
-lv_obj_t* ui_lbl_detail_desc   = NULL;
-lv_obj_t* ui_lbl_detail_hi     = NULL;
-lv_obj_t* ui_lbl_detail_lo     = NULL;
+lv_obj_t* ui_lbl_detail_desc   = NULL; /**< Short weather description for the selected day (e.g. "Partly cloudy"). */
+lv_obj_t* ui_lbl_detail_hi     = NULL; /**< High temperature label in the detail panel. */
+lv_obj_t* ui_lbl_detail_lo     = NULL; /**< Low temperature label in the detail panel. */
 
 typedef struct {
     char wday[8];
@@ -124,16 +153,24 @@ static void on_weather_refresh(lv_event_t* e) {
 #define WEATHER_HR_MAX   200
 #define METRIC_COUNT     5
 
+/**
+ * @brief Selectable metric displayed in the hourly chart.
+ *
+ * Index values map directly to rows in @c g_hour_data.
+ */
 typedef enum {
-    METRIC_TEMP = 0,
-    METRIC_HUMIDITY,
-    METRIC_PRECIP,
-    METRIC_WIND,
-    METRIC_PRESSURE,
+    METRIC_TEMP = 0,  /**< Air temperature (°C × 10). */
+    METRIC_HUMIDITY,  /**< Relative humidity (%). */
+    METRIC_PRECIP,    /**< Precipitation (mm × 10). */
+    METRIC_WIND,      /**< Wind speed (km/h). */
+    METRIC_PRESSURE,  /**< Surface pressure (hPa). */
 } WeatherMetric;
 
-static int32_t   g_hour_data[METRIC_COUNT][WEATHER_HOUR_MAX];
-static int                g_hour_count = 0;
+/** Hourly metric values for the selected day; row index = @ref WeatherMetric. */
+static int32_t            g_hour_data[METRIC_COUNT][WEATHER_HOUR_MAX];
+/** Number of valid hourly entries currently stored in @c g_hour_data. */
+static int                g_hour_count    = 0;
+/** ISO-8601 time strings ("HH:MM") for each hourly point; shown at cursor. */
 static char               g_hour_times[WEATHER_HOUR_MAX][6];
 
 static int32_t   g_min_data[METRIC_COUNT][WEATHER_HOUR_MAX];
@@ -151,11 +188,17 @@ static int       g_hr_count = 0;
 static int       g_day_hr_start[7];
 static int       g_day_hr_count[7];
 
-static lv_obj_t*          g_chart      = NULL;
-static lv_chart_series_t* g_chart_ser  = NULL;
-static lv_obj_t*          g_dd_metric   = NULL;
-static lv_obj_t*          g_lbl_unit    = NULL;
+/** The LVGL line-chart widget displaying hourly data. */
+static lv_obj_t*          g_chart         = NULL;
+/** Active data series attached to @c g_chart. */
+static lv_chart_series_t* g_chart_ser     = NULL;
+/** Dropdown for selecting which metric to display on the chart. */
+static lv_obj_t*          g_dd_metric     = NULL;
+/** Label showing the unit of the currently selected metric (e.g. "°C", "%"). */
+static lv_obj_t*          g_lbl_unit      = NULL;
+/** Draggable cursor object on @c g_chart for inspecting individual hours. */
 static lv_chart_cursor_t* g_chart_cursor  = NULL;
+/** Label displayed at the cursor position showing the exact value and time. */
 static lv_obj_t*          g_lbl_chart_info = NULL;
 
 static void chart_update_metric(int m) {

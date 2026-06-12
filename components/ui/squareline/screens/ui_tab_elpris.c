@@ -1,3 +1,19 @@
+/**
+ * @file ui_tab_elpris.c
+ * @ingroup ui
+ * @brief Electricity price (Elpris) tab — layout, chart rendering and data parsing.
+ *
+ * Builds the Elpris tab content inside the home-screen TabView:
+ * - Summary row with current, high, low and average prices for the day.
+ * - LVGL line chart showing up to 96 hourly price points with colour-coded
+ *   zones (cheap / average / expensive) defined by @c ui_theme.h thresholds.
+ * - Animated cursor that tracks the current hour on the chart.
+ *
+ * Data is supplied via @ref ui_tab_elpris_handle_server_response() which
+ * parses the raw JSON from the price API. The current-hour highlight is
+ * refreshed by @ref ui_tab_elpris_update_now(), which should be called
+ * every hour.
+ */
 #include "../ui.h"
 #include "../ui_theme.h"
 #include "ui_scr_home.h"
@@ -7,29 +23,40 @@
 #include <string.h>
 #include <time.h>
 
-lv_obj_t* ui_panel_price_header  = NULL;
-lv_obj_t* ui_lbl_price_now       = NULL;
-lv_obj_t* ui_lbl_price_val       = NULL;
-lv_obj_t* ui_lbl_price_unit      = NULL;
-lv_obj_t* ui_lbl_price_hi        = NULL;
-lv_obj_t* ui_lbl_price_hi_time   = NULL;
-lv_obj_t* ui_lbl_price_lo        = NULL;
-lv_obj_t* ui_lbl_price_lo_time   = NULL;
-lv_obj_t* ui_lbl_price_avg       = NULL;
-lv_obj_t* ui_panel_chart         = NULL;
-lv_obj_t* ui_chart_elpris        = NULL;
-lv_obj_t* ui_chart_elpris_Xaxis  = NULL;
-lv_obj_t* ui_chart_elpris_Yaxis1 = NULL;
-lv_obj_t* ui_lbl_leg_cheap       = NULL;
-lv_obj_t* ui_lbl_leg_avg         = NULL;
-lv_obj_t* ui_lbl_leg_exp         = NULL;
-lv_obj_t* ui_lbl_leg_now         = NULL;
+/* Price summary row */
+lv_obj_t* ui_panel_price_header  = NULL; /**< Container for the price summary row at the top of the tab. */
+lv_obj_t* ui_lbl_price_now       = NULL; /**< "Now" heading label next to the current price. */
+lv_obj_t* ui_lbl_price_val       = NULL; /**< Current electricity price value (öre/kWh). */
+lv_obj_t* ui_lbl_price_unit      = NULL; /**< Unit label ("öre/kWh") displayed next to the value. */
+lv_obj_t* ui_lbl_price_hi        = NULL; /**< Today's highest price value. */
+lv_obj_t* ui_lbl_price_hi_time   = NULL; /**< Time of day when today's highest price occurs. */
+lv_obj_t* ui_lbl_price_lo        = NULL; /**< Today's lowest price value. */
+lv_obj_t* ui_lbl_price_lo_time   = NULL; /**< Time of day when today's lowest price occurs. */
+lv_obj_t* ui_lbl_price_avg       = NULL; /**< Today's average price value. */
 
+/* Chart area */
+lv_obj_t* ui_panel_chart         = NULL; /**< Container panel holding the price chart and its axes. */
+lv_obj_t* ui_chart_elpris        = NULL; /**< LVGL line chart displaying up to 96 hourly price points. */
+lv_obj_t* ui_chart_elpris_Xaxis  = NULL; /**< X-axis decoration object (time labels). */
+lv_obj_t* ui_chart_elpris_Yaxis1 = NULL; /**< Y-axis decoration object (price labels). */
+
+/* Chart legend */
+lv_obj_t* ui_lbl_leg_cheap       = NULL; /**< Legend marker for the cheap price zone (green). */
+lv_obj_t* ui_lbl_leg_avg         = NULL; /**< Legend marker for the average price zone (amber). */
+lv_obj_t* ui_lbl_leg_exp         = NULL; /**< Legend marker for the expensive price zone (red). */
+lv_obj_t* ui_lbl_leg_now         = NULL; /**< Legend marker for the current-hour cursor line. */
+
+/** Hourly price values in öre (price_kr × 100) for up to 96 points (4 days). */
 static lv_coord_t         elpris_data[96];
+/** LVGL chart data series associated with @c elpris_data. */
 static lv_chart_series_t* elpris_series = NULL;
+/** Index into @c elpris_data for the current hour; -1 if not yet set. */
 static int                g_now_index   = -1;
+/** Index of the cheapest hour in @c elpris_data; -1 if not yet set. */
 static int                g_min_index   = -1;
+/** Index of the most expensive hour in @c elpris_data; -1 if not yet set. */
 static int                g_max_index   = -1;
+/** Index of the hour whose price is closest to the daily average; -1 if not yet set. */
 static int                g_avg_index   = -1;
 static float              g_raw[96]     = {0};
 static float              g_avg_price   = 0.0f;

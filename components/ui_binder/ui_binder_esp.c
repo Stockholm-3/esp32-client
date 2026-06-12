@@ -118,6 +118,7 @@ static void on_wifi_sw_changed(lv_event_t* e) {
 void ui_binder_init(void) {
     load_mock_elpris();
     lv_obj_add_event_cb(ui_ta_locationinput, on_location_defocused, LV_EVENT_DEFOCUSED, NULL);
+    lv_obj_add_event_cb(ui_ta_locationinput, on_location_defocused, LV_EVENT_READY, NULL);
     lv_obj_add_event_cb(ui_dd_price, on_price_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_dd_timeout, on_timeout_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(ui_sw_ap_enabled, on_ap_enabled_changed, LV_EVENT_VALUE_CHANGED, NULL);

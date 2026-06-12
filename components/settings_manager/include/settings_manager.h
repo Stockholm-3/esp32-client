@@ -17,6 +17,9 @@ uint8_t settings_manager_get_all_networks(SavedWifiNetwork* out_list, uint8_t ma
 void settings_manager_remove_wifi(const char* ssid);
 
 void settings_manager_save_location(const char* city);
+
+typedef void (*settings_manager_location_cb_t)(const char* city);
+void settings_manager_on_location_saved(settings_manager_location_cb_t cb);
 void settings_manager_save_price_zone(int index);
 void settings_manager_save_timeout(int index);
 
