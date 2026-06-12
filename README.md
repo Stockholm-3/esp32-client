@@ -186,6 +186,29 @@ Start with `break app_main` then `run` to stop at the entry point and step from 
 | `make lint-fix` | Attempt to automatically apply safe linter suggestions. |
 | `make format-check` | Dry-run for CI to ensure code meets style guidelines. |
 
+### Testing
+
+Run unit test on esp.
+```bash
+make test-monitor
+```
+
+### UART CLI INTERFACE
+
+To run the CLI interface make sure to connect your USB-C cable to the UART1 port on the esp and also make sure the switch is on UART1. After than you can simply run the following:
+```bash
+make monitor
+```
+AVAILABLE COMMANDS
+help            — show available commands
+status          — system telemetry
+sensor          — BME280 reading
+backlight       — set backlight 0-255
+simulate_touch  — simulate touch event
+test_backlight  — run backlight test (~5s)
+restart         — software reset
+
+
 ---
 
 ## Project Structure
