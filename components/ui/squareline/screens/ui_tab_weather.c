@@ -419,13 +419,36 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len, int ski
         int prev_is_day = -1;
         g_sunrise_time[0] = '\0';
         g_sunset_time[0]  = '\0';
+
+        // Prefer direct daily sunrise/sunset from backend (exact times, always present)
+        cJSON* sunrise_json = cJSON_GetObjectItemCaseSensitive(data, "sunrise");
+        cJSON* sunset_json  = cJSON_GetObjectItemCaseSensitive(data, "sunset");
+        if (cJSON_IsString(sunrise_json) && sunrise_json->valuestring[0])
+            weather_timestamp_to_label(sunrise_json->valuestring, g_sunrise_time, sizeof(g_sunrise_time));
+        if (cJSON_IsString(sunset_json) && sunset_json->valuestring[0])
+            weather_timestamp_to_label(sunset_json->valuestring, g_sunset_time, sizeof(g_sunset_time));
+
         for (int i = 0; i < count && n < WEATHER_HOUR_MAX; i++) {
             cJSON* item     = cJSON_GetArrayItem(forecast, i);
             if (!cJSON_IsObject(item)) break;
             cJSON* time_obj  = cJSON_GetObjectItemCaseSensitive(item, "time");
             if (!cJSON_IsString(time_obj)) continue;
-            const char* ts2 = time_obj->valuestring;
-            if (strncmp(ts2, today, 10) != 0) continue;  // skip other days
+            const char* ts2  = time_obj->valuestring;
+            bool is_today    = (strncmp(ts2, today, 10) == 0);
+
+            // Fallback: detect sunrise/sunset via is_day transitions if direct fields missing
+            cJSON* day_obj   = cJSON_GetObjectItemCaseSensitive(item, "is_day");
+            int is_day_val   = cJSON_IsNumber(day_obj) ? day_obj->valueint : 1;
+
+            if (is_today && prev_is_day >= 0 && is_day_val != prev_is_day) {
+                if (is_day_val == 1 && g_sunrise_time[0] == '\0')
+                    weather_timestamp_to_label(ts2, g_sunrise_time, sizeof(g_sunrise_time));
+                else if (is_day_val == 0 && g_sunset_time[0] == '\0')
+                    weather_timestamp_to_label(ts2, g_sunset_time, sizeof(g_sunset_time));
+            }
+            prev_is_day = is_day_val;
+
+            if (!is_today) continue;  // skip metric data for other days
 
             cJSON* temp_obj  = cJSON_GetObjectItemCaseSensitive(item, "temperature");
             cJSON* hum_obj   = cJSON_GetObjectItemCaseSensitive(item, "humidity");
@@ -435,16 +458,6 @@ void ui_tab_weather_handle_server_response(const char* json, size_t len, int ski
             cJSON* code2_obj = cJSON_GetObjectItemCaseSensitive(item, "weather_code");
             cJSON* desc2_obj = cJSON_GetObjectItemCaseSensitive(item, "weather_description");
             cJSON* feel_obj  = cJSON_GetObjectItemCaseSensitive(item, "apparent_temperature");
-            cJSON* day_obj   = cJSON_GetObjectItemCaseSensitive(item, "is_day");
-            int is_day_val   = cJSON_IsNumber(day_obj) ? day_obj->valueint : 1;
-
-            if (prev_is_day >= 0 && is_day_val != prev_is_day) {
-                if (is_day_val == 1)
-                    weather_timestamp_to_label(ts2, g_sunrise_time, sizeof(g_sunrise_time));
-                else
-                    weather_timestamp_to_label(ts2, g_sunset_time, sizeof(g_sunset_time));
-            }
-            prev_is_day = is_day_val;
 
             g_min_data[METRIC_TEMP][n]     = cJSON_IsNumber(temp_obj)  ? (int32_t)round(temp_obj->valuedouble)      : 0;
             g_min_data[METRIC_HUMIDITY][n] = cJSON_IsNumber(hum_obj)   ? (int32_t)round(hum_obj->valuedouble)       : 0;
